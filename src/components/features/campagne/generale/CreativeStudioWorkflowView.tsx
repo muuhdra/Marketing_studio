@@ -128,10 +128,11 @@ export default function CreativeStudioWorkflowView() {
 
     try {
       const job = await actionSubmitVideo({
-        prompt:      `${script.hook} ${script.voiceover}`,
-        model:       'kling-video/v1.6/standard/text-to-video',
-        duration:    duration <= 10 ? 5 : 10,
-        aspectRatio: aspect === '9:16' ? '9:16' : aspect === '16:9' ? '16:9' : '1:1',
+        prompt:       `${script.hook} ${script.voiceover}`,
+        engine:       'kling',
+        klingVersion: 'v1.6-standard',
+        duration:     duration <= 10 ? 5 : 10,
+        aspectRatio:  aspect === '9:16' ? '9:16' : aspect === '16:9' ? '16:9' : '1:1',
       })
       setVideoJob(job)
       toast.info(`Job soumis (ID: ${job.generationId.slice(0, 8)}...) — polling toutes les 10s`)

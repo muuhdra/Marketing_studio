@@ -1,63 +1,75 @@
 /**
  * AIML API — Génération d'images
  *
- * Usages : visuels campagne, moodboards, thumbnails, avatars
- * Modèles : Flux Pro, DALL-E 3, Stable Diffusion
+ * Nano Banana  → génération rapide, style unique, créatif
+ * Flux Pro     → haute qualité commerciale, photoréaliste
+ *
+ * Les deux via la même clé AIMLAPI_KEY.
  */
 
 import { createAimlClient, MODELS } from './client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ImageModel = 'flux/schnell' | 'flux-pro/v1.1' | 'dall-e-3'
-export type ImageSize  =
-  | '1024x1024'
+export type ImageGenerationModel = 'nano-banana' | 'flux-pro' | 'flux-fast'
+
+export type ImageSize =
+  | '1024x1024'   // carré 1:1
   | '1792x1024'   // paysage 16:9
   | '1024x1792'   // portrait 9:16
   | '1344x768'    // 16:9 compact
 
 export interface GenerateImageParams {
   prompt:      string
-  model?:      ImageModel
+  model?:      ImageGenerationModel
   size?:       ImageSize
   quality?:    'standard' | 'hd'
-  style?:      'vivid' | 'natural'         // DALL-E uniquement
-  n?:          number                      // nombre d'images (max 4)
+  n?:          number
 }
 
 export interface ImageResult {
-  url:         string
+  url:          string
   revisedPrompt?: string
-  model:       string
+  model:        string
+}
+
+// ─── Résolution du model ID AIML ─────────────────────────────────────────────
+
+function resolveImageModel(choice?: ImageGenerationModel): string {
+  switch (choice) {
+    case 'nano-banana': return MODELS.image.nanoBanana
+    case 'flux-fast':   return MODELS.image.fluxFast
+    case 'flux-pro':
+    default:            return MODELS.image.fluxPro
+  }
 }
 
 // ─── Génération d'image ───────────────────────────────────────────────────────
 
 export async function generateImage(params: GenerateImageParams): Promise<ImageResult[]> {
-  const client = createAimlClient()
-  const model  = params.model ?? MODELS.image.quality
+  const client  = createAimlClient()
+  const modelId = resolveImageModel(params.model)
 
   const response = await client.images.generate({
-    model,
+    model:   modelId,
     prompt:  params.prompt,
     n:       params.n ?? 1,
-    size:    (params.size ?? '1024x1024') as Parameters<typeof client.images.generate>[0]['size'],
-    quality: params.quality ?? 'standard',
-    // style uniquement pour DALL-E
-    ...(model === 'dall-e-3' && params.style ? { style: params.style } : {}),
+    size:    (params.size ?? '1024x1024') as '1024x1024' | '1792x1024' | '1024x1792' | '256x256' | '512x512',
+    quality: (params.quality ?? 'standard') as 'standard' | 'hd',
   })
 
-  return (response.data ?? []).map((img) => ({
+  const resData = (response as { data?: { url?: string; revised_prompt?: string }[] }).data ?? []
+  return resData.map((img) => ({
     url:           img.url ?? '',
     revisedPrompt: img.revised_prompt,
-    model,
+    model:         modelId,
   }))
 }
 
-// ─── Prompts prêts à l'emploi ────────────────────────────────────────────────
+// ─── Fonctions prêtes à l'emploi ─────────────────────────────────────────────
 
 /**
- * Génère un visuel de campagne à partir de l'ADN
+ * Visuel campagne — Flux Pro (photoréalisme commercial)
  */
 export async function generateCampaignVisual(options: {
   campaignName: string
@@ -70,17 +82,16 @@ export async function generateCampaignVisual(options: {
     '9:16': '1024x1792',
     '1:1':  '1024x1024',
   }
-  const size = sizeMap[options.format ?? '16:9']
 
   const prompt = `Professional marketing campaign visual for "${options.campaignName}".
-Style: ${options.style ?? 'modern, clean, high-end commercial photography'}.
+Style: ${options.style ?? 'modern clean high-end commercial photography'}.
 Brief: ${options.dna.slice(0, 300)}.
-Ultra HD, 8K quality, cinematic lighting, no text overlays.`
+Ultra HD quality, cinematic lighting, no text overlays, no watermarks.`
 
   const results = await generateImage({
     prompt,
-    model: MODELS.image.quality,
-    size,
+    model:   'flux-pro',
+    size:    sizeMap[options.format ?? '16:9'],
     quality: 'hd',
   })
 
@@ -88,7 +99,26 @@ Ultra HD, 8K quality, cinematic lighting, no text overlays.`
 }
 
 /**
- * Génère une photo d'avatar IA
+ * Moodboard créatif — Nano Banana (style unique, 4 variations rapides)
+ */
+export async function generateMoodboard(
+  campaignDna: string,
+  count: number = 4,
+): Promise<ImageResult[]> {
+  const prompt = `Creative moodboard image for a marketing campaign.
+Concept: ${campaignDna.slice(0, 400)}.
+Style: editorial photography, diverse perspectives, artistic composition.`
+
+  return generateImage({
+    prompt,
+    model: 'nano-banana',   // Nano Banana = rapid creative exploration
+    size:  '1024x1024',
+    n:     Math.min(count, 4),
+  })
+}
+
+/**
+ * Photo avatar IA — Flux Pro (photoréalisme portrait)
  */
 export async function generateAvatarPhoto(options: {
   name:       string
@@ -97,18 +127,20 @@ export async function generateAvatarPhoto(options: {
   style?:     string
   setting?:   string
 }): Promise<ImageResult> {
-  const prompt = `Professional portrait photo of a person.
-${options.ethnicity ? `Ethnicity: ${options.ethnicity}.` : ''}
-${options.age ? `Age: approximately ${options.age} years old.` : ''}
-${options.style ? `Style: ${options.style}.` : ''}
-${options.setting ? `Setting: ${options.setting}.` : 'Clean neutral background.'}
-High-end photography, natural lighting, authentic look, no text, no watermarks.
-This is a digital avatar for marketing content creation.`
+  const prompt = [
+    'Professional portrait photo of a person.',
+    options.ethnicity ? `Ethnicity: ${options.ethnicity}.` : '',
+    options.age       ? `Age approximately ${options.age} years old.` : '',
+    options.style     ? `Style: ${options.style}.` : '',
+    options.setting   ? `Setting: ${options.setting}.` : 'Clean neutral background, studio lighting.',
+    'High-end photography, natural lighting, authentic look, no text, no watermarks.',
+    'Digital marketing avatar, professional quality.',
+  ].filter(Boolean).join(' ')
 
   const results = await generateImage({
     prompt,
-    model: MODELS.image.quality,
-    size:  '1024x1792',  // portrait
+    model:   'flux-pro',
+    size:    '1024x1792',
     quality: 'hd',
   })
 
@@ -116,21 +148,28 @@ This is a digital avatar for marketing content creation.`
 }
 
 /**
- * Génère un moodboard (4 images variées)
+ * Thumbnail vidéo — Nano Banana (rapide, impact visuel)
  */
-export async function generateMoodboard(
-  campaignDna: string,
-  count: number = 4,
-): Promise<ImageResult[]> {
-  const prompt = `Moodboard image for a marketing campaign.
-Concept: ${campaignDna.slice(0, 400)}.
-Style: editorial photography, high-end commercial, diverse perspectives.
-Clean composition, professional quality.`
+export async function generateVideoThumbnail(options: {
+  title:   string
+  style?:  string
+  format?: '16:9' | '9:16' | '1:1'
+}): Promise<ImageResult> {
+  const sizeMap: Record<string, ImageSize> = {
+    '16:9': '1792x1024',
+    '9:16': '1024x1792',
+    '1:1':  '1024x1024',
+  }
 
-  return generateImage({
+  const prompt = `Eye-catching video thumbnail for "${options.title}".
+Style: ${options.style ?? 'vibrant, bold, high contrast, social media optimized'}.
+No text overlays. Maximum visual impact, professional quality.`
+
+  const results = await generateImage({
     prompt,
-    model: MODELS.image.fast,  // Flux Schnell pour le moodboard (rapidité)
-    size:  '1024x1024',
-    n:     Math.min(count, 4),
+    model: 'nano-banana',
+    size:  sizeMap[options.format ?? '16:9'],
   })
+
+  return results[0]
 }

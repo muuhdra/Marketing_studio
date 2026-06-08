@@ -1,8 +1,8 @@
 /**
- * AIML API — Génération de vidéo
+ * AIML API — Génération vidéo async
  *
- * Usages : UGC, commerciaux, vidéos avatar
- * Modèles : Kling v2.1, Seedance, Hailuo (MiniMax)
+ * Kling AI    → UGC réaliste, vidéos avatar, image-to-video
+ * Seedance    → style cinématique ByteDance, mouvement fluide
  *
  * Pattern async :
  *   1. POST → { generation_id }
@@ -14,32 +14,31 @@ import { aimlFetch } from './client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type VideoModel =
-  | 'kling-video/v1.6/standard/text-to-video'
-  | 'kling-video/v2.1/standard/text-to-video'
-  | 'kling-video/v2.1/pro/text-to-video'
-  | 'seedance-1-lite'
-  | 'seedance-1-pro'
-
+export type VideoEngine      = 'kling' | 'seedance'
+export type KlingVersion     = 'v1.6-standard' | 'v2.1-standard' | 'v2.1-pro'
+export type SeedanceVersion  = 'lite' | 'pro'
 export type VideoAspectRatio = '9:16' | '16:9' | '1:1' | '4:3'
-export type VideoDuration    = 5 | 10 | 15 | 30
+export type VideoDuration    = 5 | 10
 
 export interface GenerateVideoParams {
-  prompt:       string
-  model?:       VideoModel
-  imageUrl?:    string             // image-to-video (si fourni)
-  duration?:    VideoDuration
-  aspectRatio?: VideoAspectRatio
+  prompt:          string
+  engine?:         VideoEngine
+  klingVersion?:   KlingVersion
+  seedanceVersion?: SeedanceVersion
+  imageUrl?:       string          // image-to-video
+  duration?:       VideoDuration
+  aspectRatio?:    VideoAspectRatio
   negativePrompt?: string
 }
 
 export interface VideoJob {
-  generationId: string
-  status:       'pending' | 'in_progress' | 'completed' | 'failed'
-  videoUrl?:    string
+  generationId:  string
+  status:        'pending' | 'in_progress' | 'completed' | 'failed'
+  videoUrl?:     string
   thumbnailUrl?: string
-  error?:       string
-  model:        string
+  error?:        string
+  engine:        VideoEngine
+  modelId:       string
 }
 
 interface AimlVideoResponse {
@@ -49,37 +48,68 @@ interface AimlVideoResponse {
   error?:  string
 }
 
-// ─── Soumettre une génération vidéo ──────────────────────────────────────────
+// ─── Résolution du model ID ───────────────────────────────────────────────────
 
-export async function submitVideoGeneration(params: GenerateVideoParams): Promise<VideoJob> {
-  const model = params.model ?? 'kling-video/v1.6/standard/text-to-video'
+function resolveVideoModelId(params: GenerateVideoParams): string {
+  const engine = params.engine ?? 'kling'
 
-  const body: Record<string, unknown> = {
-    model,
-    prompt:          params.prompt,
-    duration:        params.duration ?? 5,
-    aspect_ratio:    params.aspectRatio ?? '9:16',
+  if (engine === 'seedance') {
+    return params.seedanceVersion === 'pro'
+      ? 'seedance-1-pro'
+      : 'seedance-1-lite'
   }
 
-  if (params.imageUrl)       body.image_url        = params.imageUrl
-  if (params.negativePrompt) body.negative_prompt  = params.negativePrompt
+  // Kling AI (défaut)
+  switch (params.klingVersion ?? 'v1.6-standard') {
+    case 'v2.1-pro':      return 'kling-video/v2.1/pro/text-to-video'
+    case 'v2.1-standard': return 'kling-video/v2.1/standard/text-to-video'
+    case 'v1.6-standard':
+    default:              return 'kling-video/v1.6/standard/text-to-video'
+  }
+}
+
+function resolveImg2VidModelId(params: GenerateVideoParams): string {
+  // Kling image-to-video
+  return params.klingVersion === 'v2.1-pro'
+    ? 'kling-video/v2.1/pro/image-to-video'
+    : 'kling-video/v1.6/standard/image-to-video'
+}
+
+// ─── Soumettre un job vidéo ───────────────────────────────────────────────────
+
+export async function submitVideoGeneration(params: GenerateVideoParams): Promise<VideoJob> {
+  const engine  = params.engine ?? 'kling'
+  const modelId = params.imageUrl
+    ? resolveImg2VidModelId(params)
+    : resolveVideoModelId(params)
+
+  const body: Record<string, unknown> = {
+    model:        modelId,
+    prompt:       params.prompt,
+    duration:     params.duration ?? 5,
+    aspect_ratio: params.aspectRatio ?? '9:16',
+  }
+
+  if (params.imageUrl)       body.image_url       = params.imageUrl
+  if (params.negativePrompt) body.negative_prompt = params.negativePrompt
 
   const response = await aimlFetch<AimlVideoResponse>('/video/generations', {
-    method: 'POST',
-    body:   JSON.stringify(body),
+    method:  'POST',
+    body:    JSON.stringify(body),
     version: 'v2',
   })
 
   return {
     generationId: response.id,
     status:       'pending',
-    model,
+    engine,
+    modelId,
   }
 }
 
-// ─── Récupérer le statut d'un job ────────────────────────────────────────────
+// ─── Récupérer le statut ──────────────────────────────────────────────────────
 
-export async function getVideoStatus(generationId: string): Promise<VideoJob> {
+export async function getVideoStatus(generationId: string, engine: VideoEngine = 'kling'): Promise<VideoJob> {
   const response = await aimlFetch<AimlVideoResponse>(
     `/video/generations?generation_id=${generationId}`,
     { method: 'GET', version: 'v2' },
@@ -93,25 +123,23 @@ export async function getVideoStatus(generationId: string): Promise<VideoJob> {
     videoUrl:     firstOutput?.url,
     thumbnailUrl: firstOutput?.thumbnail,
     error:        response.error,
-    model:        '',
+    engine,
+    modelId:      '',
   }
 }
 
-// ─── Polling jusqu'à completion ──────────────────────────────────────────────
+// ─── Polling complet (usage serveur uniquement) ───────────────────────────────
 
-/**
- * Poll un job vidéo toutes les `intervalMs` ms jusqu'à completion ou timeout.
- * À utiliser côté serveur uniquement (Server Action ou API route).
- */
 export async function waitForVideo(
   generationId: string,
+  engine: VideoEngine = 'kling',
   options: { intervalMs?: number; timeoutMs?: number } = {},
 ): Promise<VideoJob> {
-  const { intervalMs = 5000, timeoutMs = 300_000 } = options  // 5 min max
+  const { intervalMs = 8000, timeoutMs = 300_000 } = options
   const deadline = Date.now() + timeoutMs
 
   while (Date.now() < deadline) {
-    const job = await getVideoStatus(generationId)
+    const job = await getVideoStatus(generationId, engine)
 
     if (job.status === 'completed') return job
     if (job.status === 'failed')    throw new Error(job.error ?? 'Video generation failed')
@@ -122,47 +150,49 @@ export async function waitForVideo(
   throw new Error(`Video generation timeout after ${timeoutMs / 1000}s`)
 }
 
-// ─── Génération complète (submit + wait) ─────────────────────────────────────
+// ─── Helpers de prompt ────────────────────────────────────────────────────────
 
-/**
- * Génère une vidéo et attend le résultat.
- * ⚠️ Peut prendre 2-5 min — à appeler depuis un job background (ex: Trigger.dev)
- * ou une API route avec streaming/long-polling.
- */
-export async function generateVideo(params: GenerateVideoParams): Promise<VideoJob> {
-  const job = await submitVideoGeneration(params)
-  return waitForVideo(job.generationId)
-}
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function mapStatus(raw?: string): VideoJob['status'] {
-  if (!raw)               return 'pending'
-  if (raw === 'completed') return 'completed'
-  if (raw === 'failed')    return 'failed'
-  if (raw === 'queued')    return 'pending'
-  return 'in_progress'
-}
-
-// ─── Prompts UGC prêts à l'emploi ───────────────────────────────────────────
-
-export function buildUgcPrompt(options: {
-  avatarName?:   string
-  avatarStyle?:  string
-  product:       string
-  hook:          string
-  setting?:      string
+/** Construit un prompt UGC optimisé pour Kling */
+export function buildKlingUgcPrompt(options: {
+  avatarName?:  string
+  avatarStyle?: string
+  hook:         string
+  product:      string
+  setting?:     string
 }): string {
   return [
     options.hook,
     options.avatarName
-      ? `A ${options.avatarStyle ?? 'authentic'} content creator named ${options.avatarName}`
+      ? `A ${options.avatarStyle ?? 'authentic relatable'} person named ${options.avatarName}`
       : 'A relatable content creator',
     `talks about ${options.product}.`,
-    options.setting
-      ? `Setting: ${options.setting}.`
-      : 'Indoor, natural lighting, casual authentic atmosphere.',
-    'Vertical video, 9:16 format, TikTok/Reels style.',
-    'High quality, cinematic, authentic UGC feel.',
+    options.setting ?? 'Indoor, natural lighting, casual authentic atmosphere.',
+    'Vertical 9:16, TikTok/Reels style, high quality UGC feel, cinematic.',
   ].join(' ')
+}
+
+/** Construit un prompt cinématique optimisé pour Seedance */
+export function buildSeedanceCinematicPrompt(options: {
+  scene:        string
+  mood:         string
+  product?:     string
+  cameraMove?:  string
+}): string {
+  return [
+    options.scene,
+    `Mood: ${options.mood}.`,
+    options.product ? `Featuring ${options.product}.` : '',
+    options.cameraMove ?? 'Smooth camera movement, dynamic angles.',
+    'Cinematic quality, professional color grading, 8K resolution.',
+  ].filter(Boolean).join(' ')
+}
+
+// ─── Helper interne ───────────────────────────────────────────────────────────
+
+function mapStatus(raw?: string): VideoJob['status'] {
+  if (!raw)                return 'pending'
+  if (raw === 'completed') return 'completed'
+  if (raw === 'failed')    return 'failed'
+  if (raw === 'queued')    return 'pending'
+  return 'in_progress'
 }

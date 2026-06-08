@@ -1,12 +1,13 @@
 /**
  * AIML API — Client unifié
  *
- * AIML API est OpenAI-compatible → on utilise le SDK openai avec baseURL custom.
- * Pour les endpoints video/TTS (v2), on passe par fetch directement.
+ * Une seule clé (AIMLAPI_KEY) donne accès à tous les modèles.
+ * SDK OpenAI-compatible pour v1 (text + image).
+ * fetch natif pour v2 (vidéo async, TTS avancé).
  *
  * Docs : https://docs.aimlapi.com
  * Base : https://api.aimlapi.com/v1  (text + image)
- *        https://api.aimlapi.com/v2  (video + tts avancé)
+ *        https://api.aimlapi.com/v2  (video + tts)
  */
 
 import OpenAI from 'openai'
@@ -16,32 +17,64 @@ import OpenAI from 'openai'
 export const AIML_BASE_V1 = 'https://api.aimlapi.com/v1'
 export const AIML_BASE_V2 = 'https://api.aimlapi.com/v2'
 
-// Modèles recommandés par usage
+/**
+ * Modèles utilisés dans Marketing Studio — tous accessibles via AIML API.
+ *
+ * 1. TEXTE     → Claude (Anthropic) + ChatGPT (OpenAI)
+ * 2. IMAGE     → Nano Banana + Flux (Black Forest Labs)
+ * 3. VIDÉO     → Kling AI + Seedance (ByteDance)
+ * 4. VOIX/TTS  → ElevenLabs + MiniMax
+ */
 export const MODELS = {
-  // Texte — orchestration, scripts, copy
+
+  // ── 1. Texte ─────────────────────────────────────────────────────────────
   text: {
-    fast:    'gpt-4o-mini',                // rapide + économique
-    smart:   'gpt-4o',                     // qualité prod
-    pro:     'claude-opus-4-5',            // raisonnement complexe (stratégie)
+    // ChatGPT — scripts, copy, hooks (rapide)
+    chatgpt:      'gpt-4o',
+    chatgptFast:  'gpt-4o-mini',
+    // Claude — stratégie, orchestration, raisonnement complexe
+    claude:       'claude-opus-4-5',
+    claudeFast:   'claude-3-5-haiku-20241022',
   },
-  // Image — visuels campagne
+
+  // ── 2. Image ─────────────────────────────────────────────────────────────
   image: {
-    fast:    'flux/schnell',               // 4 étapes, <5s
-    quality: 'flux-pro/v1.1',             // haute qualité
-    hd:      'dall-e-3',                   // OpenAI DALL-E 3
+    // Nano Banana — génération rapide, style unique
+    nanoBanana:   'nanobanana',
+    // Flux — haute qualité, usage commercial
+    fluxPro:      'flux-pro/v1.1',
+    fluxFast:     'flux/schnell',
   },
-  // Vidéo — UGC, commerciaux
+
+  // ── 3. Vidéo ─────────────────────────────────────────────────────────────
   video: {
-    fast:    'kling-video/v1.6/standard/text-to-video',  // standard ~2min
-    pro:     'kling-video/v2.1/pro/text-to-video',       // pro ~5min
-    seedance: 'seedance-1-lite',                          // ByteDance
+    // Kling AI — UGC réaliste, vidéos avatar
+    klingStandard:  'kling-video/v1.6/standard/text-to-video',
+    klingPro:       'kling-video/v2.1/pro/text-to-video',
+    klingImg2Vid:   'kling-video/v2.1/pro/image-to-video',
+    // Seedance — ByteDance, style cinématique
+    seedanceLite:   'seedance-1-lite',
+    seedancePro:    'seedance-1-pro',
   },
-  // TTS — voix avatars
+
+  // ── 4. Voix / TTS ────────────────────────────────────────────────────────
   tts: {
-    default: 'eleven_multilingual_v2',     // ElevenLabs via AIML
-    openai:  'tts-1-hd',                   // OpenAI TTS
+    // ElevenLabs — clonage vocal, multilingue, émotionnel
+    elevenLabs:     'eleven_multilingual_v2',
+    elevenTurbo:    'eleven_turbo_v2_5',
+    // MiniMax — TTS haute qualité, voix expressives
+    minimax:        'minimax-speech-01',
+    minimaxHD:      'minimax-speech-01-hd',
   },
+
 } as const
+
+// ─── Types utilitaires ───────────────────────────────────────────────────────
+
+export type TextModel  = typeof MODELS.text[keyof typeof MODELS.text]
+export type ImageModel = typeof MODELS.image[keyof typeof MODELS.image]
+export type VideoModel = typeof MODELS.video[keyof typeof MODELS.video]
+export type TtsModel   = typeof MODELS.tts[keyof typeof MODELS.tts]
 
 // ─── Client OpenAI-compatible ────────────────────────────────────────────────
 

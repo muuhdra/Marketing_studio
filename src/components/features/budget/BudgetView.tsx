@@ -5,12 +5,12 @@ import Button from '@/components/ui/Button'
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
-// Providers via AIML API (même provider, usages différents)
+// Modèles utilisés — tous facturés via AIML API (une seule clé)
 const PROVIDERS = [
-  { name: 'Kling v2.1 Pro',        role: 'Vidéo UGC & Commerciaux', usd: 18.60, pct: 42, color: 'bg-accent',  text: 'text-accent',  border: 'border-accent',         icon: '🎬' },
-  { name: 'GPT-4o / Claude Opus',  role: 'Scripts, Copy, Stratégie', usd: 11.40, pct: 26, color: 'bg-purple', text: 'text-purple',  border: 'border-border-purple',  icon: '🧠' },
-  { name: 'Flux Pro v1.1',         role: 'Visuels & Moodboards',     usd: 7.20,  pct: 16, color: 'bg-teal',   text: 'text-teal',    border: 'border-border-teal',    icon: '🖼️' },
-  { name: 'ElevenLabs v2',         role: 'Voix Off & Avatar Audio',  usd: 7.00,  pct: 16, color: 'bg-coral',  text: 'text-coral',   border: 'border-border-coral',   icon: '🎙️' },
+  { name: 'Kling AI + Seedance',  role: 'Vidéo UGC & Cinématique',  usd: 18.60, pct: 42, color: 'bg-accent',  text: 'text-accent',  border: 'border-accent',        icon: '🎬', sub: 'Kling v2.1 Pro · Seedance Pro' },
+  { name: 'Claude + ChatGPT',     role: 'Scripts, Copy, Stratégie', usd: 11.40, pct: 26, color: 'bg-purple', text: 'text-purple',  border: 'border-border-purple', icon: '🧠', sub: 'Claude Opus 4 · GPT-4o'        },
+  { name: 'Flux + Nano Banana',   role: 'Visuels & Moodboards',     usd: 7.20,  pct: 16, color: 'bg-teal',   text: 'text-teal',    border: 'border-border-teal',   icon: '🖼️', sub: 'Flux Pro · Nano Banana'         },
+  { name: 'ElevenLabs + MiniMax', role: 'Voix Off & Clonage Vocal', usd: 7.00,  pct: 16, color: 'bg-coral',  text: 'text-coral',   border: 'border-border-coral',  icon: '🎙️', sub: 'ElevenLabs v2 · MiniMax HD'    },
 ]
 
 const HISTORY = [
@@ -130,6 +130,7 @@ export default function BudgetView() {
                     <div>
                       <span className={`font-mono text-[12px] font-bold ${p.text}`}>{p.name}</span>
                       <span className="font-mono text-[10px] text-text-dim ml-2">{p.role}</span>
+                      {'sub' in p && <div className="font-mono text-[9px] text-text-dim/60 mt-0.5">{(p as any).sub}</div>}
                     </div>
                   </div>
                   <div className="text-right">

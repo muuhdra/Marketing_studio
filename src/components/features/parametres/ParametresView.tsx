@@ -48,12 +48,44 @@ const API_KEYS: ApiKey[] = [
   },
 ]
 
-// Modèles disponibles via AIML API
+// Modèles actifs dans Marketing Studio — tous via AIML API (une seule clé)
 const AIML_MODELS = [
-  { category: 'Texte & Scripts',  models: ['GPT-4o', 'Claude Opus 4', 'Llama 3.3', 'Gemini 2.0 Flash'],              color: 'text-accent  border-accent/30  bg-accent/5'   },
-  { category: 'Génération Image', models: ['Flux Pro v1.1', 'Flux Schnell', 'DALL-E 3', 'Stable Diffusion 3.5'],      color: 'text-teal    border-border-teal  bg-teal/5'    },
-  { category: 'Génération Vidéo', models: ['Kling v2.1 Pro', 'Kling v1.6', 'Seedance 1.0', 'Hailuo 2.3', 'Sora 2'],  color: 'text-purple  border-border-purple bg-purple/5' },
-  { category: 'Voix & TTS',       models: ['ElevenLabs Multilingual v2', 'OpenAI TTS-HD', 'fish-speech'],              color: 'text-coral   border-border-coral  bg-coral/5'  },
+  {
+    category: 'Texte & Scripts',
+    icon:     '🧠',
+    primary:  'Claude (Anthropic)',
+    secondary: 'ChatGPT (OpenAI)',
+    models:   ['claude-opus-4-5', 'claude-3-5-haiku', 'gpt-4o', 'gpt-4o-mini'],
+    usage:    'Stratégie (Claude) · Scripts & Copy (ChatGPT)',
+    color:    'text-accent border-accent/30 bg-accent/5',
+  },
+  {
+    category: 'Génération Image',
+    icon:     '🖼️',
+    primary:  'Flux Pro (Black Forest Labs)',
+    secondary: 'Nano Banana',
+    models:   ['flux-pro/v1.1', 'flux/schnell', 'nanobanana'],
+    usage:    'Visuels HD (Flux) · Moodboards & Thumbnails (Nano Banana)',
+    color:    'text-teal border-border-teal bg-teal/5',
+  },
+  {
+    category: 'Génération Vidéo',
+    icon:     '🎬',
+    primary:  'Kling AI (v2.1 Pro)',
+    secondary: 'Seedance (ByteDance)',
+    models:   ['kling-video/v2.1/pro', 'kling-video/v1.6/standard', 'seedance-1-pro', 'seedance-1-lite'],
+    usage:    'UGC réaliste (Kling) · Cinématique (Seedance)',
+    color:    'text-purple border-border-purple bg-purple/5',
+  },
+  {
+    category: 'Voix & TTS',
+    icon:     '🎙️',
+    primary:  'ElevenLabs (Multilingual v2)',
+    secondary: 'MiniMax Speech',
+    models:   ['eleven_multilingual_v2', 'eleven_turbo_v2_5', 'minimax-speech-01', 'minimax-speech-01-hd'],
+    usage:    'Clonage vocal (ElevenLabs) · TTS expressif (MiniMax)',
+    color:    'text-coral border-border-coral bg-coral/5',
+  },
 ]
 
 const STATUS_CONFIG = {
@@ -236,23 +268,31 @@ export default function ParametresView() {
                 })}
               </div>
 
-              {/* AIML Models showcase */}
+              {/* AIML Models — 4 catégories */}
               <div className="mt-6">
                 <div className="flex items-center gap-2 mb-4">
                   <h3 className="font-display font-bold text-[14px] text-text-primary">
-                    Modèles disponibles via AIML API
+                    Modèles actifs via AIML API
                   </h3>
                   <span className="font-mono text-[9px] font-bold text-accent border border-accent/40 bg-accent/5 px-2 py-0.5 rounded-neo">
-                    400+ modèles
+                    1 clé · 8 modèles
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   {AIML_MODELS.map((cat) => (
-                    <div key={cat.category} className={`rounded-neo-lg border p-4 ${cat.color}`}>
-                      <p className="font-mono text-[10px] font-bold mb-2 opacity-80">{cat.category}</p>
-                      <div className="flex flex-wrap gap-1.5">
+                    <div key={cat.category} className={`rounded-neo-lg border-2 p-4 ${cat.color}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-base">{cat.icon}</span>
+                        <p className="font-mono text-[10px] font-bold opacity-90">{cat.category}</p>
+                      </div>
+                      <div className="mb-2.5">
+                        <p className="font-display font-bold text-[12px]">{cat.primary}</p>
+                        <p className="font-mono text-[10px] opacity-60">+ {cat.secondary}</p>
+                      </div>
+                      <p className="font-mono text-[9px] opacity-60 mb-2 leading-relaxed">{cat.usage}</p>
+                      <div className="flex flex-wrap gap-1">
                         {cat.models.map((m) => (
-                          <span key={m} className="font-mono text-[9px] px-1.5 py-0.5 rounded border border-current/20 bg-current/5 opacity-90">
+                          <span key={m} className="font-mono text-[8px] px-1.5 py-0.5 rounded border border-current/20 bg-bg-base/20">
                             {m}
                           </span>
                         ))}

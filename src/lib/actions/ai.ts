@@ -3,8 +3,14 @@
 /**
  * Server Actions — AIML API
  *
- * Ces actions s'exécutent côté serveur (AIMLAPI_KEY jamais exposée au client).
- * Appelables directement depuis les composants 'use client' via import.
+ * AIMLAPI_KEY n'est jamais exposée côté client.
+ * Tous les appels IA passent par ces actions serveur.
+ *
+ * Modèles disponibles :
+ *   Texte  → Claude (Anthropic) + ChatGPT (OpenAI)
+ *   Image  → Nano Banana + Flux Pro
+ *   Vidéo  → Kling AI + Seedance
+ *   TTS    → ElevenLabs + MiniMax
  */
 
 import { requireAuth } from './auth'
@@ -13,6 +19,7 @@ import {
   generateCopy,
   generateStrategy,
   generateHooks,
+  generateCloneScript,
   type GenerateScriptParams,
   type GenerateCopyParams,
   type GenerateStrategyParams,
@@ -22,19 +29,21 @@ import {
   generateCampaignVisual,
   generateAvatarPhoto,
   generateMoodboard,
+  generateVideoThumbnail,
   type GenerateImageParams,
 } from '@/lib/ai/image'
 import {
   submitVideoGeneration,
   getVideoStatus,
   type GenerateVideoParams,
+  type VideoEngine,
 } from '@/lib/ai/video'
 import {
   generateSpeech,
   type GenerateSpeechParams,
 } from '@/lib/ai/tts'
 
-// ─── Texte ────────────────────────────────────────────────────────────────────
+// ─── Texte : Claude + ChatGPT ────────────────────────────────────────────────
 
 export async function actionGenerateScript(params: GenerateScriptParams) {
   await requireAuth()
@@ -46,23 +55,40 @@ export async function actionGenerateCopy(params: GenerateCopyParams) {
   return generateCopy(params)
 }
 
+/** Stratégie — Claude par défaut (raisonnement profond) */
 export async function actionGenerateStrategy(params: GenerateStrategyParams) {
   await requireAuth()
-  return generateStrategy(params)
+  return generateStrategy({ ...params, model: params.model ?? 'claude' })
 }
 
-export async function actionGenerateHooks(campaignDna: string, count?: number) {
+export async function actionGenerateHooks(
+  campaignDna: string,
+  count?: number,
+  model?: 'chatgpt' | 'claude',
+) {
   await requireAuth()
-  return generateHooks(campaignDna, count)
+  return generateHooks(campaignDna, count, model)
 }
 
-// ─── Image ────────────────────────────────────────────────────────────────────
+/** Clone Lab — Claude génère un script dans le style d'un persona */
+export async function actionGenerateCloneScript(options: {
+  personaDescription: string
+  product:            string
+  platform:           'tiktok' | 'instagram' | 'youtube'
+  duration?:          number
+}) {
+  await requireAuth()
+  return generateCloneScript(options)
+}
+
+// ─── Image : Nano Banana + Flux Pro ─────────────────────────────────────────
 
 export async function actionGenerateImage(params: GenerateImageParams) {
   await requireAuth()
   return generateImage(params)
 }
 
+/** Visuel campagne HD — Flux Pro */
 export async function actionGenerateCampaignVisual(options: {
   campaignName: string
   dna:          string
@@ -73,6 +99,7 @@ export async function actionGenerateCampaignVisual(options: {
   return generateCampaignVisual(options)
 }
 
+/** Photo avatar — Flux Pro (portrait photoréaliste) */
 export async function actionGenerateAvatarPhoto(options: {
   name:       string
   age?:       number
@@ -84,26 +111,37 @@ export async function actionGenerateAvatarPhoto(options: {
   return generateAvatarPhoto(options)
 }
 
+/** Moodboard 4 images — Nano Banana (rapide & créatif) */
 export async function actionGenerateMoodboard(campaignDna: string, count?: number) {
   await requireAuth()
   return generateMoodboard(campaignDna, count)
 }
 
-// ─── Vidéo (async) ───────────────────────────────────────────────────────────
+/** Thumbnail vidéo — Nano Banana */
+export async function actionGenerateVideoThumbnail(options: {
+  title:   string
+  style?:  string
+  format?: '16:9' | '9:16' | '1:1'
+}) {
+  await requireAuth()
+  return generateVideoThumbnail(options)
+}
 
-/** Soumet un job vidéo — retourne immédiatement avec generationId */
+// ─── Vidéo : Kling AI + Seedance ────────────────────────────────────────────
+
+/** Soumet un job vidéo (Kling ou Seedance) — retourne immédiatement */
 export async function actionSubmitVideo(params: GenerateVideoParams) {
   await requireAuth()
   return submitVideoGeneration(params)
 }
 
-/** Récupère le statut d'un job vidéo */
-export async function actionGetVideoStatus(generationId: string) {
+/** Récupère le statut d'un job vidéo en cours */
+export async function actionGetVideoStatus(generationId: string, engine?: VideoEngine) {
   await requireAuth()
-  return getVideoStatus(generationId)
+  return getVideoStatus(generationId, engine)
 }
 
-// ─── TTS ─────────────────────────────────────────────────────────────────────
+// ─── TTS : ElevenLabs + MiniMax ─────────────────────────────────────────────
 
 export async function actionGenerateSpeech(params: GenerateSpeechParams) {
   await requireAuth()
