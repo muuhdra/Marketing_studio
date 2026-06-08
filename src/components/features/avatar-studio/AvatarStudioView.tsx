@@ -7,6 +7,7 @@ import { Textarea, Input } from '@/components/ui/Input'
 import AvatarWardrobe from './AvatarWardrobe'
 import AvatarEnvironment from './AvatarEnvironment'
 import { createAvatar } from '@/lib/actions/avatars'
+import { actionGenerateAvatarPhoto } from '@/lib/actions/ai'
 import { useToast } from '@/lib/stores/toastStore'
 
 const PIPELINE_STEPS = [
@@ -26,6 +27,8 @@ export default function AvatarStudioView() {
   const [uploadedImage, setUploadedImage]   = useState(false)
   const [avatarId, setAvatarId]             = useState<string | null>(null)
   const [error, setError]                   = useState<string | null>(null)
+  const [generatingPhoto, setGeneratingPhoto] = useState(false)
+  const [generatedPhotoUrl, setGeneratedPhotoUrl] = useState<string | null>(null)
 
   const [prompt, setPrompt]               = useState('')
   const [avatarName, setAvatarName]       = useState('')
@@ -36,6 +39,29 @@ export default function AvatarStudioView() {
   const [selectedOutfits, setSelectedOutfits]     = useState<Set<string>>(new Set())
   const [selectedLocations, setSelectedLocations] = useState<Set<string>>(new Set())
   const [envMode, setEnvMode]                     = useState<'evolving' | 'locked'>('evolving')
+
+  async function generateFluxPhoto() {
+    if (!avatarName.trim()) { setError('Saisissez d\'abord un nom pour l\'avatar.'); return }
+    setGeneratingPhoto(true); setError(null)
+    try {
+      const result = await actionGenerateAvatarPhoto({
+        name:      avatarName.trim(),
+        age:       avatarAge ? parseInt(avatarAge) : undefined,
+        ethnicity: avatarEthnicity.trim() || undefined,
+        style:     avatarStyle.trim() || undefined,
+        setting:   'lifestyle, modern apartment, natural light',
+      })
+      setGeneratedPhotoUrl(result.url)
+      setUploadedImage(true)
+      toast.success('Photo IA générée par Flux Pro ✦')
+    } catch (e: any) {
+      const msg = e.message ?? 'Erreur génération photo'
+      setError(msg)
+      toast.error(msg)
+    } finally {
+      setGeneratingPhoto(false)
+    }
+  }
 
   function reverseEngineer() {
     setIsAnalyzing(true)
@@ -142,32 +168,55 @@ export default function AvatarStudioView() {
           {step === 1 && (
             <div className="animate-fade-in flex flex-col gap-5">
 
-              {/* Reverse Engineering */}
+              {/* Reverse Engineering + Flux Pro */}
               <div className="bg-bg-card border-2 border-border rounded-neo-lg p-5">
                 <h2 className="font-display font-bold text-[15px] text-text-primary mb-2 flex items-center gap-2">
-                  <span>🔬</span> Reverse Engineering IA
+                  <span>🔬</span> Génération Photo IA
                 </h2>
                 <p className="text-[12px] text-text-muted mb-4 leading-relaxed">
-                  Uploadez une image de référence. Notre IA analysera les traits, le style et la corpulence
-                  pour générer un prompt de base parfait.
+                  Générez un portrait photoréaliste avec Flux Pro depuis le profil de l'avatar,
+                  ou uploadez une image source pour l'analyser.
                 </p>
-                <div className="flex gap-4 items-center">
+                <div className="flex gap-3 items-center flex-wrap">
+                  {/* Preview miniature */}
                   <div className={`
-                    w-20 h-20 rounded-neo-lg border-2 flex items-center justify-center
-                    font-mono text-text-dim text-xs transition-all duration-200
-                    ${uploadedImage ? 'border-accent bg-accent/10' : 'border-dashed border-border bg-bg-surface'}
+                    w-20 h-20 rounded-neo-lg border-2 flex items-center justify-center overflow-hidden
+                    font-mono text-text-dim text-xs transition-all duration-200 flex-shrink-0
+                    ${generatedPhotoUrl ? 'border-accent' : uploadedImage ? 'border-accent bg-accent/10' : 'border-dashed border-border bg-bg-surface'}
                   `}>
-                    {uploadedImage ? '✓' : '+'}
+                    {generatedPhotoUrl ? (
+                      <img src={generatedPhotoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : uploadedImage ? '✓' : '+'}
                   </div>
-                  <Button
-                    variant="secondary"
-                    onClick={reverseEngineer}
-                    loading={isAnalyzing}
-                    disabled={isAnalyzing || uploadedImage}
-                  >
-                    {isAnalyzing ? 'Analyse...' : uploadedImage ? 'Image analysée ✓' : 'Analyser l\'image'}
-                  </Button>
+
+                  <div className="flex flex-col gap-2">
+                    {/* Générer avec Flux */}
+                    <Button
+                      size="sm"
+                      onClick={generateFluxPhoto}
+                      loading={generatingPhoto}
+                      disabled={generatingPhoto || !avatarName.trim()}
+                    >
+                      {generatingPhoto ? 'Flux Pro...' : generatedPhotoUrl ? '✦ Regénérer (Flux Pro)' : '✦ Générer photo IA (Flux Pro)'}
+                    </Button>
+
+                    {/* Reverse engineering */}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={reverseEngineer}
+                      loading={isAnalyzing}
+                      disabled={isAnalyzing || uploadedImage}
+                    >
+                      {isAnalyzing ? 'Analyse...' : uploadedImage ? 'Image analysée ✓' : '📁 Uploader & analyser'}
+                    </Button>
+                  </div>
                 </div>
+                {!avatarName.trim() && (
+                  <p className="font-mono text-[10px] text-amber mt-2">
+                    ⚠ Saisissez un nom d'avatar pour générer la photo
+                  </p>
+                )}
               </div>
 
               {/* Champs identité */}
@@ -268,8 +317,16 @@ export default function AvatarStudioView() {
           <div className="bg-bg-card border-2 border-border rounded-neo-lg overflow-hidden">
 
             {/* Preview image */}
-            <div className="h-[220px] bg-bg-elevated flex items-center justify-center relative border-b-2 border-border">
-              {uploadedImage ? (
+            <div className="h-[220px] bg-bg-elevated flex items-center justify-center relative border-b-2 border-border overflow-hidden">
+              {generatingPhoto && (
+                <div className="absolute inset-0 bg-bg-elevated/80 flex flex-col items-center justify-center gap-2 z-10">
+                  <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                  <span className="font-mono text-[10px] text-text-dim">Flux Pro...</span>
+                </div>
+              )}
+              {generatedPhotoUrl ? (
+                <img src={generatedPhotoUrl} alt={avatarName} className="w-full h-full object-cover" />
+              ) : uploadedImage ? (
                 <div className="absolute inset-0 bg-bg-elevated flex items-center justify-center">
                   <div className="w-24 h-24 rounded-full border-2 border-accent bg-accent/20 flex items-center justify-center font-display font-bold text-accent text-lg">
                     {avatarName[0] || 'E'}
@@ -283,6 +340,11 @@ export default function AvatarStudioView() {
               {modelValidated && (
                 <div className="absolute top-3 right-3 bg-accent/90 text-bg-base font-mono text-[10px] font-bold px-2.5 py-1 rounded-neo">
                   Modèle Actif
+                </div>
+              )}
+              {generatedPhotoUrl && !generatingPhoto && (
+                <div className="absolute top-3 left-3 bg-purple/90 text-bg-base font-mono text-[9px] font-bold px-2 py-0.5 rounded-neo">
+                  Flux Pro
                 </div>
               )}
             </div>

@@ -31,9 +31,11 @@ export interface GenerateScriptParams {
 
 export interface ScriptResult {
   hook:        string
+  hooks?:      string[]                  // variantes de hooks (Clone Lab)
   script:      string
   voiceover:   string
   cta:         string
+  tone?:       string                    // ton global du script (Clone Lab)
   hashtags:    string[]
   duration:    number
   model:       string                    // modèle utilisé
@@ -293,12 +295,14 @@ PERSONA : ${options.personaDescription}
 PRODUIT : ${options.product}
 DURÉE : ${options.duration ?? 30}s
 
-JSON exact :
+JSON exact (respecte scrupuleusement ce schéma) :
 {
-  "hook": "accroche dans le style du persona (max 12 mots)",
+  "hook": "accroche principale dans le style du persona (max 12 mots)",
+  "hooks": ["hook variante 1", "hook variante 2", "hook variante 3"],
   "script": "script complet reproduisant fidèlement le style, les tics de langage, le rythme",
   "voiceover": "narration dans le style du persona",
-  "cta": "call-to-action authentique au persona",
+  "cta": "call-to-action authentique au persona (max 8 mots)",
+  "tone": "un seul adjectif décrivant le ton global (ex: chaleureux, espiègle, confiant)",
   "hashtags": ["hashtag1", "hashtag2", "hashtag3"],
   "duration": ${options.duration ?? 30}
 }`,
