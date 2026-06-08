@@ -1,17 +1,42 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/ui/Button'
 import ProductionTab from './tabs/ProductionTab'
+import { useCampaignWizard } from '@/lib/stores/campaignWizardStore'
+import { finalizeCampaign } from '@/lib/actions/wizard'
+import { useToast } from '@/lib/stores/toastStore'
 
 const STEPS = [
-  { n: '✓', label: 'Config',    done: true,  active: false },
-  { n: '✓', label: 'Clone Lab', done: true,  active: false },
+  { n: '✓', label: 'Config',     done: true,  active: false },
+  { n: '✓', label: 'Clone Lab',  done: true,  active: false },
   { n: '3', label: 'Production', done: false, active: true  },
 ]
 
 export default function SpecialeEtape3View() {
   const router = useRouter()
+  const toast  = useToast()
+  const { campaignId, reset } = useCampaignWizard()
+  const [finalizing, setFinalizing] = useState(false)
+
+  async function handleFinalize() {
+    setFinalizing(true)
+    try {
+      if (campaignId) {
+        const updated = await finalizeCampaign(campaignId)
+        toast.success('Campagne Spéciale lancée en production ✦')
+        reset()
+        router.push(`/campagne/${updated.id}`)
+      } else {
+        reset()
+        router.push('/campagnes')
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Erreur lors de la finalisation')
+      setFinalizing(false)
+    }
+  }
 
   return (
     <div className="animate-fade-in">
@@ -58,8 +83,8 @@ export default function SpecialeEtape3View() {
         <Button variant="ghost" onClick={() => router.push('/campagne/speciale/etape-2')}>
           ← Clone Lab
         </Button>
-        <Button>
-          Finaliser la Campagne ✓
+        <Button onClick={handleFinalize} loading={finalizing}>
+          ✦ Finaliser la Campagne →
         </Button>
       </div>
     </div>

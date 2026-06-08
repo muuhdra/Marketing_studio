@@ -7,9 +7,11 @@ import Button from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useCampaignWizard } from '@/lib/stores/campaignWizardStore'
 import { createCampaign } from '@/lib/actions/campaigns'
+import { useToast } from '@/lib/stores/toastStore'
 
 export default function CreerCampagneView() {
   const router = useRouter()
+  const toast  = useToast()
   const { step1, setStep1, setCampaignId, reset } = useCampaignWizard()
 
   const [saving, setSaving]             = useState(false)
@@ -30,9 +32,12 @@ export default function CreerCampagneView() {
         postCampaignEnabled: step1.postCampaignEnabled,
       })
       setCampaignId(campaign.id)
+      toast.success(`Campagne "${campaign.name}" créée ✓`)
       router.push('/campagne/etape-2')
     } catch (e: any) {
-      setError(e.message ?? 'Erreur lors de la sauvegarde')
+      const msg = e.message ?? 'Erreur lors de la sauvegarde'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }

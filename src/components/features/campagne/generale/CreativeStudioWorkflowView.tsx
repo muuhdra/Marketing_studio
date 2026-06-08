@@ -6,6 +6,7 @@ import StepBar from '@/components/ui/StepBar'
 import Button from '@/components/ui/Button'
 import { useCampaignWizard } from '@/lib/stores/campaignWizardStore'
 import { finalizeCampaign } from '@/lib/actions/wizard'
+import { useToast } from '@/lib/stores/toastStore'
 
 type AgentStatus = 'idle' | 'running' | 'done' | 'waiting'
 
@@ -55,6 +56,7 @@ type FormatTab   = 'all' | 'ugc' | 'commercial'
 
 export default function CreativeStudioWorkflowView() {
   const router = useRouter()
+  const toast  = useToast()
   const { campaignId, reset } = useCampaignWizard()
 
   const [prompt, setPrompt]           = useState('')
@@ -73,14 +75,15 @@ export default function CreativeStudioWorkflowView() {
     try {
       if (campaignId) {
         const updated = await finalizeCampaign(campaignId)
-        reset() // Vide le wizard — campagne créée avec succès
+        toast.success('Campagne finalisée — production lancée ✦')
+        reset()
         router.push(`/campagne/${updated.id}`)
       } else {
         reset()
         router.push('/campagnes')
       }
-    } catch (e) {
-      console.error(e)
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Erreur lors de la finalisation')
       setFinalizing(false)
     }
   }

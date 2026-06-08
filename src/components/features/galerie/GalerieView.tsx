@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import { deleteAvatar } from '@/lib/actions/avatars'
+import { useToast } from '@/lib/stores/toastStore'
 import { useRouter } from 'next/navigation'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,17 +34,22 @@ const CARD_COLORS = [
 
 export default function GalerieView({ avatars }: { avatars: DbAvatar[] }) {
   const router = useRouter()
+  const toast  = useToast()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [deleting, setDeleting]     = useState(false)
 
   const av = avatars.find((a) => a.id === selectedId)
 
   async function handleDelete(id: string) {
+    const name = av?.name ?? 'Avatar'
     setDeleting(true)
     try {
       await deleteAvatar(id)
+      toast.success(`${name} supprimé(e) ✓`)
       setSelectedId(null)
       router.refresh()
+    } catch {
+      toast.error('Erreur lors de la suppression')
     } finally {
       setDeleting(false)
     }

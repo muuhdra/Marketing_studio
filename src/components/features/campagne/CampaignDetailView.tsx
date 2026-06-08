@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { StatusBadge } from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import { deleteCampaign } from '@/lib/actions/campaigns'
+import { useToast } from '@/lib/stores/toastStore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -77,6 +78,7 @@ const CONTENT_LABELS: Record<string, { label: string; color: string; icon: strin
 export default function CampaignDetailView({ data }: Props) {
   const { campaign, contentTypes, assignments } = data
   const router  = useRouter()
+  const toast   = useToast()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting]           = useState(false)
 
@@ -84,8 +86,10 @@ export default function CampaignDetailView({ data }: Props) {
     setDeleting(true)
     try {
       await deleteCampaign(campaign.id)
+      toast.success(`Campagne "${campaign.name}" supprimée`)
       router.push('/campagnes')
     } catch {
+      toast.error('Erreur lors de la suppression')
       setDeleting(false)
       setConfirmDelete(false)
     }

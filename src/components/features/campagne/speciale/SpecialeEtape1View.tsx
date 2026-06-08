@@ -4,19 +4,52 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { useCampaignWizard } from '@/lib/stores/campaignWizardStore'
+import { createCampaign } from '@/lib/actions/campaigns'
+import { useToast } from '@/lib/stores/toastStore'
 
 const STEPS = [
-  { n: '1', label: 'Config',    active: true,  done: false },
-  { n: '2', label: 'Clone Lab', active: false, done: false },
+  { n: '1', label: 'Config',     active: true,  done: false },
+  { n: '2', label: 'Clone Lab',  active: false, done: false },
+  { n: '3', label: 'Production', active: false, done: false },
 ]
 
 export default function SpecialeEtape1View() {
   const router = useRouter()
-  const [name, setName]           = useState('')
-  const [webLink, setWebLink]     = useState('')
+  const toast  = useToast()
+  const { step1, setStep1, setCampaignId, reset } = useCampaignWizard()
+
+  const [saving, setSaving]             = useState(false)
+  const [error, setError]               = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [adnFile, setAdnFile]     = useState<string | null>(null)
-  const [visualFiles, setVisualFiles] = useState<string[]>([])
+  const [adnFile, setAdnFile]           = useState<string | null>(null)
+  const [visualFiles, setVisualFiles]   = useState<string[]>([])
+  const [webLink, setWebLink]           = useState('')
+
+  async function handleNext() {
+    if (!step1.name.trim()) { setError('Le nom du projet est requis.'); return }
+    setSaving(true); setError(null)
+    try {
+      const campaign = await createCampaign({
+        name:                step1.name.trim(),
+        campaignType:        'speciale',
+        startDate:           step1.startDate   || undefined,
+        endDate:             step1.endDate     || undefined,
+        preCampaignEnabled:  step1.preCampaignEnabled,
+        preCampaignStart:    step1.preCampaignStart || undefined,
+        postCampaignEnabled: step1.postCampaignEnabled,
+      })
+      setCampaignId(campaign.id)
+      toast.success(`Projet "${campaign.name}" créé ✓`)
+      router.push('/campagne/speciale/etape-2')
+    } catch (e: any) {
+      const msg = e.message ?? 'Erreur lors de la création'
+      setError(msg)
+      toast.error(msg)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="animate-fade-in">
@@ -41,7 +74,7 @@ export default function SpecialeEtape1View() {
             <div key={s.label} className="flex items-center gap-2">
               <div className="flex items-center gap-1.5">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold
-                  ${s.done ? 'bg-purple/20 border border-border-purple text-purple' : s.active ? 'bg-purple text-bg-base' : 'bg-bg-surface border border-border text-text-dim'}`}>
+                  ${s.active ? 'bg-purple text-bg-base' : 'bg-bg-surface border border-border text-text-dim'}`}>
                   {s.n}
                 </div>
                 <span className={`text-[12px] font-semibold ${s.active ? 'text-purple' : 'text-text-dim'}`}>{s.label}</span>
@@ -59,8 +92,8 @@ export default function SpecialeEtape1View() {
           <Input
             label="* Nom du Projet"
             placeholder="Ex: Lancement Produit Clone X"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            value={step1.name}
+            onChange={(e) => setStep1({ name: e.target.value })}
           />
         </div>
 
@@ -74,9 +107,9 @@ export default function SpecialeEtape1View() {
               <span className="font-mono text-[9px] font-bold text-purple border border-border-purple px-2 py-0.5 rounded-neo">CŒUR</span>
             </div>
             <div
-              onClick={() => setAdnFile('brief_campagne.pdf')}
+              onClick={() => setAdnFile(adnFile ? null : 'brief_campagne.pdf')}
               className={`
-                flex-1 flex flex-col items-center justify-center text-center
+                flex flex-col items-center justify-center text-center
                 border-2 border-dashed rounded-neo-lg px-5 py-10 cursor-pointer
                 transition-all duration-150
                 ${adnFile
@@ -105,7 +138,7 @@ export default function SpecialeEtape1View() {
           <div>
             <span className="nb-label block mb-2.5">Visuels & Charte Graphique</span>
             <div
-              onClick={() => setVisualFiles(['moodboard.png', 'brand_kit.zip'])}
+              onClick={() => setVisualFiles(visualFiles.length > 0 ? [] : ['moodboard.png', 'brand_kit.zip'])}
               className="flex flex-col items-center justify-center text-center border-2 border-dashed border-border rounded-neo-lg px-5 py-10 cursor-pointer hover:border-border-strong hover:bg-bg-elevated transition-all duration-150"
             >
               {visualFiles.length > 0 ? (
@@ -150,12 +183,28 @@ export default function SpecialeEtape1View() {
           </Button>
         </div>
 
+        {error && (
+          <div className="mb-5 bg-coral/5 border-2 border-coral/30 rounded-neo px-4 py-2.5">
+            <p className="font-mono text-[11px] text-coral">{error}</p>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex items-center justify-between pt-6 border-t-2 border-border">
-          <Button variant="ghost" onClick={() => router.push('/campagne/nouveau')}>← Retour</Button>
-          <Button onClick={() => router.push('/campagne/speciale/etape-2')} variant="secondary">
-            Clone Lab →
-          </Button>
+          <Button variant="ghost" onClick={() => { reset(); router.push('/campagne/nouveau') }}>← Retour</Button>
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[11px] text-text-dim flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple animate-pulse-dot" />
+              Sauvegarde auto
+            </span>
+            <Button
+              onClick={handleNext}
+              loading={saving}
+              disabled={!step1.name.trim()}
+            >
+              Clone Lab →
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -177,10 +226,15 @@ export default function SpecialeEtape1View() {
             </div>
             <div className="p-5 flex flex-col gap-5">
               <div className="grid grid-cols-2 gap-3">
-                {[['Date de début', '2026-06-01'], ['Date de fin', '2026-07-31']].map(([label, def]) => (
-                  <div key={label as string}>
-                    <label className="nb-label block mb-1.5">{label as string}</label>
-                    <input type="date" defaultValue={def as string} className="nb-input text-[13px] py-2 px-3" />
+                {([['Début campagne', 'startDate'], ['Fin campagne', 'endDate']] as const).map(([label, field]) => (
+                  <div key={field}>
+                    <label className="nb-label block mb-1.5">{label}</label>
+                    <input
+                      type="date"
+                      value={step1[field]}
+                      onChange={(e) => setStep1({ [field]: e.target.value })}
+                      className="nb-input text-[13px] py-2 px-3"
+                    />
                   </div>
                 ))}
               </div>
@@ -191,6 +245,20 @@ export default function SpecialeEtape1View() {
               <div>
                 <label className="nb-label block mb-1.5">Fréquence de production</label>
                 <input type="text" placeholder="Ex : 3 vidéos / semaine" className="nb-input text-[13px] py-2.5 px-3.5" />
+              </div>
+              <div className="border-t-2 border-border pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[13px] font-medium text-text-primary mb-0.5">⏮ Mode Pré-Campagne</div>
+                    <div className="font-mono text-[11px] text-text-dim">Génère storyline & ads avant le lancement</div>
+                  </div>
+                  <button
+                    onClick={() => setStep1({ preCampaignEnabled: !step1.preCampaignEnabled })}
+                    className={`relative w-10 h-5 rounded-neo border-2 transition-all flex-shrink-0 ${step1.preCampaignEnabled ? 'bg-purple border-border-purple' : 'bg-bg-base border-border'}`}
+                  >
+                    <div className={`absolute top-0.5 w-3 h-3 rounded-neo transition-all ${step1.preCampaignEnabled ? 'left-[22px] bg-bg-base' : 'left-[2px] bg-text-dim'}`} />
+                  </button>
+                </div>
               </div>
               <Button onClick={() => setSettingsOpen(false)}>Sauvegarder</Button>
             </div>

@@ -7,6 +7,7 @@ import { Textarea, Input } from '@/components/ui/Input'
 import AvatarWardrobe from './AvatarWardrobe'
 import AvatarEnvironment from './AvatarEnvironment'
 import { createAvatar } from '@/lib/actions/avatars'
+import { useToast } from '@/lib/stores/toastStore'
 
 const PIPELINE_STEPS = [
   { id: 1, label: 'Modèle de base' },
@@ -16,6 +17,7 @@ const PIPELINE_STEPS = [
 
 export default function AvatarStudioView() {
   const router = useRouter()
+  const toast  = useToast()
 
   const [step, setStep]                     = useState<1 | 2 | 3>(1)
   const [modelValidated, setModelValidated] = useState(false)
@@ -62,15 +64,19 @@ export default function AvatarStudioView() {
       })
       setAvatarId(avatar.id)
       setModelValidated(true)
+      toast.success(`Avatar "${avatar.name}" créé ✓`)
       setStep(2)
     } catch (e: any) {
-      setError(e.message ?? 'Erreur lors de la sauvegarde')
+      const msg = e.message ?? 'Erreur lors de la sauvegarde'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setIsSaving(false)
     }
   }
 
   function handleFinalize() {
+    toast.success('Avatar finalisé — redirection vers la Galerie')
     router.push('/galerie')
   }
 
