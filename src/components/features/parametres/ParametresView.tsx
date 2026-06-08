@@ -49,51 +49,66 @@ const API_KEYS: ApiKey[] = [
 ]
 
 // Modèles actifs dans Marketing Studio — tous via AIML API (une seule clé)
+// Assignations confirmées :
+//   Scripts UGC  → ChatGPT (créativité)   Clone Lab → Claude (persona)
+//   Visuels      → Nano Banana (principal) Portraits → Flux Pro
+//   Vidéo UGC    → Kling v2.1 Pro (principal)  B-roll → Seedance
+//   Voix         → ElevenLabs (émotionnel) ou MiniMax (expressif)
 const AIML_MODELS = [
   {
-    category: 'Texte & Scripts',
-    icon:     '🧠',
-    primary:  'Claude (Anthropic)',
-    secondary: 'ChatGPT (OpenAI)',
-    models:   ['claude-opus-4-5', 'claude-3-5-haiku', 'gpt-4o', 'gpt-4o-mini'],
-    usage:    'Stratégie (Claude) · Scripts & Copy (ChatGPT)',
-    color:    'text-accent border-accent/30 bg-accent/5',
+    category:  'Texte & Scripts',
+    icon:      '🧠',
+    primary:   'ChatGPT (OpenAI)',
+    secondary: 'Claude (Anthropic)',
+    badge:     null,
+    models:    ['gpt-4o', 'gpt-4o-mini', 'claude-opus-4-5', 'claude-3-5-haiku'],
+    usage:     'Scripts UGC & hooks (ChatGPT) · Stratégie & Clone Lab (Claude)',
+    detail:    'ChatGPT → rapidité & créativité · Claude → raisonnement profond',
+    color:     'text-accent border-accent/30 bg-accent/5',
   },
   {
-    category: 'Génération Image',
-    icon:     '🖼️',
-    primary:  'Flux Pro (Black Forest Labs)',
-    secondary: 'Nano Banana',
-    models:   ['flux-pro/v1.1', 'flux/schnell', 'nanobanana'],
-    usage:    'Visuels HD (Flux) · Moodboards & Thumbnails (Nano Banana)',
-    color:    'text-teal border-border-teal bg-teal/5',
+    category:  'Génération Image',
+    icon:      '🖼️',
+    primary:   'Nano Banana',
+    secondary: 'Flux Pro',
+    badge:     'PRINCIPAL',
+    models:    ['nanobanana', 'flux-pro/v1.1', 'flux/schnell'],
+    usage:     'Visuels campagne & moodboards (Nano Banana) · Portraits avatar (Flux Pro)',
+    detail:    'Nano Banana → visuels, moodboards, thumbnails · Flux Pro → portraits uniquement',
+    color:     'text-teal border-border-teal bg-teal/5',
   },
   {
-    category: 'Génération Vidéo',
-    icon:     '🎬',
-    primary:  'Kling AI (v2.1 Pro)',
-    secondary: 'Seedance (ByteDance)',
-    models:   ['kling-video/v2.1/pro', 'kling-video/v1.6/standard', 'seedance-1-pro', 'seedance-1-lite'],
-    usage:    'UGC réaliste (Kling) · Cinématique (Seedance)',
-    color:    'text-purple border-border-purple bg-purple/5',
+    category:  'Génération Vidéo',
+    icon:      '🎬',
+    primary:   'Kling AI (v2.1 Pro)',
+    secondary: 'Seedance (B-roll)',
+    badge:     'PRINCIPAL',
+    models:    ['kling-video/v2.1/pro', 'kling-video/v2.1/standard', 'kling-video/v1.6/standard', 'seedance-1-pro'],
+    usage:     'UGC & avatars (Kling v2.1 Pro) · B-roll cinématique (Seedance)',
+    detail:    'Kling → talking head, lifestyle, img2vid · Seedance → plans produit, ambiance',
+    color:     'text-purple border-border-purple bg-purple/5',
   },
   {
-    category: 'Voix & TTS',
-    icon:     '🎙️',
-    primary:  'ElevenLabs (Multilingual v2)',
-    secondary: 'MiniMax Speech',
-    models:   ['eleven_multilingual_v2', 'eleven_turbo_v2_5', 'minimax-speech-01', 'minimax-speech-01-hd'],
-    usage:    'Clonage vocal (ElevenLabs) · TTS expressif (MiniMax)',
-    color:    'text-coral border-border-coral bg-coral/5',
+    category:  'Voix & TTS',
+    icon:      '🎙️',
+    primary:   'ElevenLabs (émotionnel)',
+    secondary: 'MiniMax (expressif)',
+    badge:     null,
+    models:    ['eleven_multilingual_v2', 'eleven_turbo_v2_5', 'minimax-speech-01', 'minimax-speech-01-hd'],
+    usage:     'Voix avatar émotionnelle (ElevenLabs) · TTS multi-langue expressif (MiniMax)',
+    detail:    'ElevenLabs → clonage vocal, multilingue · MiniMax → voix expressives HD',
+    color:     'text-coral border-border-coral bg-coral/5',
   },
   {
-    category: 'Research Agent',
-    icon:     '🔍',
-    primary:  'Perplexity Sonar Pro',
+    category:  'Research Agent',
+    icon:      '🔍',
+    primary:   'Perplexity Sonar Pro',
     secondary: 'Sonar Reasoning',
-    models:   ['perplexity/sonar', 'perplexity/sonar-pro', 'perplexity/sonar-reasoning'],
-    usage:    'Veille web temps réel · Tendances · Formats viraux · Contexte avatar',
-    color:    'text-amber border-amber/40 bg-amber/5',
+    badge:     null,
+    models:    ['perplexity/sonar', 'perplexity/sonar-pro', 'perplexity/sonar-reasoning'],
+    usage:     'Veille tendances · Formats viraux · Contexte culturel avatar · Scripts à jour',
+    detail:    'Injecté automatiquement avant chaque génération de script UGC',
+    color:     'text-amber border-amber/40 bg-amber/5',
   },
 ]
 
@@ -277,7 +292,7 @@ export default function ParametresView() {
                 })}
               </div>
 
-              {/* AIML Models — 4 catégories */}
+              {/* AIML Models — 5 catégories */}
               <div className="mt-6">
                 <div className="flex items-center gap-2 mb-4">
                   <h3 className="font-display font-bold text-[14px] text-text-primary">
@@ -293,12 +308,18 @@ export default function ParametresView() {
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-base">{cat.icon}</span>
                         <p className="font-mono text-[10px] font-bold opacity-90">{cat.category}</p>
+                        {cat.badge && (
+                          <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded border border-current/40 bg-current/10 opacity-80">
+                            {cat.badge}
+                          </span>
+                        )}
                       </div>
-                      <div className="mb-2.5">
+                      <div className="mb-1.5">
                         <p className="font-display font-bold text-[12px]">{cat.primary}</p>
                         <p className="font-mono text-[10px] opacity-60">+ {cat.secondary}</p>
                       </div>
-                      <p className="font-mono text-[9px] opacity-60 mb-2 leading-relaxed">{cat.usage}</p>
+                      <p className="font-mono text-[9px] opacity-70 mb-1 leading-relaxed">{cat.usage}</p>
+                      <p className="font-mono text-[8px] opacity-45 mb-2 leading-relaxed italic">{cat.detail}</p>
                       <div className="flex flex-wrap gap-1">
                         {cat.models.map((m) => (
                           <span key={m} className="font-mono text-[8px] px-1.5 py-0.5 rounded border border-current/20 bg-bg-base/20">

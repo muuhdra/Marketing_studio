@@ -20,40 +20,48 @@ export const AIML_BASE_V2 = 'https://api.aimlapi.com/v2'
 /**
  * Modèles utilisés dans Marketing Studio — tous accessibles via AIML API.
  *
- * 1. TEXTE     → Claude (Anthropic) + ChatGPT (OpenAI)
- * 2. IMAGE     → Nano Banana + Flux (Black Forest Labs)
- * 3. VIDÉO     → Kling AI + Seedance (ByteDance)
- * 4. VOIX/TTS  → ElevenLabs + MiniMax
- * 5. RESEARCH  → Perplexity Sonar (veille web temps réel)
+ * ASSIGNATIONS :
+ *   Scripts UGC           → ChatGPT GPT-4o   (créativité, rapidité)
+ *   Stratégie campagne    → Claude Opus 4    (raisonnement profond)
+ *   Clone Lab             → Claude Opus 4    (analyse persona + style)
+ *   Visuels campagne      → Nano Banana      (MODÈLE PRINCIPAL — visuels)
+ *   Moodboards            → Nano Banana      (4 variations rapides)
+ *   Thumbnails vidéo      → Nano Banana      (impact visuel rapide)
+ *   Portrait avatar       → Flux Pro         (photoréalisme portrait)
+ *   Vidéo UGC (principal) → Kling v2.1 Pro   (avatars humains, talking head)
+ *   Vidéo B-roll          → Seedance Pro     (plans cinématiques, produit)
+ *   Voix avatar           → ElevenLabs       (émotionnel, multilingue)
+ *   Voix expressif        → MiniMax          (expressif, multi-langue)
+ *   Veille & tendances    → Perplexity Sonar (recherche web temps réel)
  */
 export const MODELS = {
 
   // ── 1. Texte ─────────────────────────────────────────────────────────────
   text: {
-    // ChatGPT — scripts, copy, hooks (rapide)
+    // ChatGPT — scripts UGC, copy, hooks (créativité + rapidité)
     chatgpt:      'gpt-4o',
     chatgptFast:  'gpt-4o-mini',
-    // Claude — stratégie, orchestration, raisonnement complexe
+    // Claude — stratégie, Clone Lab, raisonnement profond
     claude:       'claude-opus-4-5',
     claudeFast:   'claude-3-5-haiku-20241022',
   },
 
   // ── 2. Image ─────────────────────────────────────────────────────────────
   image: {
-    // Nano Banana — génération rapide, style unique
+    // Nano Banana — MODÈLE PRINCIPAL visuels (campagne, moodboards, thumbnails)
     nanoBanana:   'nanobanana',
-    // Flux — haute qualité, usage commercial
+    // Flux Pro — portraits avatar photoréalistes uniquement
     fluxPro:      'flux-pro/v1.1',
     fluxFast:     'flux/schnell',
   },
 
   // ── 3. Vidéo ─────────────────────────────────────────────────────────────
   video: {
-    // Kling AI — UGC réaliste, vidéos avatar
+    // Kling AI — MODÈLE PRINCIPAL vidéo (UGC, avatars, talking head, img2vid)
     klingStandard:  'kling-video/v1.6/standard/text-to-video',
-    klingPro:       'kling-video/v2.1/pro/text-to-video',
-    klingImg2Vid:   'kling-video/v2.1/pro/image-to-video',
-    // Seedance — ByteDance, style cinématique
+    klingPro:       'kling-video/v2.1/pro/text-to-video',      // ← principal
+    klingImg2Vid:   'kling-video/v2.1/pro/image-to-video',     // avatar photo → vidéo
+    // Seedance — B-roll cinématique, plans produit, ambiance
     seedanceLite:   'seedance-1-lite',
     seedancePro:    'seedance-1-pro',
   },

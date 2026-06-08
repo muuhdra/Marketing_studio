@@ -6,12 +6,17 @@ import Button from '@/components/ui/Button'
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 // Modèles utilisés — tous facturés via AIML API (une seule clé)
+// Providers AIML — alignés avec les assignations confirmées
+// Vidéo : Kling AI principal (UGC/avatars) + Seedance B-roll
+// Image : Nano Banana principal (visuels/moodboards) + Flux Pro portraits seulement
+// Texte : ChatGPT scripts UGC + Claude stratégie/Clone Lab
 const PROVIDERS = [
-  { name: 'Kling AI + Seedance',  role: 'Vidéo UGC & Cinématique',  usd: 17.40, pct: 38, color: 'bg-accent',  text: 'text-accent',  border: 'border-accent',        icon: '🎬', sub: 'Kling v2.1 Pro · Seedance Pro'         },
-  { name: 'Claude + ChatGPT',     role: 'Scripts, Copy, Stratégie', usd: 10.80, pct: 24, color: 'bg-purple', text: 'text-purple',  border: 'border-border-purple', icon: '🧠', sub: 'Claude Opus 4 · GPT-4o'                },
-  { name: 'Perplexity Sonar',     role: 'Veille & Recherche Web',   usd: 6.20,  pct: 14, color: 'bg-amber',  text: 'text-amber',   border: 'border-amber/40',      icon: '🔍', sub: 'Sonar · Sonar Pro · Sonar Reasoning'   },
-  { name: 'Flux + Nano Banana',   role: 'Visuels & Moodboards',     usd: 6.60,  pct: 14, color: 'bg-teal',   text: 'text-teal',    border: 'border-border-teal',   icon: '🖼️', sub: 'Flux Pro v1.1 · Nano Banana'           },
-  { name: 'ElevenLabs + MiniMax', role: 'Voix Off & Clonage Vocal', usd: 4.40,  pct: 10, color: 'bg-coral',  text: 'text-coral',   border: 'border-border-coral',  icon: '🎙️', sub: 'ElevenLabs Multilingual v2 · MiniMax HD'},
+  { name: 'Kling AI',       role: 'Vidéo UGC · Avatars · Talking Head', usd: 15.80, pct: 35, color: 'bg-accent',  text: 'text-accent',  border: 'border-accent',        icon: '🎬', sub: 'Kling v2.1 Pro (principal) · img2vid'      },
+  { name: 'ChatGPT + Claude', role: 'Scripts UGC · Stratégie · Clone',  usd: 10.80, pct: 24, color: 'bg-purple',  text: 'text-purple',  border: 'border-border-purple', icon: '🧠', sub: 'GPT-4o scripts · Claude Opus 4 stratégie' },
+  { name: 'Nano Banana',    role: 'Visuels · Moodboards · Thumbnails',   usd: 5.80,  pct: 13, color: 'bg-teal',    text: 'text-teal',    border: 'border-border-teal',   icon: '🖼️', sub: 'Modèle principal visuels campagne'         },
+  { name: 'Perplexity',     role: 'Veille & Tendances Web',              usd: 5.60,  pct: 12, color: 'bg-amber',   text: 'text-amber',   border: 'border-amber/40',      icon: '🔍', sub: 'Sonar · Sonar Pro · Sonar Reasoning'      },
+  { name: 'ElevenLabs',     role: 'Voix Avatar (émotionnel)',            usd: 4.00,  pct: 9,  color: 'bg-coral',   text: 'text-coral',   border: 'border-border-coral',  icon: '🎙️', sub: 'ElevenLabs Multilingual v2'               },
+  { name: 'Seedance + Flux',role: 'B-roll · Portraits avatar HD',        usd: 3.20,  pct: 7,  color: 'bg-text-muted', text: 'text-text-muted', border: 'border-border', icon: '🎥', sub: 'Seedance Pro B-roll · Flux Pro portraits'  },
 ]
 
 const HISTORY = [

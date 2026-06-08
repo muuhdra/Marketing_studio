@@ -1,8 +1,8 @@
 /**
  * AIML API — Génération d'images
  *
- * Nano Banana  → génération rapide, style unique, créatif
- * Flux Pro     → haute qualité commerciale, photoréaliste
+ * Nano Banana  → MODÈLE PRINCIPAL — visuels campagne, moodboards, thumbnails
+ * Flux Pro     → portraits avatar uniquement (photoréalisme portrait)
  *
  * Les deux via la même clé AIMLAPI_KEY.
  */
@@ -37,10 +37,10 @@ export interface ImageResult {
 
 function resolveImageModel(choice?: ImageGenerationModel): string {
   switch (choice) {
-    case 'nano-banana': return MODELS.image.nanoBanana
+    case 'flux-pro':    return MODELS.image.fluxPro
     case 'flux-fast':   return MODELS.image.fluxFast
-    case 'flux-pro':
-    default:            return MODELS.image.fluxPro
+    case 'nano-banana':
+    default:            return MODELS.image.nanoBanana  // Nano Banana = modèle principal
   }
 }
 
@@ -69,7 +69,8 @@ export async function generateImage(params: GenerateImageParams): Promise<ImageR
 // ─── Fonctions prêtes à l'emploi ─────────────────────────────────────────────
 
 /**
- * Visuel campagne — Flux Pro (photoréalisme commercial)
+ * Visuel campagne — Nano Banana (modèle principal visuels)
+ * Style créatif, impact visuel fort, 4 variations rapides possibles.
  */
 export async function generateCampaignVisual(options: {
   campaignName: string
@@ -83,16 +84,15 @@ export async function generateCampaignVisual(options: {
     '1:1':  '1024x1024',
   }
 
-  const prompt = `Professional marketing campaign visual for "${options.campaignName}".
-Style: ${options.style ?? 'modern clean high-end commercial photography'}.
+  const prompt = `Marketing campaign visual for "${options.campaignName}".
+Style: ${options.style ?? 'bold creative commercial photography, vibrant, high impact'}.
 Brief: ${options.dna.slice(0, 300)}.
-Ultra HD quality, cinematic lighting, no text overlays, no watermarks.`
+No text overlays, no watermarks. Strong visual composition.`
 
   const results = await generateImage({
     prompt,
-    model:   'flux-pro',
-    size:    sizeMap[options.format ?? '16:9'],
-    quality: 'hd',
+    model: 'nano-banana',   // Nano Banana = modèle principal visuels
+    size:  sizeMap[options.format ?? '16:9'],
   })
 
   return results[0]

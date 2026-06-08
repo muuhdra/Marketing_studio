@@ -22,13 +22,14 @@ const BY_CAMPAIGN = [
   { name: 'Cosmetics Été 2026',   count: 41, color: 'bg-teal',    text: 'text-teal'    },
 ]
 
-// Providers alignés avec AIML API
+// Providers AIML — assignations confirmées
 const AI_PROVIDERS = [
-  { label: 'Kling + Seedance', sub: 'Vidéo UGC',        pct: 38, usd: '17.40', color: 'bg-accent',  text: 'text-accent',  icon: '🎬' },
-  { label: 'Claude + ChatGPT', sub: 'Scripts & Strat.', pct: 24, usd: '10.80', color: 'bg-purple',  text: 'text-purple',  icon: '🧠' },
-  { label: 'Perplexity Sonar', sub: 'Veille & Search',  pct: 14, usd: '6.20',  color: 'bg-amber',   text: 'text-amber',   icon: '🔍' },
-  { label: 'Flux + Nano 🍌',   sub: 'Visuels & Moods',  pct: 14, usd: '6.60',  color: 'bg-teal',    text: 'text-teal',    icon: '🖼️'  },
-  { label: 'ElevenLabs + MM',  sub: 'Voix & Clonage',   pct: 10, usd: '4.40',  color: 'bg-coral',   text: 'text-coral',   icon: '🎙️'  },
+  { label: 'Kling v2.1 Pro',   sub: 'Vidéo UGC principal',  pct: 35, usd: '15.80', color: 'bg-accent',  text: 'text-accent',  icon: '🎬' },
+  { label: 'ChatGPT + Claude', sub: 'Scripts & Stratégie',  pct: 24, usd: '10.80', color: 'bg-purple',  text: 'text-purple',  icon: '🧠' },
+  { label: 'Nano Banana 🍌',   sub: 'Visuels principal',    pct: 13, usd: '5.80',  color: 'bg-teal',    text: 'text-teal',    icon: '🖼️'  },
+  { label: 'Perplexity Sonar', sub: 'Veille & Tendances',   pct: 12, usd: '5.60',  color: 'bg-amber',   text: 'text-amber',   icon: '🔍' },
+  { label: 'ElevenLabs',       sub: 'Voix émotionnelle',    pct: 9,  usd: '4.00',  color: 'bg-coral',   text: 'text-coral',   icon: '🎙️'  },
+  { label: 'Seedance + Flux',  sub: 'B-roll · Portraits',   pct: 7,  usd: '3.20',  color: 'bg-border',  text: 'text-text-muted', icon: '🎥' },
 ]
 
 const RECENT_ACTIVITY = [
@@ -42,8 +43,8 @@ const RECENT_ACTIVITY = [
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function AnalyticsView() {
-  const totalBudget    = 45
-  const totalConsumed  = 38.20
+  const totalBudget    = 50
+  const totalConsumed  = AI_PROVIDERS.reduce((s, p) => s + parseFloat(p.usd), 0)
   const pctConsumed    = Math.round((totalConsumed / totalBudget) * 100)
 
   return (
@@ -165,7 +166,7 @@ export default function AnalyticsView() {
         </div>
 
         {/* Grid providers */}
-        <div className="grid grid-cols-5 gap-3 mb-5">
+        <div className="grid grid-cols-6 gap-3 mb-5">
           {AI_PROVIDERS.map((p) => (
             <div key={p.label} className="bg-bg-surface border-2 border-border rounded-neo-lg p-3">
               <div className="flex items-center gap-1.5 mb-2">

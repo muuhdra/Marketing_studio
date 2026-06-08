@@ -1,12 +1,13 @@
 /**
  * AIML API — Génération vidéo async
  *
- * Kling AI    → UGC réaliste, vidéos avatar, image-to-video
- * Seedance    → style cinématique ByteDance, mouvement fluide
+ * Kling AI v2.1 Pro → MODÈLE PRINCIPAL — UGC, avatars humains, talking head,
+ *                     image-to-video (photo avatar → vidéo), lifestyle
+ * Seedance Pro      → B-roll cinématique, plans produit, ambiance visuelle
  *
  * Pattern async :
  *   1. POST → { generation_id }
- *   2. GET  → poll jusqu'à status === 'completed'
+ *   2. GET  → poll toutes les 10s jusqu'à status === 'completed'
  *   3. Retourne l'URL vidéo
  */
 
@@ -59,12 +60,12 @@ function resolveVideoModelId(params: GenerateVideoParams): string {
       : 'seedance-1-lite'
   }
 
-  // Kling AI (défaut)
-  switch (params.klingVersion ?? 'v1.6-standard') {
-    case 'v2.1-pro':      return 'kling-video/v2.1/pro/text-to-video'
+  // Kling AI (modèle principal — défaut v2.1 Pro)
+  switch (params.klingVersion ?? 'v2.1-pro') {
+    case 'v2.1-pro':
+    default:              return 'kling-video/v2.1/pro/text-to-video'   // ← principal
     case 'v2.1-standard': return 'kling-video/v2.1/standard/text-to-video'
-    case 'v1.6-standard':
-    default:              return 'kling-video/v1.6/standard/text-to-video'
+    case 'v1.6-standard': return 'kling-video/v1.6/standard/text-to-video'
   }
 }
 
