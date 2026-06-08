@@ -86,6 +86,15 @@ const AIML_MODELS = [
     usage:    'Clonage vocal (ElevenLabs) · TTS expressif (MiniMax)',
     color:    'text-coral border-border-coral bg-coral/5',
   },
+  {
+    category: 'Research Agent',
+    icon:     '🔍',
+    primary:  'Perplexity Sonar Pro',
+    secondary: 'Sonar Reasoning',
+    models:   ['perplexity/sonar', 'perplexity/sonar-pro', 'perplexity/sonar-reasoning'],
+    usage:    'Veille web temps réel · Tendances · Formats viraux · Contexte avatar',
+    color:    'text-amber border-amber/40 bg-amber/5',
+  },
 ]
 
 const STATUS_CONFIG = {
@@ -275,7 +284,7 @@ export default function ParametresView() {
                     Modèles actifs via AIML API
                   </h3>
                   <span className="font-mono text-[9px] font-bold text-accent border border-accent/40 bg-accent/5 px-2 py-0.5 rounded-neo">
-                    1 clé · 8 modèles
+                    1 clé · 9 modèles
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">

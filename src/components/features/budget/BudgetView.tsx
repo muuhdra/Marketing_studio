@@ -7,10 +7,11 @@ import Button from '@/components/ui/Button'
 
 // Modèles utilisés — tous facturés via AIML API (une seule clé)
 const PROVIDERS = [
-  { name: 'Kling AI + Seedance',  role: 'Vidéo UGC & Cinématique',  usd: 18.60, pct: 42, color: 'bg-accent',  text: 'text-accent',  border: 'border-accent',        icon: '🎬', sub: 'Kling v2.1 Pro · Seedance Pro' },
-  { name: 'Claude + ChatGPT',     role: 'Scripts, Copy, Stratégie', usd: 11.40, pct: 26, color: 'bg-purple', text: 'text-purple',  border: 'border-border-purple', icon: '🧠', sub: 'Claude Opus 4 · GPT-4o'        },
-  { name: 'Flux + Nano Banana',   role: 'Visuels & Moodboards',     usd: 7.20,  pct: 16, color: 'bg-teal',   text: 'text-teal',    border: 'border-border-teal',   icon: '🖼️', sub: 'Flux Pro · Nano Banana'         },
-  { name: 'ElevenLabs + MiniMax', role: 'Voix Off & Clonage Vocal', usd: 7.00,  pct: 16, color: 'bg-coral',  text: 'text-coral',   border: 'border-border-coral',  icon: '🎙️', sub: 'ElevenLabs v2 · MiniMax HD'    },
+  { name: 'Kling AI + Seedance',  role: 'Vidéo UGC & Cinématique',  usd: 17.40, pct: 38, color: 'bg-accent',  text: 'text-accent',  border: 'border-accent',        icon: '🎬', sub: 'Kling v2.1 Pro · Seedance Pro'         },
+  { name: 'Claude + ChatGPT',     role: 'Scripts, Copy, Stratégie', usd: 10.80, pct: 24, color: 'bg-purple', text: 'text-purple',  border: 'border-border-purple', icon: '🧠', sub: 'Claude Opus 4 · GPT-4o'                },
+  { name: 'Perplexity Sonar',     role: 'Veille & Recherche Web',   usd: 6.20,  pct: 14, color: 'bg-amber',  text: 'text-amber',   border: 'border-amber/40',      icon: '🔍', sub: 'Sonar · Sonar Pro · Sonar Reasoning'   },
+  { name: 'Flux + Nano Banana',   role: 'Visuels & Moodboards',     usd: 6.60,  pct: 14, color: 'bg-teal',   text: 'text-teal',    border: 'border-border-teal',   icon: '🖼️', sub: 'Flux Pro v1.1 · Nano Banana'           },
+  { name: 'ElevenLabs + MiniMax', role: 'Voix Off & Clonage Vocal', usd: 4.40,  pct: 10, color: 'bg-coral',  text: 'text-coral',   border: 'border-border-coral',  icon: '🎙️', sub: 'ElevenLabs Multilingual v2 · MiniMax HD'},
 ]
 
 const HISTORY = [

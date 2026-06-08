@@ -24,6 +24,7 @@ export const AIML_BASE_V2 = 'https://api.aimlapi.com/v2'
  * 2. IMAGE     → Nano Banana + Flux (Black Forest Labs)
  * 3. VIDÉO     → Kling AI + Seedance (ByteDance)
  * 4. VOIX/TTS  → ElevenLabs + MiniMax
+ * 5. RESEARCH  → Perplexity Sonar (veille web temps réel)
  */
 export const MODELS = {
 
@@ -67,14 +68,25 @@ export const MODELS = {
     minimaxHD:      'minimax-speech-01-hd',
   },
 
+  // ── 5. Research Agent — Perplexity (veille web temps réel) ──────────────
+  research: {
+    // Sonar — recherche web rapide avec citations
+    sonar:          'perplexity/sonar',
+    // Sonar Pro — recherche approfondie, multi-sources
+    sonarPro:       'perplexity/sonar-pro',
+    // Sonar Reasoning — web search + raisonnement structuré
+    sonarReasoning: 'perplexity/sonar-reasoning',
+  },
+
 } as const
 
 // ─── Types utilitaires ───────────────────────────────────────────────────────
 
-export type TextModel  = typeof MODELS.text[keyof typeof MODELS.text]
-export type ImageModel = typeof MODELS.image[keyof typeof MODELS.image]
-export type VideoModel = typeof MODELS.video[keyof typeof MODELS.video]
-export type TtsModel   = typeof MODELS.tts[keyof typeof MODELS.tts]
+export type TextModel     = typeof MODELS.text[keyof typeof MODELS.text]
+export type ImageModel    = typeof MODELS.image[keyof typeof MODELS.image]
+export type VideoModel    = typeof MODELS.video[keyof typeof MODELS.video]
+export type TtsModel      = typeof MODELS.tts[keyof typeof MODELS.tts]
+export type ResearchModel = typeof MODELS.research[keyof typeof MODELS.research]
 
 // ─── Client OpenAI-compatible ────────────────────────────────────────────────
 

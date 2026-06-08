@@ -8,20 +8,25 @@
  */
 
 import { createAimlClient, MODELS } from './client'
+import { type ResearchContext, formatResearchForPrompt } from './research'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface GenerateScriptParams {
-  campaignName:   string
-  campaignDna:    string
-  contentType:    'ugc' | 'commercial' | 'shooting' | 'visuel'
-  avatarName?:    string
-  avatarStyle?:   string
-  format?:        'social' | 'tutorial' | 'unboxing' | 'review' | 'tv-spot'
-  duration?:      number
-  platform?:      'tiktok' | 'instagram' | 'youtube' | 'generic'
-  language?:      string
-  model?:         'chatgpt' | 'claude'   // choix explicite du modèle
+  campaignName:    string
+  campaignDna:     string
+  contentType:     'ugc' | 'commercial' | 'shooting' | 'visuel'
+  avatarName?:     string
+  avatarStyle?:    string
+  avatarAge?:      number
+  avatarNiche?:    string
+  format?:         'social' | 'tutorial' | 'unboxing' | 'review' | 'tv-spot'
+  duration?:       number
+  platform?:       'tiktok' | 'instagram' | 'youtube' | 'generic'
+  language?:       string
+  model?:          'chatgpt' | 'claude'
+  // Contexte de recherche Perplexity (optionnel — enrichit le script)
+  researchContext?: ResearchContext
 }
 
 export interface ScriptResult {
@@ -91,13 +96,20 @@ Tu rédiges des scripts percutants pour des campagnes publicitaires.
 Réponds UNIQUEMENT en JSON valide selon le format demandé.
 Langue de sortie : ${lang === 'fr' ? 'français' : lang}.`
 
+  // Injecter le contexte de recherche Perplexity si disponible
+  const researchBlock = params.researchContext
+    ? `\n${formatResearchForPrompt(params.researchContext)}\n`
+    : ''
+
   const userPrompt = `Crée un script ${params.contentType} pour la campagne "${params.campaignName}".
 
 ADN Campagne : ${params.campaignDna}
-${params.avatarName ? `Avatar : ${params.avatarName}${params.avatarStyle ? ` (style: ${params.avatarStyle})` : ''}` : ''}
+${params.avatarName ? `Avatar : ${params.avatarName}${params.avatarStyle ? ` (style: ${params.avatarStyle})` : ''}${params.avatarAge ? ` · ${params.avatarAge} ans` : ''}${params.avatarNiche ? ` · niche: ${params.avatarNiche}` : ''}` : ''}
 Format : ${params.format ?? 'social'}
 Durée : ${params.duration ?? 30}s
 Plateforme : ${params.platform ?? 'generic'}
+${researchBlock}
+INSTRUCTIONS : Utilise impérativement les tendances et formats viraux du contexte ci-dessus pour rendre le script actuel et pertinent. Adapte le ton et les références culturelles au profil de l'avatar.
 
 JSON exact :
 {

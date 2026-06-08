@@ -7,17 +7,22 @@ import Button from '@/components/ui/Button'
 import { useCampaignWizard } from '@/lib/stores/campaignWizardStore'
 import { finalizeCampaign } from '@/lib/actions/wizard'
 import { useToast } from '@/lib/stores/toastStore'
-import { actionGenerateScript, actionGetVideoStatus, actionSubmitVideo } from '@/lib/actions/ai'
+import {
+  actionResearchThenScript,
+  actionGetVideoStatus,
+  actionSubmitVideo,
+} from '@/lib/actions/ai'
 import type { ScriptResult } from '@/lib/ai/text'
+import type { ResearchContext } from '@/lib/ai/research'
 import type { VideoJob } from '@/lib/ai/video'
 
 type AgentStatus = 'idle' | 'running' | 'done' | 'waiting' | 'error'
 
 const AGENTS = [
-  { id: 'orchestrator', name: 'Claude Orchestrator',  role: 'Analyse ADN & Stratégie',       status: 'done'    as AgentStatus },
-  { id: 'script',       name: 'GPT-4o Copywriter',    role: 'Scénariste & Copywriter Hook',  status: 'waiting' as AgentStatus },
-  { id: 'casting',      name: 'Directeur Casting',    role: 'Matching Avatar & Campagne',     status: 'waiting' as AgentStatus },
-  { id: 'montage',      name: 'Kling v2.1 Pro',       role: 'Monteur Rythmique & Dynamique', status: 'waiting' as AgentStatus },
+  { id: 'research',  name: 'Perplexity Sonar',    role: 'Veille Web & Tendances',       status: 'waiting' as AgentStatus },
+  { id: 'script',    name: 'ChatGPT GPT-4o',      role: 'Scénariste & Copywriter',      status: 'waiting' as AgentStatus },
+  { id: 'casting',   name: 'Claude Orchestrator', role: 'Stratégie & Cohérence Avatar', status: 'waiting' as AgentStatus },
+  { id: 'montage',   name: 'Kling v2.1 Pro',      role: 'Génération Vidéo',             status: 'waiting' as AgentStatus },
 ]
 
 const AGENT_COLORS: Record<AgentStatus, string> = {
@@ -74,8 +79,10 @@ export default function CreativeStudioWorkflowView() {
   const [quality, setQuality]               = useState('720p')
 
   // ── IA State ──────────────────────────────────────────────────────────────
-  const [generating, setGenerating]   = useState(false)
-  const [script, setScript]           = useState<ScriptResult | null>(null)
+  const [generating, setGenerating]     = useState(false)
+  const [genPhase, setGenPhase]         = useState<'idle' | 'research' | 'script' | 'done'>('idle')
+  const [script, setScript]             = useState<ScriptResult | null>(null)
+  const [researchCtx, setResearchCtx]   = useState<ResearchContext | null>(null)
   const [agentStatuses, setAgentStatuses] = useState<AgentStatus[]>(['done', 'waiting', 'waiting', 'waiting'])
 
   // Vidéo async
@@ -86,36 +93,57 @@ export default function CreativeStudioWorkflowView() {
   async function handleGenerate() {
     if (!prompt.trim()) { toast.warning('Écris un prompt pour générer un contenu'); return }
     setGenerating(true)
+    setGenPhase('research')
     setScript(null)
+    setResearchCtx(null)
     setVideoJob(null)
 
-    // Activer les agents visuellement
-    setAgentStatuses(['done', 'running', 'waiting', 'waiting'])
+    // Phase 1 : Research Agent (Perplexity)
+    setAgentStatuses(['running', 'waiting', 'waiting', 'waiting'])
+    toast.info('🔍 Perplexity recherche les tendances actuelles...')
 
     try {
       const contentType = selectedFormat.id.startsWith('ugc') ? 'ugc'
         : selectedFormat.id.startsWith('com') ? 'commercial'
         : 'ugc'
 
-      const result = await actionGenerateScript({
-        campaignName: step1.name || 'Ma Campagne',
-        campaignDna:  prompt,
-        contentType,
-        format:       'social',
-        duration,
-        platform:     'tiktok',
-        language:     'fr',
-      })
+      const platform = aspect === '9:16' ? 'tiktok' : 'instagram'
 
+      // Pipeline Research → Script en une seule action sécurisée
+      setAgentStatuses(['done', 'running', 'waiting', 'waiting'])
+      setGenPhase('script')
+
+      const { researchContext, script: result } = await actionResearchThenScript(
+        // Params Research Agent
+        {
+          campaignTopic: prompt,
+          industry:      step1.name || 'marketing',
+          platform,
+          locale:        'fr',
+        },
+        // Params Script
+        {
+          campaignName: step1.name || 'Ma Campagne',
+          campaignDna:  prompt,
+          contentType,
+          format:       'social',
+          duration,
+          platform,
+          language:     'fr',
+          model:        'chatgpt',
+        },
+      )
+
+      setResearchCtx(researchContext)
       setScript(result)
+      setGenPhase('done')
       setAgentStatuses(['done', 'done', 'running', 'waiting'])
-      toast.success('Script généré par GPT-4o ✓')
-
-      // Après 1s, marquer casting done
-      setTimeout(() => setAgentStatuses(['done', 'done', 'done', 'waiting']), 1000)
+      toast.success(`Script généré ✓ — ${researchContext.trends.length} tendances intégrées`)
+      setTimeout(() => setAgentStatuses(['done', 'done', 'done', 'waiting']), 1200)
     } catch (e: any) {
       toast.error(e?.message ?? 'Erreur lors de la génération')
-      setAgentStatuses(['done', 'error', 'waiting', 'waiting'])
+      setAgentStatuses(['error', 'waiting', 'waiting', 'waiting'])
+      setGenPhase('idle')
     } finally {
       setGenerating(false)
     }
@@ -236,13 +264,61 @@ export default function CreativeStudioWorkflowView() {
 
             {/* Génération en cours */}
             {generating && (
-              <div className="w-full max-w-[880px] h-[380px] bg-bg-card border-2 border-accent/40 rounded-neo-lg flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-4xl mb-4 animate-pulse">✦</div>
-                  <div className="font-display font-bold text-[15px] text-accent mb-2">
-                    GPT-4o génère votre script...
+              <div className="w-full max-w-[880px] bg-bg-card border-2 border-accent/40 rounded-neo-lg p-8">
+                <div className="flex flex-col gap-6">
+
+                  {/* Étape 1 : Research */}
+                  <div className={`flex items-center gap-4 p-4 rounded-neo-lg border-2 transition-all ${
+                    genPhase === 'research' ? 'border-purple bg-purple/5' : 'border-border opacity-50'
+                  }`}>
+                    <div className={`w-10 h-10 rounded-neo-lg border-2 flex items-center justify-center text-xl flex-shrink-0 ${
+                      genPhase === 'research' ? 'border-purple bg-purple/15 animate-pulse' : 'border-border'
+                    }`}>
+                      🔍
+                    </div>
+                    <div className="flex-1">
+                      <p className={`font-display font-bold text-[14px] ${genPhase === 'research' ? 'text-purple' : 'text-text-muted'}`}>
+                        Research Agent — Perplexity Sonar
+                      </p>
+                      <p className="font-mono text-[11px] text-text-dim">
+                        Recherche web · Tendances actuelles · Formats viraux · Contexte culturel
+                      </p>
+                    </div>
+                    {genPhase === 'research' && (
+                      <div className="font-mono text-[10px] text-purple animate-pulse">En cours...</div>
+                    )}
+                    {genPhase !== 'research' && genPhase !== 'idle' && (
+                      <div className="font-mono text-[10px] text-teal">✓ Terminé</div>
+                    )}
                   </div>
-                  <div className="font-mono text-[11px] text-text-dim">Analyse ADN · Rédaction · Optimisation hook</div>
+
+                  {/* Étape 2 : Script */}
+                  <div className={`flex items-center gap-4 p-4 rounded-neo-lg border-2 transition-all ${
+                    genPhase === 'script' ? 'border-accent bg-accent/5' : 'border-border opacity-50'
+                  }`}>
+                    <div className={`w-10 h-10 rounded-neo-lg border-2 flex items-center justify-center text-xl flex-shrink-0 ${
+                      genPhase === 'script' ? 'border-accent bg-accent/10 animate-pulse' : 'border-border'
+                    }`}>
+                      ✍️
+                    </div>
+                    <div className="flex-1">
+                      <p className={`font-display font-bold text-[14px] ${genPhase === 'script' ? 'text-accent' : 'text-text-muted'}`}>
+                        Script Writer — ChatGPT GPT-4o
+                      </p>
+                      <p className="font-mono text-[11px] text-text-dim">
+                        Rédaction · Intégration tendances · Hook · Voix off · CTA
+                      </p>
+                    </div>
+                    {genPhase === 'script' && (
+                      <div className="font-mono text-[10px] text-accent animate-pulse">En cours...</div>
+                    )}
+                  </div>
+
+                  <div className="text-center">
+                    <p className="font-mono text-[10px] text-text-dim">
+                      Pipeline : Perplexity → ChatGPT → Script enrichi aux tendances actuelles
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -250,6 +326,30 @@ export default function CreativeStudioWorkflowView() {
             {/* Résultat script */}
             {script && !videoJob && (
               <div className="w-full max-w-[920px] animate-fade-in">
+
+                {/* Bandeau Research */}
+                {researchCtx && researchCtx.trends.length > 0 && (
+                  <div className="mb-4 bg-purple/5 border-2 border-border-purple rounded-neo-lg px-4 py-3 flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span className="font-mono text-[9px] font-bold text-purple">🔍 PERPLEXITY</span>
+                      <span className="font-mono text-[9px] text-text-dim">·</span>
+                      <span className="font-mono text-[9px] text-text-dim">{new Date(researchCtx.researchedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      {researchCtx.trends.slice(0, 3).map((t, i) => (
+                        <span key={i} className="font-mono text-[9px] text-purple border border-border-purple/50 bg-purple/5 rounded px-2 py-0.5">
+                          ↗ {t.topic}
+                        </span>
+                      ))}
+                      {researchCtx.trendingKeywords.slice(0, 4).map((k) => (
+                        <span key={k} className="font-mono text-[9px] text-text-dim border border-border rounded px-1.5 py-0.5">
+                          #{k}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-[1fr_340px] gap-5">
                   {/* Script principal */}
                   <div className="bg-bg-card border-2 border-accent/30 rounded-neo-lg p-6">

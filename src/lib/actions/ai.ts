@@ -15,6 +15,11 @@
 
 import { requireAuth } from './auth'
 import {
+  runResearchAgent,
+  quickTrendResearch,
+  type ResearchParams,
+} from '@/lib/ai/research'
+import {
   generateScript,
   generateCopy,
   generateStrategy,
@@ -42,6 +47,55 @@ import {
   generateSpeech,
   type GenerateSpeechParams,
 } from '@/lib/ai/tts'
+
+// ─── Research Agent : Perplexity ─────────────────────────────────────────────
+
+/**
+ * Recherche approfondie — Perplexity Sonar Pro
+ * Tendances + formats viraux + actualités + contexte avatar
+ */
+export async function actionRunResearch(params: ResearchParams) {
+  await requireAuth()
+  return runResearchAgent(params)
+}
+
+/**
+ * Recherche rapide — Perplexity Sonar
+ * Juste les tendances et formats viraux (avant génération script)
+ */
+export async function actionQuickTrendResearch(options: {
+  topic:    string
+  platform: 'tiktok' | 'instagram' | 'youtube'
+  locale?:  string
+}) {
+  await requireAuth()
+  return quickTrendResearch(options)
+}
+
+/**
+ * Pipeline complet : Research → Script
+ * Perplexity cherche les tendances → Claude/ChatGPT génère le script enrichi
+ */
+export async function actionResearchThenScript(
+  researchParams: Omit<ResearchParams, 'depth'>,
+  scriptParams:   Omit<GenerateScriptParams, 'researchContext'>,
+) {
+  await requireAuth()
+
+  // Étape 1 : Research Agent (Perplexity)
+  const researchContext = await runResearchAgent({
+    ...researchParams,
+    depth: 'quick',  // rapide pour ne pas bloquer l'UX
+  })
+
+  // Étape 2 : Génération du script enrichi (Claude ou ChatGPT)
+  const script = await generateScript({
+    ...scriptParams,
+    researchContext,
+  })
+
+  return { researchContext, script }
+}
 
 // ─── Texte : Claude + ChatGPT ────────────────────────────────────────────────
 
