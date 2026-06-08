@@ -5,17 +5,18 @@ import Button from '@/components/ui/Button'
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
+// Providers via AIML API (même provider, usages différents)
 const PROVIDERS = [
-  { name: 'Claude',      role: 'Orchestration IA',  usd: 13.40, pct: 35, color: 'bg-purple',  text: 'text-purple',  border: 'border-border-purple', icon: '🧠' },
-  { name: 'Kling AI',    role: 'Génération vidéo',  usd: 10.70, pct: 28, color: 'bg-accent',  text: 'text-accent',  border: 'border-accent',        icon: '🎬' },
-  { name: 'OpenAI',      role: 'Scripts & Copy',    usd: 7.64,  pct: 20, color: 'bg-teal',    text: 'text-teal',    border: 'border-border-teal',   icon: '✍️' },
-  { name: 'ElevenLabs',  role: 'Voix & Audio',      usd: 6.46,  pct: 17, color: 'bg-coral',   text: 'text-coral',   border: 'border-border-coral',  icon: '🎙️' },
+  { name: 'Kling v2.1 Pro',        role: 'Vidéo UGC & Commerciaux', usd: 18.60, pct: 42, color: 'bg-accent',  text: 'text-accent',  border: 'border-accent',         icon: '🎬' },
+  { name: 'GPT-4o / Claude Opus',  role: 'Scripts, Copy, Stratégie', usd: 11.40, pct: 26, color: 'bg-purple', text: 'text-purple',  border: 'border-border-purple',  icon: '🧠' },
+  { name: 'Flux Pro v1.1',         role: 'Visuels & Moodboards',     usd: 7.20,  pct: 16, color: 'bg-teal',   text: 'text-teal',    border: 'border-border-teal',    icon: '🖼️' },
+  { name: 'ElevenLabs v2',         role: 'Voix Off & Avatar Audio',  usd: 7.00,  pct: 16, color: 'bg-coral',  text: 'text-coral',   border: 'border-border-coral',   icon: '🎙️' },
 ]
 
 const HISTORY = [
-  { month: 'Mai 2026',  total: 31.40, breakdown: { claude: 11.00, kling: 9.20, openai: 6.50, eleven: 4.70 }, delta: +5.2 },
-  { month: 'Avr 2026',  total: 29.84, breakdown: { claude: 10.40, kling: 8.80, openai: 6.10, eleven: 4.54 }, delta: -2.1 },
-  { month: 'Mar 2026',  total: 30.48, breakdown: { claude: 10.70, kling: 8.90, openai: 6.30, eleven: 4.58 }, delta: +8.7 },
+  { month: 'Mai 2026',  total: 38.10, breakdown: { video: 16.20, text: 10.80, image: 6.50, voice: 4.60 }, delta: +5.2 },
+  { month: 'Avr 2026',  total: 36.24, breakdown: { video: 15.40, text:  9.80, image: 6.00, voice: 5.04 }, delta: -2.1 },
+  { month: 'Mar 2026',  total: 37.08, breakdown: { video: 15.70, text: 10.20, image: 6.20, voice: 4.98 }, delta: +8.7 },
 ]
 
 const BUDGET_LIMIT = 100 // USD/mois
@@ -157,7 +158,7 @@ export default function BudgetView() {
                   <div>
                     <p className="font-mono text-[12px] font-bold text-text-primary">{h.month}</p>
                     <p className="font-mono text-[10px] text-text-dim mt-0.5">
-                      Claude ${h.breakdown.claude} · Kling ${h.breakdown.kling}
+                      Vidéo ${h.breakdown.video} · Texte ${h.breakdown.text}
                     </p>
                   </div>
                   <div className="text-right">

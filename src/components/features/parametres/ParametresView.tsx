@@ -19,12 +19,41 @@ interface ApiKey {
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 const API_KEYS: ApiKey[] = [
-  { id: 'anthropic',  name: 'Anthropic Claude', icon: '🧠', env: 'ANTHROPIC_API_KEY',          masked: 'sk-ant-••••••••••••••••••••••••••••••••',  status: 'connected', desc: 'Orchestration IA, génération de scripts et copy'    },
-  { id: 'openai',     name: 'OpenAI',            icon: '✍️', env: 'OPENAI_API_KEY',             masked: 'sk-••••••••••••••••••••••••••••••••••••',   status: 'connected', desc: 'Génération de textes, embeddings, fine-tuning'      },
-  { id: 'kling',      name: 'Kling AI',           icon: '🎬', env: 'KLING_API_KEY',              masked: '••••••••••••••••••••••••••••••',             status: 'connected', desc: 'Génération et clonage vidéo IA'                     },
-  { id: 'elevenlabs', name: 'ElevenLabs',         icon: '🎙️', env: 'ELEVENLABS_API_KEY',        masked: 'el_••••••••••••••••••••••••••••••••••••',   status: 'connected', desc: 'Clonage vocal, synthèse et doublage audio'          },
-  { id: 'supabase',   name: 'Supabase',           icon: '🗄️', env: 'NEXT_PUBLIC_SUPABASE_URL',  masked: 'https://••••••••.supabase.co',              status: 'connected', desc: 'Base de données, auth, storage'                    },
-  { id: 'resend',     name: 'Resend',             icon: '📧', env: 'RESEND_API_KEY',             masked: 're_••••••••••••••••••••',                   status: 'missing',   desc: "Emails transactionnels (invitations, notifications)"  },
+  {
+    id:     'aimlapi',
+    name:   'AIML API',
+    icon:   '⚡',
+    env:    'AIMLAPI_KEY',
+    masked: 'aiml-••••••••••••••••••••••••••••••••',
+    status: 'connected',
+    desc:   'Hub IA unifié — GPT-4o, Claude, Kling, ElevenLabs, Flux, Seedance via une seule clé',
+  },
+  {
+    id:     'supabase',
+    name:   'Supabase',
+    icon:   '🗄️',
+    env:    'NEXT_PUBLIC_SUPABASE_URL',
+    masked: 'https://••••••••.supabase.co',
+    status: 'connected',
+    desc:   'Base de données, authentification, storage fichiers',
+  },
+  {
+    id:     'resend',
+    name:   'Resend',
+    icon:   '📧',
+    env:    'RESEND_API_KEY',
+    masked: 're_••••••••••••••••••',
+    status: 'missing',
+    desc:   'Emails transactionnels (invitations équipe, notifications campagne)',
+  },
+]
+
+// Modèles disponibles via AIML API
+const AIML_MODELS = [
+  { category: 'Texte & Scripts',  models: ['GPT-4o', 'Claude Opus 4', 'Llama 3.3', 'Gemini 2.0 Flash'],              color: 'text-accent  border-accent/30  bg-accent/5'   },
+  { category: 'Génération Image', models: ['Flux Pro v1.1', 'Flux Schnell', 'DALL-E 3', 'Stable Diffusion 3.5'],      color: 'text-teal    border-border-teal  bg-teal/5'    },
+  { category: 'Génération Vidéo', models: ['Kling v2.1 Pro', 'Kling v1.6', 'Seedance 1.0', 'Hailuo 2.3', 'Sora 2'],  color: 'text-purple  border-border-purple bg-purple/5' },
+  { category: 'Voix & TTS',       models: ['ElevenLabs Multilingual v2', 'OpenAI TTS-HD', 'fish-speech'],              color: 'text-coral   border-border-coral  bg-coral/5'  },
 ]
 
 const STATUS_CONFIG = {
@@ -207,11 +236,37 @@ export default function ParametresView() {
                 })}
               </div>
 
+              {/* AIML Models showcase */}
+              <div className="mt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <h3 className="font-display font-bold text-[14px] text-text-primary">
+                    Modèles disponibles via AIML API
+                  </h3>
+                  <span className="font-mono text-[9px] font-bold text-accent border border-accent/40 bg-accent/5 px-2 py-0.5 rounded-neo">
+                    400+ modèles
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {AIML_MODELS.map((cat) => (
+                    <div key={cat.category} className={`rounded-neo-lg border p-4 ${cat.color}`}>
+                      <p className="font-mono text-[10px] font-bold mb-2 opacity-80">{cat.category}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {cat.models.map((m) => (
+                          <span key={m} className="font-mono text-[9px] px-1.5 py-0.5 rounded border border-current/20 bg-current/5 opacity-90">
+                            {m}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="mt-5 bg-bg-surface border border-border rounded-neo p-4">
                 <p className="font-mono text-[11px] text-text-dim">
-                  💡 Les clés API sont lues depuis les variables d'environnement Vercel.
+                  💡 Les clés API sont lues depuis les variables d'environnement.
                   Elles ne sont jamais exposées côté client.
-                  Pour les modifier, rendez-vous dans <strong className="text-text-secondary">Vercel → Settings → Environment Variables</strong>.
+                  Pour les modifier : <strong className="text-text-secondary">Vercel → Settings → Environment Variables</strong>.
                 </p>
               </div>
             </div>
