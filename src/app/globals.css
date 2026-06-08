@@ -1,0 +1,286 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────
+   DESIGN TOKENS — Studio UGC IA
+   Neo-Brutalism Dark Edition
+   ────────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-base:     #0a0a0f;
+  --bg-surface:  #0f0f18;
+  --bg-card:     #111119;
+  --bg-elevated: #161622;
+  --bg-overlay:  #1c1c2a;
+  --bg-input:    #0d0d15;
+
+  /* Borders */
+  --border:        rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.16);
+  --border-accent: #c8f55a;
+
+  /* Text */
+  --text-primary:   #e8e4dc;
+  --text-secondary: #8888a4;
+  --text-muted:     #5a5a72;
+  --text-dim:       #44445a;
+  --text-faint:     #3a3a52;
+
+  /* Palette */
+  --accent:  #c8f55a;
+  --purple:  #a09ae0;
+  --teal:    #5dcaa5;
+  --coral:   #f0997b;
+  --amber:   #ef9f27;
+  --pink:    #ed93b1;
+
+  /* Neo-Brutalism shadows */
+  --shadow-neo:        3px 3px 0px rgba(200,245,90,0.45);
+  --shadow-neo-sm:     2px 2px 0px rgba(200,245,90,0.45);
+  --shadow-neo-lg:     5px 5px 0px rgba(200,245,90,0.45);
+  --shadow-neo-solid:  4px 4px 0px #c8f55a;
+  --shadow-neo-white:  3px 3px 0px rgba(255,255,255,0.12);
+  --shadow-neo-purple: 3px 3px 0px rgba(160,154,224,0.45);
+  --shadow-neo-teal:   3px 3px 0px rgba(93,202,165,0.45);
+  --shadow-neo-coral:  3px 3px 0px rgba(240,153,123,0.45);
+}
+
+/* ──────────────────────────────────────────────
+   BASE
+   ────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Syne', sans-serif;
+  margin: 0;
+}
+
+p { margin: 0; }
+
+a { color: inherit; text-decoration: none; }
+
+/* ──────────────────────────────────────────────
+   SCROLLBAR
+   ────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.14);
+}
+
+/* ──────────────────────────────────────────────
+   SELECTION
+   ────────────────────────────────────────────── */
+::selection {
+  background: rgba(200,245,90,0.2);
+  color: #c8f55a;
+}
+
+/* ──────────────────────────────────────────────
+   FORMS — Neo-Brutalism style
+   ────────────────────────────────────────────── */
+input[type="text"],
+input[type="date"],
+input[type="number"],
+input[type="email"],
+input[type="url"],
+input[type="password"],
+textarea,
+select {
+  background: var(--bg-input);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  padding: 10px 14px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  appearance: none;
+}
+
+input[type="text"]:focus,
+input[type="date"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus,
+input[type="url"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-neo-sm);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-faint);
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+input[type="number"] { width: auto; }
+
+/* ──────────────────────────────────────────────
+   UTILITAIRES NEO-BRUTALISM
+   ────────────────────────────────────────────── */
+@layer components {
+
+  /* Carte de base */
+  .nb-card {
+    @apply bg-bg-card border-2 rounded-neo-lg transition-all duration-150;
+    border-color: rgba(255,255,255,0.08);
+  }
+
+  .nb-card-hover:hover {
+    border-color: rgba(255,255,255,0.16);
+    box-shadow: var(--shadow-neo-white);
+    transform: translate(-1px, -1px);
+  }
+
+  /* Carte accentuée */
+  .nb-card-accent {
+    @apply bg-bg-card rounded-neo-lg border-2 transition-all duration-150;
+    border-color: var(--accent);
+    box-shadow: var(--shadow-neo);
+  }
+
+  .nb-card-accent:hover {
+    box-shadow: var(--shadow-neo-lg);
+    transform: translate(-1px, -1px);
+  }
+
+  /* Bouton primaire */
+  .nb-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-neo-md font-sans font-bold text-sm cursor-pointer transition-all duration-100 select-none;
+    background: var(--accent);
+    color: var(--bg-base);
+    border: 2px solid var(--accent);
+    box-shadow: var(--shadow-neo-sm);
+  }
+
+  .nb-btn-primary:hover {
+    box-shadow: var(--shadow-neo);
+    transform: translate(-1px, -1px);
+  }
+
+  .nb-btn-primary:active {
+    box-shadow: none;
+    transform: translate(1px, 1px);
+  }
+
+  .nb-btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Bouton secondaire */
+  .nb-btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-neo-md font-sans font-bold text-sm cursor-pointer transition-all duration-100 select-none;
+    background: transparent;
+    color: var(--text-primary);
+    border: 2px solid rgba(255,255,255,0.16);
+    box-shadow: var(--shadow-neo-white);
+  }
+
+  .nb-btn-secondary:hover {
+    border-color: rgba(255,255,255,0.3);
+    box-shadow: 3px 3px 0px rgba(255,255,255,0.18);
+    transform: translate(-1px, -1px);
+  }
+
+  .nb-btn-secondary:active {
+    box-shadow: none;
+    transform: translate(1px, 1px);
+  }
+
+  /* Bouton ghost */
+  .nb-btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-neo-md font-sans font-medium text-sm cursor-pointer transition-all duration-100 select-none;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 2px solid transparent;
+  }
+
+  .nb-btn-ghost:hover {
+    color: var(--text-primary);
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(255,255,255,0.08);
+  }
+
+  /* Badge */
+  .nb-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-neo font-mono text-xs font-bold uppercase tracking-wider;
+    border: 2px solid;
+  }
+
+  /* Label section */
+  .nb-label {
+    @apply font-mono text-xs font-bold uppercase tracking-widest;
+    color: var(--text-dim);
+  }
+
+  /* Input styled */
+  .nb-input {
+    background: var(--bg-input);
+    border: 2px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    padding: 10px 14px;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .nb-input:focus {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-neo-sm);
+  }
+
+  /* Divider */
+  .nb-divider {
+    @apply w-full;
+    height: 2px;
+    background: rgba(255,255,255,0.06);
+  }
+
+  /* Dot indicator */
+  .nb-dot {
+    @apply w-2 h-2 rounded-full flex-shrink-0;
+  }
+
+  /* Shimmer skeleton */
+  .nb-skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(255,255,255,0.04) 25%,
+      rgba(255,255,255,0.08) 50%,
+      rgba(255,255,255,0.04) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 6px;
+  }
+}
