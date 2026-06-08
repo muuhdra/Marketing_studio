@@ -4,7 +4,12 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { campaigns } from '@/lib/db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, and } from 'drizzle-orm'
+import {
+  campaign_content_types,
+  campaign_avatar_assignments,
+  avatars,
+} from '@/lib/db/schema'
 import { revalidatePath } from 'next/cache'
 
 // ─── Helper : récupère l'user authentifié côté serveur ───────────────────────
@@ -87,6 +92,42 @@ export async function getCampaign(id: string) {
   }
 
   return campaign
+}
+
+// ─── GET WITH DETAILS — campagne + contenus + avatars assignés ────────────────
+
+export async function getCampaignWithDetails(id: string) {
+  const user = await getAuthUser()
+
+  const [campaign] = await db
+    .select()
+    .from(campaigns)
+    .where(and(eq(campaigns.id, id), eq(campaigns.user_id, user.id)))
+
+  if (!campaign) throw new Error('Campagne introuvable')
+
+  // Contenus sélectionnés
+  const contentTypes = await db
+    .select()
+    .from(campaign_content_types)
+    .where(eq(campaign_content_types.campaign_id, id))
+
+  // Avatars assignés avec leur nom
+  const assignments = await db
+    .select({
+      id:          campaign_avatar_assignments.id,
+      role:        campaign_avatar_assignments.role,
+      config:      campaign_avatar_assignments.config_snapshot,
+      avatarId:    avatars.id,
+      avatarName:  avatars.name,
+      avatarAge:   avatars.age,
+      styleTags:   avatars.style_tags,
+    })
+    .from(campaign_avatar_assignments)
+    .leftJoin(avatars, eq(campaign_avatar_assignments.avatar_id, avatars.id))
+    .where(eq(campaign_avatar_assignments.campaign_id, id))
+
+  return { campaign, contentTypes, assignments }
 }
 
 // ─── UPDATE — modifier une campagne existante ────────────────────────────────

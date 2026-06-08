@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getCampaign } from '@/lib/actions/campaigns'
+import { getCampaignWithDetails } from '@/lib/actions/campaigns'
 import CampaignDetailView from '@/components/features/campagne/CampaignDetailView'
 
 interface Props {
@@ -9,12 +9,12 @@ interface Props {
 export default async function Page({ params }: Props) {
   const { id } = await params
 
-  let campaign
+  let data: Awaited<ReturnType<typeof getCampaignWithDetails>> | null = null
   try {
-    campaign = await getCampaign(id)
+    data = await getCampaignWithDetails(id)
   } catch {
     notFound()
   }
 
-  return <CampaignDetailView campaign={campaign} />
+  return <CampaignDetailView data={data!} />
 }

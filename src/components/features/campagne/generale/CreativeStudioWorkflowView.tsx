@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import StepBar from '@/components/ui/StepBar'
 import Button from '@/components/ui/Button'
+import { useCampaignWizard } from '@/lib/stores/campaignWizardStore'
+import { finalizeCampaign } from '@/lib/actions/wizard'
 
 type AgentStatus = 'idle' | 'running' | 'done' | 'waiting'
 
@@ -53,15 +55,35 @@ type FormatTab   = 'all' | 'ugc' | 'commercial'
 
 export default function CreativeStudioWorkflowView() {
   const router = useRouter()
+  const { campaignId, reset } = useCampaignWizard()
+
   const [prompt, setPrompt]           = useState('')
   const [modalOpen, setModalOpen]     = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('main')
+  const [finalizing, setFinalizing]   = useState(false)
 
   const [activeTab, setActiveTab]         = useState<FormatTab>('all')
   const [selectedFormat, setSelectedFormat] = useState(ALL_FORMATS.ugc.types[0])
   const [aspect, setAspect]               = useState('9:16')
   const [quality, setQuality]             = useState('720p')
+
+  async function handleFinalize() {
+    setFinalizing(true)
+    try {
+      if (campaignId) {
+        const updated = await finalizeCampaign(campaignId)
+        reset() // Vide le wizard — campagne créée avec succès
+        router.push(`/campagne/${updated.id}`)
+      } else {
+        reset()
+        router.push('/campagnes')
+      }
+    } catch (e) {
+      console.error(e)
+      setFinalizing(false)
+    }
+  }
   const [duration, setDuration]           = useState(15)
 
   const filteredTypes = activeTab === 'all'
@@ -268,14 +290,29 @@ export default function CreativeStudioWorkflowView() {
         </div>
       </div>
 
-      {/* Back link */}
-      <div className="absolute bottom-8 left-[90px] z-10">
+      {/* Bottom bar */}
+      <div className="absolute bottom-0 left-[66px] right-0 z-10 flex items-center justify-between px-6 py-3 bg-bg-surface/90 backdrop-blur-sm border-t-2 border-border">
         <button
           onClick={() => router.push('/campagne/etape-3')}
-          className="text-[11px] text-text-dim hover:text-text-muted transition-colors"
+          className="font-mono text-[11px] text-text-dim hover:text-text-muted transition-colors"
         >
-          ← Étape Précédente
+          ← Étape 3 — Avatars
         </button>
+        <div className="flex items-center gap-3">
+          {campaignId && (
+            <span className="font-mono text-[10px] text-text-dim flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-teal" />
+              Campagne sauvegardée
+            </span>
+          )}
+          <Button
+            size="sm"
+            loading={finalizing}
+            onClick={handleFinalize}
+          >
+            ✦ Finaliser la Campagne →
+          </Button>
+        </div>
       </div>
 
       {/* ── Format selector modal ── */}

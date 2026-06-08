@@ -25,6 +25,31 @@ interface Campaign {
   updated_at: Date | string
 }
 
+interface ContentType {
+  id: string
+  content_type: 'ugc' | 'commercial' | 'shooting' | 'visuel'
+  product_category: 'produit' | 'app'
+  quantity: number
+}
+
+interface Assignment {
+  id: string
+  role: 'primary' | 'secondary' | null
+  config: unknown
+  avatarId: string | null
+  avatarName: string | null
+  avatarAge: number | null
+  styleTags: string[] | null
+}
+
+interface Props {
+  data: {
+    campaign:     Campaign
+    contentTypes: ContentType[]
+    assignments:  Assignment[]
+  }
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function statusToDisplay(s: CampaignStatus): 'active' | 'pre' | 'done' | 'draft' | 'post' {
@@ -40,9 +65,17 @@ function formatDate(d: string | Date | null) {
   return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+const CONTENT_LABELS: Record<string, { label: string; color: string; icon: string }> = {
+  ugc:        { label: 'UGC Vidéo',      color: 'text-accent border-accent bg-accent/10',        icon: '🎬' },
+  commercial: { label: 'Commercial',     color: 'text-purple border-border-purple bg-purple/10',  icon: '📺' },
+  shooting:   { label: 'Shooting Photo', color: 'text-teal border-border-teal bg-teal/10',        icon: '📸' },
+  visuel:     { label: 'Visuels',        color: 'text-amber border-amber/40 bg-amber/10',         icon: '🎨' },
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function CampaignDetailView({ campaign }: { campaign: Campaign }) {
+export default function CampaignDetailView({ data }: Props) {
+  const { campaign, contentTypes, assignments } = data
   const router  = useRouter()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting]           = useState(false)
@@ -52,17 +85,19 @@ export default function CampaignDetailView({ campaign }: { campaign: Campaign })
     try {
       await deleteCampaign(campaign.id)
       router.push('/campagnes')
-    } catch (e: any) {
-      console.error(e)
+    } catch {
       setDeleting(false)
       setConfirmDelete(false)
     }
   }
 
+  const isDraft   = campaign.status === 'draft'
+  const wizardComplete = contentTypes.length > 0 && assignments.length > 0
+
   const PHASE_STEPS = [
-    { label: 'Pré-campagne',  active: campaign.pre_campaign_enabled,  color: 'text-purple border-border-purple bg-purple/5'  },
-    { label: 'Campagne',      active: true,                           color: 'text-accent  border-accent        bg-accent/5'  },
-    { label: 'Post-campagne', active: campaign.post_campaign_enabled, color: 'text-teal    border-border-teal   bg-teal/5'    },
+    { label: 'Pré-campagne',  active: campaign.pre_campaign_enabled,  color: 'text-purple border-border-purple bg-purple/5' },
+    { label: 'Campagne',      active: true,                           color: 'text-accent  border-accent        bg-accent/5' },
+    { label: 'Post-campagne', active: campaign.post_campaign_enabled, color: 'text-teal    border-border-teal   bg-teal/5'   },
   ]
 
   return (
@@ -85,20 +120,17 @@ export default function CampaignDetailView({ campaign }: { campaign: Campaign })
             {campaign.name}
           </h1>
           <p className="font-mono text-[11px] text-text-dim mt-1">
-            Créée le {formatDate(campaign.created_at)}
+            Créée le {formatDate(campaign.created_at)} · Modifiée le {formatDate(campaign.updated_at)}
           </p>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-3">
-          <Link href={`/campagne/etape-1`}>
-            <Button variant="secondary" size="sm">✏ Modifier</Button>
-          </Link>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => setConfirmDelete(true)}
-          >
+          {isDraft && (
+            <Link href="/campagne/etape-1">
+              <Button variant="secondary" size="sm">✏ Continuer le wizard</Button>
+            </Link>
+          )}
+          <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>
             🗑 Supprimer
           </Button>
         </div>
@@ -110,7 +142,7 @@ export default function CampaignDetailView({ campaign }: { campaign: Campaign })
           <div
             key={p.label}
             className={`flex items-center gap-2 px-4 py-2 rounded-neo border-2 text-[12px] font-mono font-bold transition-all ${
-              p.active ? p.color : 'text-text-dim border-border/50 bg-bg-surface/50 opacity-50'
+              p.active ? p.color : 'text-text-dim border-border/50 opacity-40'
             }`}
           >
             <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.active ? 'bg-current' : 'bg-border'}`} />
@@ -119,19 +151,38 @@ export default function CampaignDetailView({ campaign }: { campaign: Campaign })
         ))}
       </div>
 
-      {/* ── Infos ── */}
+      {/* ── Banner wizard incomplet ── */}
+      {isDraft && !wizardComplete && (
+        <div className="mb-6 bg-amber/5 border-2 border-amber/40 rounded-neo-lg px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="font-mono text-[12px] font-bold text-amber mb-0.5">⚠ Configuration incomplète</p>
+            <p className="font-mono text-[11px] text-text-dim">
+              {contentTypes.length === 0 && '• Aucun contenu sélectionné. '}
+              {assignments.length === 0 && '• Aucun avatar assigné.'}
+            </p>
+          </div>
+          <Link href="/campagne/etape-2">
+            <Button size="sm" variant="secondary">Compléter →</Button>
+          </Link>
+        </div>
+      )}
+
+      {/* ── 3 cards ── */}
       <div className="grid grid-cols-3 gap-5 mb-7">
-        {/* Dates */}
+
+        {/* Calendrier */}
         <div className="bg-bg-card border-2 border-border rounded-neo-lg p-5">
           <p className="nb-label mb-4">Calendrier</p>
           <div className="flex flex-col gap-3">
             {[
-              { label: 'Début',          value: formatDate(campaign.start_date)     },
-              { label: 'Fin',            value: formatDate(campaign.end_date)        },
-              { label: 'Pré-campagne',   value: campaign.pre_campaign_enabled  ? (campaign.pre_campaign_start ? formatDate(campaign.pre_campaign_start) : 'Activée') : 'Désactivée' },
-              { label: 'Post-campagne',  value: campaign.post_campaign_enabled ? 'Activée' : 'Désactivée' },
+              { label: 'Début',         value: formatDate(campaign.start_date)   },
+              { label: 'Fin',           value: formatDate(campaign.end_date)      },
+              { label: 'Pré-campagne',  value: campaign.pre_campaign_enabled
+                  ? (campaign.pre_campaign_start ? formatDate(campaign.pre_campaign_start) : 'Activée')
+                  : 'Désactivée' },
+              { label: 'Post-campagne', value: campaign.post_campaign_enabled ? 'Activée' : 'Désactivée' },
             ].map((r) => (
-              <div key={r.label} className="flex justify-between items-baseline">
+              <div key={r.label} className="flex justify-between items-baseline border-b border-border/40 pb-2 last:border-0 last:pb-0">
                 <span className="font-mono text-[10px] text-text-dim">{r.label}</span>
                 <span className="font-mono text-[11px] font-bold text-text-secondary">{r.value}</span>
               </div>
@@ -141,55 +192,119 @@ export default function CampaignDetailView({ campaign }: { campaign: Campaign })
 
         {/* Contenus */}
         <div className="bg-bg-card border-2 border-border rounded-neo-lg p-5">
-          <p className="nb-label mb-4">Contenus</p>
-          <div className="flex flex-col gap-4">
-            <div className="text-center py-4">
-              <div className="font-display font-bold text-[36px] text-text-dim">—</div>
-              <p className="font-mono text-[11px] text-text-dim mt-1">Aucun contenu sélectionné</p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="nb-label">Contenus</p>
+            {contentTypes.length > 0 && (
+              <span className="font-mono text-[10px] font-bold text-accent">
+                {contentTypes.length} type{contentTypes.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          {contentTypes.length === 0 ? (
+            <div className="flex flex-col items-center py-4 text-center">
+              <p className="font-mono text-[11px] text-text-dim mb-3">Aucun contenu sélectionné</p>
               <Link href="/campagne/etape-2">
-                <button className="mt-3 font-mono text-[10px] font-bold text-accent border border-accent/40 rounded-neo px-3 py-1.5 hover:bg-accent/10 transition-colors">
-                  + Ajouter des contenus
+                <button className="font-mono text-[10px] font-bold text-accent border border-accent/40 rounded-neo px-3 py-1.5 hover:bg-accent/10 transition-colors">
+                  + Choisir les contenus
                 </button>
               </Link>
             </div>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {contentTypes.map((ct) => {
+                const cfg = CONTENT_LABELS[ct.content_type] ?? { label: ct.content_type, color: 'text-text-muted border-border', icon: '📄' }
+                return (
+                  <div key={ct.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-neo border text-[11px] font-mono font-bold ${cfg.color}`}>
+                    <span>{cfg.icon}</span>
+                    <span>{cfg.label}</span>
+                    <span className="ml-auto text-[10px] opacity-60">{ct.product_category}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Avatars */}
         <div className="bg-bg-card border-2 border-border rounded-neo-lg p-5">
-          <p className="nb-label mb-4">Avatars assignés</p>
-          <div className="flex flex-col gap-4">
-            <div className="text-center py-4">
-              <div className="font-display font-bold text-[36px] text-text-dim">—</div>
-              <p className="font-mono text-[11px] text-text-dim mt-1">Aucun avatar assigné</p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="nb-label">Avatars assignés</p>
+            {assignments.length > 0 && (
+              <span className="font-mono text-[10px] font-bold text-teal">
+                {assignments.length} avatar{assignments.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          {assignments.length === 0 ? (
+            <div className="flex flex-col items-center py-4 text-center">
+              <p className="font-mono text-[11px] text-text-dim mb-3">Aucun avatar assigné</p>
               <Link href="/campagne/etape-3">
-                <button className="mt-3 font-mono text-[10px] font-bold text-teal border border-teal/40 rounded-neo px-3 py-1.5 hover:bg-teal/10 transition-colors">
+                <button className="font-mono text-[10px] font-bold text-teal border border-teal/40 rounded-neo px-3 py-1.5 hover:bg-teal/10 transition-colors">
                   + Assigner des avatars
                 </button>
               </Link>
             </div>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {assignments.map((a) => (
+                <div key={a.id} className="flex items-center gap-2.5 px-3 py-2.5 rounded-neo border border-border-teal bg-teal/5">
+                  <div className="w-7 h-7 rounded-neo border border-border-teal bg-teal/10 flex items-center justify-center font-mono text-[10px] font-bold text-teal flex-shrink-0">
+                    {(a.avatarName ?? '?').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-mono text-[11px] font-bold text-text-primary">{a.avatarName ?? 'Avatar'}</p>
+                    {a.avatarAge && (
+                      <p className="font-mono text-[9px] text-text-dim">{a.avatarAge} ans</p>
+                    )}
+                  </div>
+                  <span className={`font-mono text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                    a.role === 'primary'
+                      ? 'text-accent border-accent/40 bg-accent/10'
+                      : 'text-text-muted border-border'
+                  }`}>
+                    {a.role === 'primary' ? 'Principal' : 'Secondaire'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── CTA Studio ── */}
-      {campaign.status === 'draft' && (
+      {/* ── CTA selon statut ── */}
+      {isDraft && wizardComplete && (
         <div className="bg-bg-card border-2 border-accent rounded-neo-lg p-6 flex items-center justify-between shadow-neo">
           <div>
             <h3 className="font-display font-bold text-[16px] text-text-primary mb-1">
-              Prêt à générer les créas ?
+              Prêt à lancer la production ?
             </h3>
             <p className="font-mono text-[12px] text-text-dim">
-              Complétez les étapes du wizard puis lancez le Creative Studio
+              {contentTypes.length} type{contentTypes.length > 1 ? 's' : ''} de contenu · {assignments.length} avatar{assignments.length > 1 ? 's' : ''} assigné{assignments.length > 1 ? 's' : ''}
             </p>
           </div>
-          <Link href="/campagne/etape-1">
-            <Button>Continuer le wizard →</Button>
+          <Link href="/campagne/etape-4">
+            <Button>✦ Ouvrir le Creative Studio →</Button>
           </Link>
         </div>
       )}
 
-      {/* ── Confirm delete modal ── */}
+      {campaign.status === 'active' && (
+        <div className="bg-bg-card border-2 border-teal rounded-neo-lg p-6 flex items-center justify-between shadow-neo-teal">
+          <div>
+            <h3 className="font-display font-bold text-[16px] text-text-primary mb-1">
+              Campagne en cours
+            </h3>
+            <p className="font-mono text-[12px] text-text-dim">
+              Les agents IA génèrent vos contenus selon le planning défini.
+            </p>
+          </div>
+          <Link href="/analytics">
+            <Button variant="secondary">Voir l'Analytics →</Button>
+          </Link>
+        </div>
+      )}
+
+      {/* ── Confirm delete ── */}
       {confirmDelete && (
         <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-5 animate-fade-in"
@@ -204,25 +319,11 @@ export default function CampaignDetailView({ campaign }: { campaign: Campaign })
               Supprimer cette campagne ?
             </h3>
             <p className="font-mono text-[12px] text-text-dim mb-6 leading-relaxed">
-              La campagne <strong className="text-text-primary">"{campaign.name}"</strong> sera définitivement supprimée.
-              Cette action est irréversible.
+              La campagne <strong className="text-text-primary">"{campaign.name}"</strong> et toutes ses données associées seront supprimées définitivement.
             </p>
             <div className="flex gap-3">
-              <Button
-                variant="ghost"
-                onClick={() => setConfirmDelete(false)}
-                className="flex-1"
-              >
-                Annuler
-              </Button>
-              <Button
-                variant="danger"
-                loading={deleting}
-                onClick={handleDelete}
-                className="flex-1"
-              >
-                Supprimer
-              </Button>
+              <Button variant="ghost" onClick={() => setConfirmDelete(false)} className="flex-1">Annuler</Button>
+              <Button variant="danger" loading={deleting} onClick={handleDelete} className="flex-1">Supprimer</Button>
             </div>
           </div>
         </div>
