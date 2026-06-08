@@ -65,7 +65,14 @@ type FormatTab   = 'all' | 'ugc' | 'commercial'
 export default function CreativeStudioWorkflowView() {
   const router = useRouter()
   const toast  = useToast()
-  const { campaignId, step1, reset } = useCampaignWizard()
+  const { campaignId, step1, step2, step3, reset } = useCampaignWizard()
+
+  // ADN réel : le texte saisi en étape 1, ou le nom comme fallback
+  const campaignDna = step1.dnaText.trim() || step1.name || 'Marketing campaign'
+  // Formats sélectionnés en étape 2
+  const selectedContentIds = step2.selectedContentIds
+  // Avatars assignés en étape 3
+  const avatarAssignments  = step3.assignments
 
   const [prompt, setPrompt]             = useState('')
   const [modalOpen, setModalOpen]       = useState(false)
@@ -113,24 +120,34 @@ export default function CreativeStudioWorkflowView() {
       setAgentStatuses(['done', 'running', 'waiting', 'waiting'])
       setGenPhase('script')
 
+      // Avatar principal (premier assigné, ou vide)
+      const mainAvatar = avatarAssignments[0]
+
       const { researchContext, script: result } = await actionResearchThenScript(
-        // Params Research Agent
+        // Params Research Agent (Perplexity)
         {
-          campaignTopic: prompt,
-          industry:      step1.name || 'marketing',
+          campaignTopic:  `${step1.name} — ${prompt}`,
+          industry:       step1.name || 'marketing',
           platform,
-          locale:        'fr',
+          locale:         'fr',
+          avatarProfile:  mainAvatar ? {
+            style: mainAvatar.role    ?? 'authentic creator',
+            niche: mainAvatar.format  ?? 'lifestyle',
+          } : undefined,
         },
-        // Params Script
+        // Params Script (ChatGPT)
         {
           campaignName: step1.name || 'Ma Campagne',
-          campaignDna:  prompt,
+          campaignDna:  campaignDna,           // ← ADN réel depuis étape 1
           contentType,
           format:       'social',
           duration,
           platform,
           language:     'fr',
           model:        'chatgpt',
+          // Avatar principal si assigné
+          avatarName:   mainAvatar?.avatarName  ?? undefined,
+          avatarStyle:  mainAvatar?.role        ?? undefined,
         },
       )
 
@@ -156,11 +173,12 @@ export default function CreativeStudioWorkflowView() {
 
     try {
       const job = await actionSubmitVideo({
-        prompt:       `${script.hook} ${script.voiceover}`,
-        engine:       'kling',
-        klingVersion: 'v1.6-standard',
-        duration:     duration <= 10 ? 5 : 10,
-        aspectRatio:  aspect === '9:16' ? '9:16' : aspect === '16:9' ? '16:9' : '1:1',
+        prompt:         `${script.hook}. ${script.voiceover}`.slice(0, 500),
+        engine:         'kling',
+        klingVersion:   'v2.1-pro',   // modèle principal confirmé
+        duration:       duration <= 10 ? 5 : 10,
+        aspectRatio:    aspect === '9:16' ? '9:16' : aspect === '16:9' ? '16:9' : '1:1',
+        negativePrompt: 'blur, low quality, watermark, text overlay',
       })
       setVideoJob(job)
       toast.info(`Job soumis (ID: ${job.generationId.slice(0, 8)}...) — polling toutes les 10s`)
@@ -233,6 +251,45 @@ export default function CreativeStudioWorkflowView() {
         {/* Main workspace */}
         <div className="flex-1 flex flex-col bg-bg-base relative">
 
+          {/* Context banner — ADN + formats + avatars */}
+          {(campaignDna !== step1.name || selectedContentIds.length > 0 || avatarAssignments.length > 0) && (
+            <div className="px-9 py-2.5 bg-teal/[0.03] border-b border-border/50 flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className="font-mono text-[9px] font-bold text-teal">ADN</span>
+                <span className="font-mono text-[10px] text-text-dim truncate max-w-[280px]" title={campaignDna}>
+                  {campaignDna.slice(0, 80)}{campaignDna.length > 80 ? '…' : ''}
+                </span>
+              </div>
+              {selectedContentIds.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-[9px] font-bold text-purple">FORMATS</span>
+                  <div className="flex gap-1">
+                    {selectedContentIds.slice(0, 3).map((id) => (
+                      <span key={id} className="font-mono text-[9px] text-purple border border-border-purple/40 px-1.5 py-0.5 rounded-neo">
+                        {id.split('-').slice(1).join(' ')}
+                      </span>
+                    ))}
+                    {selectedContentIds.length > 3 && (
+                      <span className="font-mono text-[9px] text-text-dim">+{selectedContentIds.length - 3}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              {avatarAssignments.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-[9px] font-bold text-accent">AVATARS</span>
+                  <div className="flex gap-1">
+                    {avatarAssignments.slice(0, 3).map((a) => (
+                      <span key={a.avatarId} className="font-mono text-[9px] text-accent border border-accent/30 px-1.5 py-0.5 rounded-neo">
+                        {a.avatarName}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Top bar */}
           <div className="px-9 py-5 flex items-center justify-between border-b-2 border-border">
             <h1 className="font-display font-bold text-[20px] text-text-primary">
@@ -252,11 +309,38 @@ export default function CreativeStudioWorkflowView() {
           <div className="flex-1 flex items-center justify-center p-6 overflow-auto">
             {/* État vide */}
             {!generating && !script && !videoJob && (
-              <div className="w-full max-w-[880px] h-[380px] bg-bg-card border-2 border-border border-dashed rounded-neo-lg flex items-center justify-center">
-                <div className="text-center opacity-30">
-                  <div className="text-5xl mb-4">🎬</div>
-                  <div className="font-mono text-[13px] uppercase text-text-dim tracking-widest">
-                    Écris un prompt → GENERATE
+              <div className="w-full max-w-[880px] flex flex-col gap-4">
+                {/* Récap ADN */}
+                {campaignDna && campaignDna !== step1.name && (
+                  <div className="bg-teal/5 border-2 border-border-teal rounded-neo-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-mono text-[9px] font-bold text-teal">ADN CAMPAGNE</span>
+                      <span className="font-mono text-[9px] text-text-dim">— injecté dans les prompts IA</span>
+                    </div>
+                    <p className="text-[12px] text-teal/80 leading-relaxed line-clamp-3">{campaignDna}</p>
+                  </div>
+                )}
+                {avatarAssignments.length > 0 && (
+                  <div className="flex gap-2 flex-wrap">
+                    {avatarAssignments.map((a) => (
+                      <div key={a.avatarId} className="flex items-center gap-2 px-3 py-2 bg-bg-card border-2 border-border rounded-neo">
+                        <div className="w-6 h-6 rounded-neo bg-accent/20 flex items-center justify-center font-mono text-[10px] font-bold text-accent">
+                          {a.avatarName[0]}
+                        </div>
+                        <div>
+                          <div className="font-mono text-[10px] font-bold text-text-primary">{a.avatarName}</div>
+                          {a.role && <div className="font-mono text-[9px] text-text-dim">{a.role}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="h-[240px] bg-bg-card border-2 border-border border-dashed rounded-neo-lg flex items-center justify-center">
+                  <div className="text-center opacity-30">
+                    <div className="text-5xl mb-4">🎬</div>
+                    <div className="font-mono text-[13px] uppercase text-text-dim tracking-widest">
+                      Décris le contenu → GENERATE
+                    </div>
                   </div>
                 </div>
               </div>

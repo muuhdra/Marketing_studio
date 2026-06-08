@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import StepBar from '@/components/ui/StepBar'
 import Button from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Input, Textarea } from '@/components/ui/Input'
 import { useCampaignWizard } from '@/lib/stores/campaignWizardStore'
 import { createCampaign } from '@/lib/actions/campaigns'
 import { useToast } from '@/lib/stores/toastStore'
@@ -20,6 +20,7 @@ export default function CreerCampagneView() {
 
   async function handleNext() {
     if (!step1.name.trim()) { setError('Le nom de la campagne est requis.'); return }
+    if (step1.dnaText.trim().length < 30) { setError('L\'ADN de la campagne doit contenir au moins 30 caractères.'); return }
     setSaving(true); setError(null)
     try {
       const campaign = await createCampaign({
@@ -68,45 +69,48 @@ export default function CreerCampagneView() {
           />
         </div>
 
-        {/* ADN + Assets */}
-        <div className="grid grid-cols-2 gap-5 mb-5">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="nb-label">* ADN de la Campagne</span>
-              <span className="font-mono text-[9px] font-bold text-teal border border-border-teal px-2 py-0.5 rounded-neo">CŒUR</span>
-            </div>
-            <div
-              onClick={() => setStep1({ dnaFileName: step1.dnaFileName ? null : 'document_adn.pdf' })}
-              className={`flex-1 flex flex-col items-center justify-center text-center border-2 border-dashed rounded-neo-lg p-6 cursor-pointer transition-all duration-150 ${step1.dnaFileName ? 'border-teal bg-teal/5 shadow-neo-teal' : 'border-border-teal bg-teal/[0.03] hover:bg-teal/5 hover:border-teal'}`}
-            >
-              {step1.dnaFileName ? (
-                <>
-                  <div className="text-3xl mb-2">📄</div>
-                  <div className="font-mono text-[12px] font-bold text-teal mb-1">{step1.dnaFileName}</div>
-                  <div className="font-mono text-[10px] text-text-dim">Cliquez pour remplacer</div>
-                </>
-              ) : (
-                <>
-                  <div className="w-10 h-10 rounded-neo-md border-2 border-border-teal flex items-center justify-center text-teal text-lg mb-3">📄</div>
-                  <div className="text-[12px] text-teal font-medium mb-1">Glissez votre document ici</div>
-                  <div className="font-mono text-[10px] text-text-dim mb-3">PDF, Word (.docx) ou Markdown (.md)</div>
-                  <span className="nb-btn-secondary text-xs px-3 py-1.5 !border-border-teal !text-teal">Parcourir</span>
-                </>
-              )}
-            </div>
+        {/* ADN de la Campagne */}
+        <div className="mb-5">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="nb-label">* ADN de la Campagne</span>
+            <span className="font-mono text-[9px] font-bold text-teal border border-border-teal px-2 py-0.5 rounded-neo">CŒUR</span>
+            {step1.dnaText.trim().length > 50 && (
+              <span className="font-mono text-[9px] text-teal">✓ {step1.dnaText.trim().split(/\s+/).length} mots</span>
+            )}
           </div>
+          <p className="font-mono text-[11px] text-text-dim mb-3">
+            Décrivez l'identité de votre campagne — produit, valeurs, ton, audience cible, objectifs.
+            Ce texte est injecté dans tous les prompts IA pour garantir la cohérence.
+          </p>
+          <textarea
+            rows={8}
+            value={step1.dnaText}
+            onChange={(e) => setStep1({ dnaText: e.target.value })}
+            placeholder={`Ex:\nProduit : Sneakers Spring Drop 2026 — collection limitée 150 paires, coloris pastel, collab avec artiste local.\nTon : Authentique, Gen Z, lifestyle urbain. Ni trop corporate, ni trop street.\nAudience : 18-30 ans, passionnés sneakers, Paris & Lyon.\nObjectifs : Créer du FOMO, sell-out en 48h, 500K vues sur TikTok.\nMessages clés : Exclusivité · Collab artiste · Matières premium · Drop limité.`}
+            className={`w-full rounded-neo-lg border-2 px-4 py-3 text-[12.5px] leading-relaxed resize-y transition-colors focus:outline-none font-sans
+              ${step1.dnaText.trim().length > 50
+                ? 'border-teal bg-teal/[0.02] text-text-primary focus:border-teal'
+                : 'border-border-teal/40 bg-teal/[0.01] text-text-primary focus:border-border-teal'
+              }
+              placeholder:text-text-dim`}
+          />
+        </div>
 
-          <div className="flex flex-col">
-            <span className="nb-label mb-2">Assets de la Campagne</span>
-            <div className="flex-1 flex flex-col items-center justify-center text-center border-2 border-dashed border-border rounded-neo-lg p-6 cursor-pointer hover:border-border-strong hover:bg-white/[0.02] transition-all duration-150">
-              <div className="text-2xl text-text-dim mb-2">☁</div>
-              <div className="text-[12px] text-text-muted leading-relaxed">Glissez vos fichiers ici<br /><span className="text-text-dim">Images, charte, visuels</span></div>
-            </div>
-            <div className="flex gap-2 mt-2">
-              <input type="text" className="nb-input flex-1 text-[13px] py-2 px-3" placeholder="Lien (Notion, Drive...)" />
-              <button className="nb-btn-secondary text-xs px-3 whitespace-nowrap">🔗 Importer</button>
-            </div>
+        {/* Assets (optionnel) */}
+        <div className="mb-5">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="nb-label">Assets visuels</span>
+            <span className="font-mono text-[9px] text-text-dim border border-border px-2 py-0.5 rounded-neo">optionnel</span>
           </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              className="nb-input flex-1 text-[13px] py-2 px-3"
+              placeholder="Lien Notion, Google Drive, Dropbox..."
+            />
+            <button className="nb-btn-secondary text-xs px-3 whitespace-nowrap">🔗 Importer</button>
+          </div>
+          <p className="font-mono text-[10px] text-text-dim mt-1.5">Charte graphique, visuels produit, guidelines — optionnel</p>
         </div>
 
         <Button variant="secondary" size="sm" onClick={() => setSettingsOpen(true)}>
@@ -126,7 +130,7 @@ export default function CreerCampagneView() {
               <span className="w-1.5 h-1.5 rounded-full bg-teal animate-pulse-dot" />
               Sauvegarde auto
             </span>
-            <Button onClick={handleNext} loading={saving} disabled={!step1.name.trim()}>
+            <Button onClick={handleNext} loading={saving} disabled={!step1.name.trim() || step1.dnaText.trim().length < 30}>
               Suivant — Choisir les Contenus →
             </Button>
           </div>

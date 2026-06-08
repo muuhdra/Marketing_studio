@@ -19,6 +19,7 @@ export interface WizardStep1 {
   preCampaignStart:  string
   postCampaignEnabled: boolean
   dnaFileName:       string | null   // nom du fichier uploadé (futur: URL Supabase)
+  dnaText:           string          // contenu ADN saisi/collé directement — injecté dans les prompts IA
 }
 
 export interface WizardStep2 {
@@ -57,6 +58,7 @@ const defaultStep1: WizardStep1 = {
   preCampaignStart:   '',
   postCampaignEnabled: false,
   dnaFileName:        null,
+  dnaText:            '',
 }
 
 const defaultStep2: WizardStep2 = {
