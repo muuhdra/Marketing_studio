@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { Textarea } from '@/components/ui/Input'
+import { } from '@/components/ui/Input'
 import { useToast } from '@/lib/stores/toastStore'
 import {
   actionGenerateScript,
@@ -88,12 +88,11 @@ export default function CreativeStudioView() {
   const [progress, setProgress]             = useState(0)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
 
-  // ── Image de référence (optionnelle)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)   // object URL ou URL externe
-  const [imagePublicUrl, setImagePublicUrl] = useState('')                 // URL publique pour Kling img2vid
-  const [showImageZone, setShowImageZone]   = useState(false)
-  const imageFileRef = useRef<HTMLInputElement>(null)
-  const imagePreviewRef = useRef<string | null>(null)                      // pour cleanup object URL
+  // ── Image de référence (optionnelle — inline dans le textarea)
+  const [imagePreview, setImagePreview]     = useState<string | null>(null) // object URL ou URL externe
+  const [imagePublicUrl, setImagePublicUrl] = useState('')                  // URL publique pour Kling img2vid
+  const imageFileRef    = useRef<HTMLInputElement>(null)
+  const imagePreviewRef = useRef<string | null>(null)                       // pour cleanup object URL
 
   // Cleanup object URL on unmount
   useEffect(() => () => {
@@ -296,7 +295,6 @@ export default function CreativeStudioView() {
   function resetFull() {
     reset()
     clearImage()
-    setShowImageZone(false)
     setPrompt('')
   }
 
@@ -399,123 +397,111 @@ export default function CreativeStudioView() {
             </div>
           )}
 
-          {/* Prompt */}
+          {/* ── Prompt + image inline (style ChatGPT) ─────────────── */}
           <div className="mb-5">
-            <Textarea
-              label="Description / Brief créatif"
-              rows={5}
-              placeholder={
-                selectedFormat === 'ugc'       ? "Décrivez le contenu UGC — produit, angle, message principal, ton..." :
-                selectedFormat === 'image'     ? "Décrivez le visuel — sujet, ambiance, style, couleurs..." :
-                selectedFormat === 'moodboard' ? "Décrivez le concept créatif — thème, émotion, univers visuel..." :
-                selectedFormat === 'voix'      ? "Saisissez le texte à synthétiser en voix off..." :
-                selectedFormat === 'commercial'? "Décrivez la pub — produit, emotion, message, call-to-action..." :
-                selectedFormat === 'shooting'  ? "Décrivez la photo lifestyle — sujet, décor, lumière, style..." :
-                "Décrivez le contenu à générer..."
-              }
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-            />
-          </div>
+            <label className="nb-label block mb-1.5">Description / Brief créatif</label>
 
-          {/* ── Zone image de référence ─────────────────────────────── */}
-          <div className="mb-5">
-            {!showImageZone ? (
-              <button
-                onClick={() => setShowImageZone(true)}
-                className="flex items-center gap-2 text-text-dim hover:text-text-primary transition-colors group"
-              >
-                <span className="w-6 h-6 rounded-neo border-2 border-dashed border-border group-hover:border-border-strong flex items-center justify-center text-sm transition-colors">
-                  +
-                </span>
-                <span className="font-mono text-[11px]">Ajouter une image de référence</span>
-                <span className="font-mono text-[9px] opacity-50">(optionnel · img2vid, référence visuelle)</span>
-              </button>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <label className="nb-label">Image de référence</label>
-                  <button onClick={() => { setShowImageZone(false); clearImage() }} className="font-mono text-[10px] text-text-dim hover:text-coral transition-colors">
-                    ✕ Retirer
-                  </button>
-                </div>
+            {/* Wrapper relatif — contient textarea + overlay thumbnail + bouton attach */}
+            <div
+              className="relative"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault()
+                const f = e.dataTransfer.files[0]
+                if (f?.type.startsWith('image/')) handleImageFile(f)
+              }}
+            >
+              <textarea
+                rows={5}
+                className="nb-input w-full resize-y pb-10"
+                placeholder={
+                  selectedFormat === 'ugc'        ? "Décrivez le contenu UGC — produit, angle, message principal, ton..." :
+                  selectedFormat === 'image'      ? "Décrivez le visuel — sujet, ambiance, style, couleurs..." :
+                  selectedFormat === 'moodboard'  ? "Décrivez le concept créatif — thème, émotion, univers visuel..." :
+                  selectedFormat === 'voix'       ? "Saisissez le texte à synthétiser en voix off..." :
+                  selectedFormat === 'commercial' ? "Décrivez la pub — produit, émotion, message, call-to-action..." :
+                  selectedFormat === 'shooting'   ? "Décrivez la photo lifestyle — sujet, décor, lumière, style..." :
+                  "Décrivez le contenu à générer..."
+                }
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+              />
 
-                {/* Zone principale : upload + preview */}
-                <div className="grid grid-cols-[1fr_auto] gap-3 items-start">
-
-                  {/* Drop zone */}
+              {/* Thumbnail — coin bas-droit */}
+              {imagePreview && (
+                <div className="absolute bottom-2.5 right-2.5 group">
                   <div
                     onClick={() => imageFileRef.current?.click()}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleImageFile(f) }}
-                    className={`
-                      relative flex items-center justify-center rounded-neo-lg border-2 border-dashed cursor-pointer
-                      transition-all overflow-hidden
-                      ${imagePreview
-                        ? 'border-teal h-[120px]'
-                        : 'border-border hover:border-accent hover:bg-accent/5 h-[80px]'}
-                    `}
+                    className="relative w-16 h-16 rounded-neo border-2 border-teal overflow-hidden cursor-pointer shadow-[2px_2px_0px_theme(colors.teal.DEFAULT)]"
                   >
-                    {imagePreview ? (
-                      <>
-                        <img src={imagePreview} alt="Référence" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <span className="font-mono text-[10px] text-white font-bold">Changer →</span>
-                        </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); clearImage() }}
-                          className="absolute top-1.5 right-1.5 w-5 h-5 rounded-neo bg-bg-card border border-border flex items-center justify-center text-[10px] hover:border-coral hover:text-coral transition-colors"
-                        >
-                          ✕
-                        </button>
-                        <div className="absolute top-1.5 left-1.5 bg-teal/90 text-bg-base font-mono text-[8px] font-bold px-1.5 py-0.5 rounded-neo">
-                          {imagePublicUrl ? 'URL' : 'LOCAL'}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-center py-2">
-                        <span className="text-xl block mb-1">🖼️</span>
-                        <span className="font-mono text-[10px] text-text-dim">Glisser une image ou cliquer</span>
-                        <span className="font-mono text-[9px] text-text-dim block mt-0.5 opacity-60">JPG · PNG · WebP</span>
+                    <img src={imagePreview} alt="Référence" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
+                      <span className="font-mono text-[8px] text-white font-bold opacity-0 group-hover:opacity-100 transition-opacity">Changer</span>
+                    </div>
+                    {/* Badge img2vid */}
+                    {effectiveImageUrl && fmt?.engine === 'video' && (
+                      <div className="absolute top-0.5 left-0.5 bg-accent text-bg-base font-mono text-[7px] font-bold px-1 py-0.5 rounded-neo leading-none">
+                        img2vid
                       </div>
                     )}
                   </div>
-                  <input ref={imageFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f) }} />
-
-                  {/* URL publique pour img2vid */}
-                  <div className="flex flex-col gap-1.5 w-[220px]">
-                    <label className="font-mono text-[9px] text-text-dim leading-relaxed">
-                      URL publique <span className="text-accent font-bold">(img2vid Kling)</span>
-                    </label>
-                    <input
-                      type="url"
-                      value={imagePublicUrl}
-                      onChange={(e) => {
-                        setImagePublicUrl(e.target.value)
-                        if (e.target.value.match(/^https?:\/\/.+\.(jpg|jpeg|png|webp|gif)/i)) {
-                          setImagePreview(e.target.value)
-                        }
-                      }}
-                      placeholder="https://exemple.com/image.jpg"
-                      className="nb-input text-[11px] py-2 px-3"
-                    />
-                    <p className="font-mono text-[9px] text-text-dim leading-relaxed opacity-70">
-                      {fmt?.engine === 'video'
-                        ? effectiveImageUrl
-                          ? '✓ Kling va animer cette image'
-                          : 'Collez une URL publique pour le mode img2vid'
-                        : 'L\'image est utilisée comme référence visuelle'}
-                    </p>
-                  </div>
+                  {/* Bouton ✕ */}
+                  <button
+                    onClick={clearImage}
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-coral border-2 border-bg-base flex items-center justify-center text-bg-base text-[9px] font-bold hover:scale-110 transition-transform"
+                  >
+                    ×
+                  </button>
                 </div>
+              )}
 
-                {/* Chip img2vid actif */}
-                {effectiveImageUrl && fmt?.engine === 'video' && (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-accent/5 border border-accent/20 rounded-neo">
-                    <span className="text-sm">🎬</span>
-                    <span className="font-mono text-[10px] text-accent font-bold">Mode img2vid activé — Kling va animer votre image</span>
-                  </div>
-                )}
+              {/* Bouton attach — coin bas-gauche */}
+              <button
+                type="button"
+                onClick={() => imageFileRef.current?.click()}
+                className={`
+                  absolute bottom-2.5 left-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-neo border
+                  font-mono text-[9px] font-bold transition-all backdrop-blur-sm
+                  ${imagePreview
+                    ? 'border-teal/50 text-teal bg-bg-base/80'
+                    : 'border-border/70 text-text-dim bg-bg-base/80 hover:border-border-strong hover:text-text-secondary'}
+                `}
+              >
+                <span className="text-sm leading-none">🖼️</span>
+                {imagePreview ? 'Changer l\'image' : 'Image'}
+              </button>
+
+              <input
+                ref={imageFileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f) }}
+              />
+            </div>
+
+            {/* URL img2vid — apparaît seulement si image présente + format vidéo */}
+            {imagePreview && fmt?.engine === 'video' && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="font-mono text-[9px] text-accent font-bold whitespace-nowrap flex-shrink-0">
+                  🎬 img2vid
+                </span>
+                <input
+                  type="url"
+                  value={imagePublicUrl}
+                  onChange={(e) => {
+                    setImagePublicUrl(e.target.value)
+                    if (e.target.value.match(/^https?:\/\/.+\.(jpg|jpeg|png|webp|gif)/i)) {
+                      setImagePreview(e.target.value)
+                    }
+                  }}
+                  placeholder="URL publique de l'image (Kling img2vid)"
+                  className="nb-input text-[11px] py-1.5 px-2.5 flex-1"
+                />
+                {effectiveImageUrl
+                  ? <span className="font-mono text-[9px] text-teal whitespace-nowrap flex-shrink-0">✓ Activé</span>
+                  : <span className="font-mono text-[9px] text-text-dim whitespace-nowrap flex-shrink-0 opacity-60">URL requise</span>
+                }
               </div>
             )}
           </div>
