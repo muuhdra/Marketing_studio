@@ -9,6 +9,7 @@ import {
   actionGenerateSpeech,
   actionGenerateAvatarPhoto,
 } from '@/lib/actions/ai'
+import { useMediaStore } from '@/lib/stores/mediaStore'
 
 // ─── Voice profiles disponibles ──────────────────────────────────────────────
 
@@ -46,7 +47,8 @@ interface CloneResult {
 
 export default function CloneLabTab() {
 
-  const toast = useToast()
+  const toast    = useToast()
+  const addAsset = useMediaStore((s) => s.addAsset)
   const audioRef = useRef<HTMLAudioElement>(null)
 
   // ── Form ────
@@ -108,6 +110,14 @@ export default function CloneLabTab() {
           })
           cloneResult.photoUrl = photoRes.url
           setResult({ ...cloneResult })
+          addAsset({
+            type:      'image',
+            url:       photoRes.url,
+            title:     `Clone Portrait · ${personaName || 'Persona'}`,
+            engine:    'flux-pro',
+            avatarName: personaName || undefined,
+            prompt:    personaDescription.slice(0, 200),
+          })
         } catch (e: any) {
           toast.error('Photo IA : ' + (e.message ?? 'Erreur'))
         } finally {
@@ -127,6 +137,15 @@ export default function CloneLabTab() {
           })
           cloneResult.audioB64 = voiceRes.audioBase64
           setResult({ ...cloneResult })
+          addAsset({
+            type:      'audio',
+            url:       `data:audio/mpeg;base64,${voiceRes.audioBase64}`,
+            title:     `Voix Clone · ${selectedVoice.label}${personaName ? ` · ${personaName}` : ''}`,
+            engine:    selectedVoice.engine === 'elevenlabs' ? 'elevenlabs' : 'minimax',
+            avatarName: personaName || undefined,
+            prompt:    scriptRes.script.slice(0, 200),
+            mimeType:  'audio/mpeg',
+          })
         } catch (e: any) {
           toast.error('Voix IA : ' + (e.message ?? 'Erreur'))
         } finally {
