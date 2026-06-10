@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -69,7 +69,8 @@ type GenerationResult =
 export default function CreativeStudioView() {
   const toast    = useToast()
   const addAsset = useMediaStore((s) => s.addAsset)
-  const recentAssets = useMediaStore((s) => s.assets.slice(0, 5))
+  const allAssets = useMediaStore((s) => s.assets)
+  const recentAssets = useMemo(() => allAssets.slice(0, 5), [allAssets])
 
   const [selectedFormat, setSelectedFormat] = useState<FormatId | null>(null)
   const [prompt, setPrompt]                 = useState('')
