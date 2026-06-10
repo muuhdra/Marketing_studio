@@ -8,7 +8,7 @@
  *
  * Modèles disponibles :
  *   Texte  → Claude (Anthropic) + ChatGPT (OpenAI)
- *   Image  → Nano Banana + Flux Pro
+ *   Image  → Nano Banana (seul modèle image)
  *   Vidéo  → Kling AI + Seedance
  *   TTS    → ElevenLabs + MiniMax
  */
@@ -135,14 +135,14 @@ export async function actionGenerateCloneScript(options: {
   return generateCloneScript(options)
 }
 
-// ─── Image : Nano Banana + Flux Pro ─────────────────────────────────────────
+// ─── Image : Nano Banana ─────────────────────────────────────────────────────
 
 export async function actionGenerateImage(params: GenerateImageParams) {
   await requireAuth()
   return generateImage(params)
 }
 
-/** Visuel campagne HD — Flux Pro */
+/** Visuel campagne HD — Nano Banana */
 export async function actionGenerateCampaignVisual(options: {
   campaignName: string
   dna:          string
@@ -153,7 +153,7 @@ export async function actionGenerateCampaignVisual(options: {
   return generateCampaignVisual(options)
 }
 
-/** Photo avatar — Flux Pro (portrait photoréaliste) */
+/** Photo avatar — Nano Banana (portrait photoréaliste) */
 export async function actionGenerateAvatarPhoto(options: {
   name:       string
   age?:       number

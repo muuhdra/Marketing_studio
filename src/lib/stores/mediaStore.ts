@@ -7,7 +7,6 @@ export type MediaType = 'image' | 'video' | 'audio' | 'avatar'
 
 export type MediaEngine =
   | 'nano-banana'
-  | 'flux-pro'
   | 'kling-v2.1-pro'
   | 'seedance-pro'
   | 'elevenlabs'
@@ -87,7 +86,6 @@ export const useMediaStore = create<MediaStore>()(
 export function engineLabel(engine: MediaEngine): string {
   const labels: Record<MediaEngine, string> = {
     'nano-banana':     'Nano Banana',
-    'flux-pro':        'Flux Pro',
     'kling-v2.1-pro':  'Kling v2.1',
     'seedance-pro':    'Seedance Pro',
     'elevenlabs':      'ElevenLabs',
@@ -101,7 +99,6 @@ export function engineLabel(engine: MediaEngine): string {
 export function engineColor(engine: MediaEngine): string {
   const colors: Record<MediaEngine, string> = {
     'nano-banana':     'text-accent border-accent/40',
-    'flux-pro':        'text-purple border-purple/40',
     'kling-v2.1-pro':  'text-teal border-border-teal/40',
     'seedance-pro':    'text-pink border-pink/40',
     'elevenlabs':      'text-coral border-coral/40',

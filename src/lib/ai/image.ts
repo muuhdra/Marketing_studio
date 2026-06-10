@@ -1,17 +1,16 @@
 /**
  * AIML API — Génération d'images
  *
- * Nano Banana  → MODÈLE PRINCIPAL — visuels campagne, moodboards, thumbnails
- * Flux Pro     → portraits avatar uniquement (photoréalisme portrait)
+ * Nano Banana → SEUL modèle image — visuels campagne, moodboards, portraits, thumbnails
  *
- * Les deux via la même clé AIMLAPI_KEY.
+ * Via la même clé AIMLAPI_KEY.
  */
 
 import { createAimlClient, MODELS } from './client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ImageGenerationModel = 'nano-banana' | 'flux-pro' | 'flux-fast'
+export type ImageGenerationModel = 'nano-banana'
 
 export type ImageSize =
   | '1024x1024'   // carré 1:1
@@ -35,13 +34,8 @@ export interface ImageResult {
 
 // ─── Résolution du model ID AIML ─────────────────────────────────────────────
 
-function resolveImageModel(choice?: ImageGenerationModel): string {
-  switch (choice) {
-    case 'flux-pro':    return MODELS.image.fluxPro
-    case 'flux-fast':   return MODELS.image.fluxFast
-    case 'nano-banana':
-    default:            return MODELS.image.nanoBanana  // Nano Banana = modèle principal
-  }
+function resolveImageModel(_choice?: ImageGenerationModel): string {
+  return MODELS.image.nanoBanana  // Nano Banana = seul modèle image
 }
 
 // ─── Génération d'image ───────────────────────────────────────────────────────
@@ -118,7 +112,7 @@ Style: editorial photography, diverse perspectives, artistic composition.`
 }
 
 /**
- * Photo avatar IA — Flux Pro (photoréalisme portrait)
+ * Portrait avatar IA — Nano Banana (portraits, avatars marketing)
  */
 export async function generateAvatarPhoto(options: {
   name:       string
@@ -139,7 +133,7 @@ export async function generateAvatarPhoto(options: {
 
   const results = await generateImage({
     prompt,
-    model:   'flux-pro',
+    model:   'nano-banana',
     size:    '1024x1792',
     quality: 'hd',
   })

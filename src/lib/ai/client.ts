@@ -24,10 +24,10 @@ export const AIML_BASE_V2 = 'https://api.aimlapi.com/v2'
  *   Scripts UGC           → ChatGPT GPT-4o   (créativité, rapidité)
  *   Stratégie campagne    → Claude Opus 4    (raisonnement profond)
  *   Clone Lab             → Claude Opus 4    (analyse persona + style)
- *   Visuels campagne      → Nano Banana      (MODÈLE PRINCIPAL — visuels)
+ *   Visuels campagne      → Nano Banana      (MODÈLE PRINCIPAL — tous les visuels)
  *   Moodboards            → Nano Banana      (4 variations rapides)
  *   Thumbnails vidéo      → Nano Banana      (impact visuel rapide)
- *   Portrait avatar       → Flux Pro         (photoréalisme portrait)
+ *   Portraits avatar      → Nano Banana      (portraits photoréalistes)
  *   Vidéo UGC (principal) → Kling v2.1 Pro   (avatars humains, talking head)
  *   Vidéo B-roll          → Seedance Pro     (plans cinématiques, produit)
  *   Voix avatar           → ElevenLabs       (émotionnel, multilingue)
@@ -48,11 +48,8 @@ export const MODELS = {
 
   // ── 2. Image ─────────────────────────────────────────────────────────────
   image: {
-    // Nano Banana — MODÈLE PRINCIPAL visuels (campagne, moodboards, thumbnails)
+    // Nano Banana — SEUL modèle image (visuels, moodboards, portraits, thumbnails)
     nanoBanana:   'nanobanana',
-    // Flux Pro — portraits avatar photoréalistes uniquement
-    fluxPro:      'flux-pro/v1.1',
-    fluxFast:     'flux/schnell',
   },
 
   // ── 3. Vidéo ─────────────────────────────────────────────────────────────

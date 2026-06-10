@@ -430,7 +430,7 @@ export default function GalerieView({ avatars }: { avatars: DbAvatar[] }) {
     type:       'avatar' as MediaType,
     url:        '',
     title:      av.name,
-    engine:     'flux-pro' as const,
+    engine:     'nano-banana' as const,
     createdAt:  new Date(av.created_at).toISOString(),
   }))
 

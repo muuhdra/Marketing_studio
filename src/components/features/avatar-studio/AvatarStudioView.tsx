@@ -55,12 +55,12 @@ export default function AvatarStudioView() {
       })
       setGeneratedPhotoUrl(result.url)
       setUploadedImage(true)
-      toast.success('Photo IA générée par Flux Pro ✦')
+      toast.success('Photo IA générée par Nano Banana ✦')
       addAsset({
         type:      'image',
         url:       result.url,
         title:     `Portrait · ${avatarName.trim()}`,
-        engine:    'flux-pro',
+        engine:    'nano-banana',
         avatarName: avatarName.trim(),
         prompt:    `Avatar: ${avatarName.trim()}${avatarAge ? `, ${avatarAge} ans` : ''}${avatarEthnicity ? `, ${avatarEthnicity}` : ''}${avatarStyle ? `, ${avatarStyle}` : ''}`,
       })
@@ -178,13 +178,13 @@ export default function AvatarStudioView() {
           {step === 1 && (
             <div className="animate-fade-in flex flex-col gap-5">
 
-              {/* Reverse Engineering + Flux Pro */}
+              {/* Reverse Engineering + Nano Banana */}
               <div className="bg-bg-card border-2 border-border rounded-neo-lg p-5">
                 <h2 className="font-display font-bold text-[15px] text-text-primary mb-2 flex items-center gap-2">
                   <span>🔬</span> Génération Photo IA
                 </h2>
                 <p className="text-[12px] text-text-muted mb-4 leading-relaxed">
-                  Générez un portrait photoréaliste avec Flux Pro depuis le profil de l'avatar,
+                  Générez un portrait photoréaliste avec Nano Banana depuis le profil de l'avatar,
                   ou uploadez une image source pour l'analyser.
                 </p>
                 <div className="flex gap-3 items-center flex-wrap">
@@ -207,7 +207,7 @@ export default function AvatarStudioView() {
                       loading={generatingPhoto}
                       disabled={generatingPhoto || !avatarName.trim()}
                     >
-                      {generatingPhoto ? 'Flux Pro...' : generatedPhotoUrl ? '✦ Regénérer (Flux Pro)' : '✦ Générer photo IA (Flux Pro)'}
+                      {generatingPhoto ? 'Nano Banana...' : generatedPhotoUrl ? '✦ Regénérer (Nano Banana)' : '✦ Générer photo IA (Nano Banana)'}
                     </Button>
 
                     {/* Reverse engineering */}
@@ -331,7 +331,7 @@ export default function AvatarStudioView() {
               {generatingPhoto && (
                 <div className="absolute inset-0 bg-bg-elevated/80 flex flex-col items-center justify-center gap-2 z-10">
                   <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                  <span className="font-mono text-[10px] text-text-dim">Flux Pro...</span>
+                  <span className="font-mono text-[10px] text-text-dim">Nano Banana...</span>
                 </div>
               )}
               {generatedPhotoUrl ? (
@@ -354,7 +354,7 @@ export default function AvatarStudioView() {
               )}
               {generatedPhotoUrl && !generatingPhoto && (
                 <div className="absolute top-3 left-3 bg-purple/90 text-bg-base font-mono text-[9px] font-bold px-2 py-0.5 rounded-neo">
-                  Flux Pro
+                  Nano Banana
                 </div>
               )}
             </div>

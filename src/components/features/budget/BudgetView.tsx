@@ -8,7 +8,7 @@ import Button from '@/components/ui/Button'
 // Modèles utilisés — tous facturés via AIML API (une seule clé)
 // Providers AIML — alignés avec les assignations confirmées
 // Vidéo : Kling AI principal (UGC/avatars) + Seedance B-roll
-// Image : Nano Banana principal (visuels/moodboards) + Flux Pro portraits seulement
+// Image : Nano Banana (seul modèle — visuels, moodboards, portraits)
 // Texte : ChatGPT scripts UGC + Claude stratégie/Clone Lab
 const PROVIDERS = [
   { name: 'Kling AI',       role: 'Vidéo UGC · Avatars · Talking Head', usd: 15.80, pct: 35, color: 'bg-accent',  text: 'text-accent',  border: 'border-accent',        icon: '🎬', sub: 'Kling v2.1 Pro (principal) · img2vid'      },
@@ -16,7 +16,7 @@ const PROVIDERS = [
   { name: 'Nano Banana',    role: 'Visuels · Moodboards · Thumbnails',   usd: 5.80,  pct: 13, color: 'bg-teal',    text: 'text-teal',    border: 'border-border-teal',   icon: '🖼️', sub: 'Modèle principal visuels campagne'         },
   { name: 'Perplexity',     role: 'Veille & Tendances Web',              usd: 5.60,  pct: 12, color: 'bg-amber',   text: 'text-amber',   border: 'border-amber/40',      icon: '🔍', sub: 'Sonar · Sonar Pro · Sonar Reasoning'      },
   { name: 'ElevenLabs',     role: 'Voix Avatar (émotionnel)',            usd: 4.00,  pct: 9,  color: 'bg-coral',   text: 'text-coral',   border: 'border-border-coral',  icon: '🎙️', sub: 'ElevenLabs Multilingual v2'               },
-  { name: 'Seedance + Flux',role: 'B-roll · Portraits avatar HD',        usd: 3.20,  pct: 7,  color: 'bg-text-muted', text: 'text-text-muted', border: 'border-border', icon: '🎥', sub: 'Seedance Pro B-roll · Flux Pro portraits'  },
+  { name: 'Seedance',       role: 'B-roll cinématique',                  usd: 3.20,  pct: 7,  color: 'bg-text-muted', text: 'text-text-muted', border: 'border-border', icon: '🎥', sub: 'Seedance Pro — B-roll plans produit & ambiance' },
 ]
 
 const HISTORY = [

@@ -26,7 +26,7 @@ const API_KEYS: ApiKey[] = [
     env:    'AIMLAPI_KEY',
     masked: 'aiml-••••••••••••••••••••••••••••••••',
     status: 'connected',
-    desc:   'Hub IA unifié — GPT-4o, Claude, Kling, ElevenLabs, Flux, Seedance via une seule clé',
+    desc:   'Hub IA unifié — GPT-4o, Claude, Nano Banana, Kling, ElevenLabs, Seedance via une seule clé',
   },
   {
     id:     'supabase',
@@ -51,7 +51,7 @@ const API_KEYS: ApiKey[] = [
 // Modèles actifs dans Marketing Studio — tous via AIML API (une seule clé)
 // Assignations confirmées :
 //   Scripts UGC  → ChatGPT (créativité)   Clone Lab → Claude (persona)
-//   Visuels      → Nano Banana (principal) Portraits → Flux Pro
+//   Visuels      → Nano Banana (seul modèle image — visuels, moodboards, portraits)
 //   Vidéo UGC    → Kling v2.1 Pro (principal)  B-roll → Seedance
 //   Voix         → ElevenLabs (émotionnel) ou MiniMax (expressif)
 const AIML_MODELS = [
@@ -70,11 +70,11 @@ const AIML_MODELS = [
     category:  'Génération Image',
     icon:      '🖼️',
     primary:   'Nano Banana',
-    secondary: 'Flux Pro',
+    secondary: null,
     badge:     'PRINCIPAL',
-    models:    ['nanobanana', 'flux-pro/v1.1', 'flux/schnell'],
-    usage:     'Visuels campagne & moodboards (Nano Banana) · Portraits avatar (Flux Pro)',
-    detail:    'Nano Banana → visuels, moodboards, thumbnails · Flux Pro → portraits uniquement',
+    models:    ['nanobanana'],
+    usage:     'Visuels campagne, moodboards, portraits, thumbnails',
+    detail:    'Nano Banana → seul modèle image — visuels, portraits, moodboards',
     color:     'text-teal border-border-teal bg-teal/5',
   },
   {
@@ -316,7 +316,7 @@ export default function ParametresView() {
                       </div>
                       <div className="mb-1.5">
                         <p className="font-display font-bold text-[12px]">{cat.primary}</p>
-                        <p className="font-mono text-[10px] opacity-60">+ {cat.secondary}</p>
+                        {cat.secondary && <p className="font-mono text-[10px] opacity-60">+ {cat.secondary}</p>}
                       </div>
                       <p className="font-mono text-[9px] opacity-70 mb-1 leading-relaxed">{cat.usage}</p>
                       <p className="font-mono text-[8px] opacity-45 mb-2 leading-relaxed italic">{cat.detail}</p>

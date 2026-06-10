@@ -114,7 +114,7 @@ export default function CloneLabTab() {
             type:      'image',
             url:       photoRes.url,
             title:     `Clone Portrait · ${personaName || 'Persona'}`,
-            engine:    'flux-pro',
+            engine:    'nano-banana',
             avatarName: personaName || undefined,
             prompt:    personaDescription.slice(0, 200),
           })
@@ -182,7 +182,7 @@ export default function CloneLabTab() {
         <div className="flex-1 min-w-0">
           <div className="font-display font-bold text-[13px] text-purple mb-0.5">Clone Lab · Pipeline IA</div>
           <div className="font-mono text-[10px] text-text-dim">
-            Claude Opus 4 · Script persona &nbsp;·&nbsp; Flux Pro · Photo réaliste &nbsp;·&nbsp; ElevenLabs · Voix synthétisée
+            Claude Opus 4 · Script persona &nbsp;·&nbsp; Nano Banana · Photo réaliste &nbsp;·&nbsp; ElevenLabs · Voix synthétisée
           </div>
         </div>
         {phase !== 'idle' && phase !== 'done' && (
@@ -333,7 +333,7 @@ export default function CloneLabTab() {
                       <div className={`font-mono text-[10px] font-bold ${generatePhoto ? 'text-accent' : 'text-text-muted'}`}>
                         🖼️ Photo IA
                       </div>
-                      <div className="font-mono text-[9px] text-text-dim">Flux Pro portrait</div>
+                      <div className="font-mono text-[9px] text-text-dim">Nano Banana portrait</div>
                     </div>
                   </div>
 
@@ -490,7 +490,7 @@ export default function CloneLabTab() {
                     {photoLoading && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
                         <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                        <span className="font-mono text-[10px] text-text-dim">Flux Pro...</span>
+                        <span className="font-mono text-[10px] text-text-dim">Nano Banana...</span>
                       </div>
                     )}
                     {result.photoUrl && !photoLoading ? (
@@ -508,7 +508,7 @@ export default function CloneLabTab() {
                     )}
                     {result.photoUrl && (
                       <div className="absolute top-3 right-3 bg-accent/90 text-bg-base font-mono text-[9px] font-bold px-2 py-0.5 rounded-neo">
-                        Flux Pro
+                        Nano Banana
                       </div>
                     )}
                   </div>
@@ -562,7 +562,7 @@ export default function CloneLabTab() {
                     <p className="font-mono text-[10px] text-teal font-bold mb-1">✓ Clone Lab terminé</p>
                     <p className="font-mono text-[10px] text-text-dim leading-relaxed">
                       Script · {result.script.split(' ').length} mots
-                      {result.photoUrl ? ' · Photo Flux Pro' : ''}
+                      {result.photoUrl ? ' · Photo Nano Banana' : ''}
                       {result.audioB64 ? ' · Voix ElevenLabs' : ''}
                     </p>
                   </div>

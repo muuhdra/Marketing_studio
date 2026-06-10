@@ -33,14 +33,13 @@ const AI_PROVIDERS = [
   { label: 'Nano Banana 🍌',   sub: 'Visuels principal',    pct: 13, usd: '5.80',  color: 'bg-teal',    text: 'text-teal',       icon: '🖼️'  },
   { label: 'Perplexity Sonar', sub: 'Veille & Tendances',   pct: 12, usd: '5.60',  color: 'bg-amber',   text: 'text-amber',      icon: '🔍' },
   { label: 'ElevenLabs',       sub: 'Voix émotionnelle',    pct: 9,  usd: '4.00',  color: 'bg-coral',   text: 'text-coral',      icon: '🎙️'  },
-  { label: 'Seedance + Flux',  sub: 'B-roll · Portraits',   pct: 7,  usd: '3.20',  color: 'bg-border',  text: 'text-text-muted', icon: '🎥' },
+  { label: 'Seedance',          sub: 'B-roll cinématique',   pct: 7,  usd: '3.20',  color: 'bg-border',  text: 'text-text-muted', icon: '🎥' },
 ]
 
 const TYPE_ICON: Record<string, string> = { image: '🖼', video: '🎬', audio: '🎵', avatar: '👤' }
 const TYPE_COLOR: Record<string, string> = { image: 'text-teal bg-teal/10 border-border-teal', video: 'text-accent bg-accent/10 border-accent', audio: 'text-coral bg-coral/10 border-coral', avatar: 'text-purple bg-purple/10 border-purple' }
 const ENGINE_COLOR: Record<string, string> = {
   'nano-banana':    'text-accent',
-  'flux-pro':       'text-purple',
   'kling-v2.1-pro': 'text-teal',
   'elevenlabs':     'text-coral',
   'minimax':        'text-pink',
