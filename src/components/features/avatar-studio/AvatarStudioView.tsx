@@ -42,7 +42,7 @@ export default function AvatarStudioView() {
   const [selectedLocations, setSelectedLocations] = useState<Set<string>>(new Set())
   const [envMode, setEnvMode]                     = useState<'evolving' | 'locked'>('evolving')
 
-  async function generateFluxPhoto() {
+  async function generateAvatarPhoto() {
     if (!avatarName.trim()) { setError('Saisissez d\'abord un nom pour l\'avatar.'); return }
     setGeneratingPhoto(true); setError(null)
     try {
@@ -200,10 +200,10 @@ export default function AvatarStudioView() {
                   </div>
 
                   <div className="flex flex-col gap-2">
-                    {/* Générer avec Flux */}
+                    {/* Générer avec Nano Banana */}
                     <Button
                       size="sm"
-                      onClick={generateFluxPhoto}
+                      onClick={generateAvatarPhoto}
                       loading={generatingPhoto}
                       disabled={generatingPhoto || !avatarName.trim()}
                     >

@@ -98,7 +98,7 @@ export default function CloneLabTab() {
       }
       setResult({ ...cloneResult })
 
-      // ─ Étape 2 : Photo IA via Flux Pro ───────────────────────────────────
+      // ─ Étape 2 : Photo IA via Nano Banana ────────────────────────────────
       if (generatePhoto) {
         setPhase('photo')
         setPhotoLoading(true)
