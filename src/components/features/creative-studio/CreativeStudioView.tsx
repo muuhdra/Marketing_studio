@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Textarea } from '@/components/ui/Input'
@@ -17,6 +18,7 @@ import {
 import type { VideoJob } from '@/lib/ai/video'
 import type { ScriptResult } from '@/lib/ai/text'
 import type { ImageResult } from '@/lib/ai/image'
+import { useMediaStore, type MediaEngine } from '@/lib/stores/mediaStore'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -65,7 +67,9 @@ type GenerationResult =
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function CreativeStudioView() {
-  const toast = useToast()
+  const toast    = useToast()
+  const addAsset = useMediaStore((s) => s.addAsset)
+  const recentAssets = useMediaStore((s) => s.assets.slice(0, 5))
 
   const [selectedFormat, setSelectedFormat] = useState<FormatId | null>(null)
   const [prompt, setPrompt]                 = useState('')
@@ -145,6 +149,17 @@ export default function CreativeStudioView() {
               setGenerating(false)
               setPhase('')
               toast.success('Vidéo Kling terminée ✦')
+              if (status.videoUrl) {
+                addAsset({
+                  type:    'video',
+                  url:     status.videoUrl,
+                  title:   `${selectedFormat === 'ugc' ? 'UGC' : 'Commercial'} · ${platform}`,
+                  engine:  'kling-v2.1-pro',
+                  prompt:  prompt.slice(0, 200),
+                  format:  videoRatio.val,
+                  duration: 5,
+                })
+              }
             } else if (status.status === 'failed') {
               clearInterval(pollRef.current!)
               setGenerating(false)
@@ -166,6 +181,14 @@ export default function CreativeStudioView() {
           })
           setResult({ type: 'images', data: [imgRes] })
           toast.success('Visuel Nano Banana ✦')
+          addAsset({
+            type:   'image',
+            url:    imgRes.url,
+            title:  selectedFormat === 'shooting' ? `Shooting · ${platform}` : `Visuel · ${platform}`,
+            engine: 'nano-banana',
+            prompt: prompt.slice(0, 200),
+            format: imageRatio.val,
+          })
           break
         }
 
@@ -175,6 +198,15 @@ export default function CreativeStudioView() {
           const moodRes = await actionGenerateMoodboard(prompt, 4)
           setResult({ type: 'images', data: moodRes })
           toast.success(`Moodboard · ${moodRes.length} images ✦`)
+          moodRes.forEach((img, i) => {
+            addAsset({
+              type:   'image',
+              url:    img.url,
+              title:  `Moodboard ${i + 1}/4`,
+              engine: 'nano-banana',
+              prompt: prompt.slice(0, 200),
+            })
+          })
           break
         }
 
@@ -188,6 +220,14 @@ export default function CreativeStudioView() {
           })
           setResult({ type: 'audio', data: speech.audioBase64 })
           toast.success('Voix ElevenLabs générée ✦')
+          addAsset({
+            type:     'audio',
+            url:      `data:audio/mpeg;base64,${speech.audioBase64}`,
+            title:    `Voix off · Rachel`,
+            engine:   'elevenlabs',
+            prompt:   prompt.slice(0, 200),
+            mimeType: 'audio/mpeg',
+          })
           break
         }
       }
@@ -485,22 +525,29 @@ export default function CreativeStudioView() {
 
           {/* Historique récent */}
           <div className="bg-bg-card border-2 border-border rounded-neo-lg p-4">
-            <p className="nb-label mb-3">Historique récent</p>
-            <div className="flex flex-col">
-              {[
-                { fmt: 'UGC Social',   model: 'Kling v2.1',    date: 'Il y a 2h' },
-                { fmt: 'Moodboard',    model: 'Nano Banana',   date: 'Hier 14h'  },
-                { fmt: 'Voix off',     model: 'ElevenLabs',    date: 'Il y a 2j' },
-              ].map((item, i) => (
-                <div key={i} className={`flex items-center justify-between py-2.5 ${i < 2 ? 'border-b border-border/40' : ''}`}>
-                  <div>
-                    <div className="font-mono text-[11px] text-text-primary">{item.fmt}</div>
-                    <div className="font-mono text-[9px] text-text-dim">{item.model}</div>
-                  </div>
-                  <span className="font-mono text-[10px] text-text-dim">{item.date}</span>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-3">
+              <p className="nb-label">Récent</p>
+              <Link href="/galerie" className="font-mono text-[9px] text-accent hover:underline">Voir tout →</Link>
             </div>
+            {recentAssets.length === 0 ? (
+              <p className="font-mono text-[10px] text-text-dim">Rien encore — vos générations apparaîtront ici.</p>
+            ) : (
+              <div className="flex flex-col">
+                {recentAssets.map((item, i) => (
+                  <div key={item.id} className={`flex items-center gap-2 py-2 ${i < recentAssets.length - 1 ? 'border-b border-border/40' : ''}`}>
+                    <span className="text-base flex-shrink-0">
+                      {item.type === 'image' ? '🖼' : item.type === 'video' ? '🎬' : '🎵'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-mono text-[10px] text-text-primary truncate">{item.title}</div>
+                      <div className="font-mono text-[9px] text-text-dim">
+                        {new Date(item.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
         </div>

@@ -9,6 +9,7 @@ import AvatarEnvironment from './AvatarEnvironment'
 import { createAvatar } from '@/lib/actions/avatars'
 import { actionGenerateAvatarPhoto } from '@/lib/actions/ai'
 import { useToast } from '@/lib/stores/toastStore'
+import { useMediaStore } from '@/lib/stores/mediaStore'
 
 const PIPELINE_STEPS = [
   { id: 1, label: 'Modèle de base' },
@@ -17,8 +18,9 @@ const PIPELINE_STEPS = [
 ]
 
 export default function AvatarStudioView() {
-  const router = useRouter()
-  const toast  = useToast()
+  const router    = useRouter()
+  const toast     = useToast()
+  const addAsset  = useMediaStore((s) => s.addAsset)
 
   const [step, setStep]                     = useState<1 | 2 | 3>(1)
   const [modelValidated, setModelValidated] = useState(false)
@@ -54,6 +56,14 @@ export default function AvatarStudioView() {
       setGeneratedPhotoUrl(result.url)
       setUploadedImage(true)
       toast.success('Photo IA générée par Flux Pro ✦')
+      addAsset({
+        type:      'image',
+        url:       result.url,
+        title:     `Portrait · ${avatarName.trim()}`,
+        engine:    'flux-pro',
+        avatarName: avatarName.trim(),
+        prompt:    `Avatar: ${avatarName.trim()}${avatarAge ? `, ${avatarAge} ans` : ''}${avatarEthnicity ? `, ${avatarEthnicity}` : ''}${avatarStyle ? `, ${avatarStyle}` : ''}`,
+      })
     } catch (e: any) {
       const msg = e.message ?? 'Erreur génération photo'
       setError(msg)
