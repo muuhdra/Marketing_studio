@@ -10,6 +10,11 @@ import {
   actionGenerateAvatarPhoto,
 } from '@/lib/actions/ai'
 import { useMediaStore } from '@/lib/stores/mediaStore'
+import { useCloneStore } from '@/lib/stores/cloneStore'
+import {
+  actionGenerateCloneVideo,
+  actionGetCloneVideoStatus,
+} from '@/lib/actions/heygen'
 
 // ─── Voice profiles disponibles ──────────────────────────────────────────────
 
@@ -50,6 +55,14 @@ export default function CloneLabTab() {
   const toast    = useToast()
   const addAsset = useMediaStore((s) => s.addAsset)
   const audioRef = useRef<HTMLAudioElement>(null)
+
+  // HeyGen clones
+  const allClones    = useCloneStore((s) => s.clones)
+  const readyClones  = allClones.filter((c) => c.status === 'completed')
+  const [heygenCloneId, setHeygenCloneId]         = useState<string | null>(null)
+  const [heygenGenerating, setHeygenGenerating]   = useState(false)
+  const [heygenVideoUrl, setHeygenVideoUrl]        = useState<string | null>(null)
+  const heygenPollRef = useRef<NodeJS.Timeout | null>(null)
 
   // ── Form ────
   const [personaDescription, setPersonaDescription] = useState('')
@@ -577,6 +590,107 @@ export default function CloneLabTab() {
                     <Button variant="ghost" fullWidth size="sm" onClick={reset}>
                       ↩ Nouveau Clone
                     </Button>
+                  </div>
+                )}
+
+                {/* ── HeyGen : Générer avec mon clone ── */}
+                {phase === 'done' && result && (
+                  <div className="mt-2 bg-pink/5 border-2 border-pink/30 rounded-neo-lg p-4 flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🎭</span>
+                      <div className="font-mono text-[11px] font-bold text-pink">
+                        Générer une vidéo avec mon clone
+                      </div>
+                    </div>
+
+                    {readyClones.length === 0 ? (
+                      <p className="font-mono text-[10px] text-text-dim leading-relaxed">
+                        Aucun clone prêt. Créez le vôtre dans{' '}
+                        <strong className="text-pink">Creative Studio → Clone IA</strong> pour générer une vidéo avec votre visage.
+                      </p>
+                    ) : (
+                      <>
+                        {/* Sélection du clone */}
+                        <div className="flex gap-1.5 flex-wrap">
+                          {readyClones.map((c) => (
+                            <button
+                              key={c.id}
+                              onClick={() => setHeygenCloneId(c.id)}
+                              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-neo border-2 text-left transition-all
+                                ${heygenCloneId === c.id
+                                  ? 'border-pink bg-pink/10 text-pink'
+                                  : 'border-border text-text-muted hover:border-pink/50'}`}
+                            >
+                              {c.previewUrl
+                                ? <img src={c.previewUrl} alt="" className="w-5 h-5 rounded-neo object-cover" />
+                                : <span>👤</span>}
+                              <span className="font-mono text-[10px] font-bold">{c.name}</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Vidéo résultat */}
+                        {heygenVideoUrl && (
+                          <div className="rounded-neo border-2 border-teal overflow-hidden">
+                            <video src={heygenVideoUrl} controls autoPlay loop className="w-full max-h-[220px] object-contain bg-black" />
+                            <div className="p-2 flex items-center justify-between">
+                              <span className="font-mono text-[9px] text-teal font-bold">✦ Clone vidéo prête</span>
+                              <a href={heygenVideoUrl} download className="font-mono text-[9px] text-teal border border-teal/30 px-2 py-0.5 rounded-neo hover:bg-teal/10">
+                                ⬇ DL
+                              </a>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Generating state */}
+                        {heygenGenerating && (
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 border-2 border-pink border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                            <span className="font-mono text-[10px] text-pink">HeyGen génère votre vidéo clone... (2-5 min)</span>
+                          </div>
+                        )}
+
+                        {!heygenGenerating && !heygenVideoUrl && (
+                          <Button
+                            size="sm"
+                            fullWidth
+                            disabled={!heygenCloneId}
+                            onClick={async () => {
+                              const clone = readyClones.find((c) => c.id === heygenCloneId)
+                              if (!clone || !result) return
+                              setHeygenGenerating(true)
+                              try {
+                                const { videoId } = await actionGenerateCloneVideo({
+                                  avatarId: clone.heygenAvatarId,
+                                  script:   result.script.slice(0, 2000),
+                                  ratio:    '9:16',
+                                  language: platform,
+                                })
+                                heygenPollRef.current = setInterval(async () => {
+                                  const s = await actionGetCloneVideoStatus(videoId)
+                                  if (s.status === 'completed' && s.videoUrl) {
+                                    clearInterval(heygenPollRef.current!)
+                                    setHeygenVideoUrl(s.videoUrl)
+                                    setHeygenGenerating(false)
+                                    addAsset({ type: 'video', url: s.videoUrl, title: `Clone Vidéo · ${clone.name}`, engine: 'heygen', avatarName: clone.name })
+                                    toast.success('Vidéo clone prête ✦')
+                                  } else if (s.status === 'failed') {
+                                    clearInterval(heygenPollRef.current!)
+                                    setHeygenGenerating(false)
+                                    toast.error('HeyGen : génération échouée')
+                                  }
+                                }, 10_000)
+                              } catch (e: any) {
+                                setHeygenGenerating(false)
+                                toast.error(e.message ?? 'Erreur HeyGen')
+                              }
+                            }}
+                          >
+                            🎬 Générer avec {readyClones.find((c) => c.id === heygenCloneId)?.name ?? 'mon clone'}
+                          </Button>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </div>

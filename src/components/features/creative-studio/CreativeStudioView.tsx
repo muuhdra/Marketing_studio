@@ -19,6 +19,7 @@ import type { VideoJob } from '@/lib/ai/video'
 import type { ScriptResult } from '@/lib/ai/text'
 import type { ImageResult } from '@/lib/ai/image'
 import { useMediaStore, type MediaEngine } from '@/lib/stores/mediaStore'
+import VideoCloneSection from './VideoCloneSection'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -71,6 +72,9 @@ export default function CreativeStudioView() {
   const addAsset = useMediaStore((s) => s.addAsset)
   const allAssets = useMediaStore((s) => s.assets)
   const recentAssets = useMemo(() => allAssets.slice(0, 5), [allAssets])
+
+  // ── Mode Studio ou Clone IA
+  const [studioMode, setStudioMode] = useState<'studio' | 'clone'>('studio')
 
   const [selectedFormat, setSelectedFormat] = useState<FormatId | null>(null)
   const [prompt, setPrompt]                 = useState('')
@@ -258,15 +262,50 @@ export default function CreativeStudioView() {
     <div className="animate-fade-in">
 
       {/* ── Header ── */}
-      <div className="mb-7">
+      <div className="mb-6">
         <p className="nb-label mb-2">Génération libre</p>
-        <h1 className="font-display font-bold text-[22px] tracking-tight text-text-primary mb-1">
-          Creative Studio
-        </h1>
-        <p className="text-[12.5px] text-text-muted">
-          Générez n'importe quel format de contenu, sans lien avec une campagne
-        </p>
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h1 className="font-display font-bold text-[22px] tracking-tight text-text-primary mb-1">
+              Creative Studio
+            </h1>
+            <p className="text-[12.5px] text-text-muted">
+              Générez n'importe quel format de contenu, sans lien avec une campagne
+            </p>
+          </div>
+
+          {/* Toggle Studio / Clone IA */}
+          <div className="flex gap-1 p-1 bg-bg-card border-2 border-border rounded-neo-lg flex-shrink-0">
+            <button
+              onClick={() => setStudioMode('studio')}
+              className={`font-mono text-[11px] font-bold px-4 py-2 rounded-neo transition-all
+                ${studioMode === 'studio'
+                  ? 'bg-accent text-bg-base shadow-[1px_1px_0px_theme(colors.text.primary)]'
+                  : 'text-text-muted hover:text-text-primary'}`}
+            >
+              ✦ Studio
+            </button>
+            <button
+              onClick={() => setStudioMode('clone')}
+              className={`font-mono text-[11px] font-bold px-4 py-2 rounded-neo transition-all flex items-center gap-1.5
+                ${studioMode === 'clone'
+                  ? 'bg-pink text-bg-base shadow-[1px_1px_0px_theme(colors.text.primary)]'
+                  : 'text-text-muted hover:text-text-primary'}`}
+            >
+              🎭 Clone IA
+              <span className="font-mono text-[8px] bg-white/20 px-1 py-0.5 rounded-neo">NEW</span>
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* ── Mode Clone IA ── */}
+      {studioMode === 'clone' && (
+        <VideoCloneSection />
+      )}
+
+      {/* ── Mode Studio ── */}
+      {studioMode !== 'clone' && (
 
       <div className="grid grid-cols-[1fr_280px] gap-6 items-start">
 
@@ -553,6 +592,7 @@ export default function CreativeStudioView() {
 
         </div>
       </div>
+      )} {/* fin studioMode !== 'clone' */}
     </div>
   )
 }

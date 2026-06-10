@@ -13,6 +13,7 @@ export type MediaEngine =
   | 'minimax'
   | 'claude'
   | 'chatgpt'
+  | 'heygen'
 
 export interface MediaAsset {
   id:            string
@@ -92,6 +93,7 @@ export function engineLabel(engine: MediaEngine): string {
     'minimax':         'MiniMax',
     'claude':          'Claude',
     'chatgpt':         'ChatGPT',
+    'heygen':          'HeyGen',
   }
   return labels[engine] ?? engine
 }
@@ -105,6 +107,7 @@ export function engineColor(engine: MediaEngine): string {
     'minimax':         'text-pink border-pink/40',
     'claude':          'text-purple border-purple/40',
     'chatgpt':         'text-teal border-border-teal/40',
+    'heygen':          'text-pink border-pink/40',
   }
   return colors[engine] ?? 'text-text-dim border-border'
 }
