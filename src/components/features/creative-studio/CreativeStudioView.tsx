@@ -108,6 +108,7 @@ export default function CreativeStudioView() {
     const url = URL.createObjectURL(file)
     imagePreviewRef.current = url
     setImagePreview(url)
+    setImagePublicUrl('') // vider l'URL publique — le fichier local prend le dessus
   }
 
   function clearImage() {
@@ -118,7 +119,12 @@ export default function CreativeStudioView() {
   }
 
   const fmt         = FORMATS.find(f => f.id === selectedFormat)
-  const canGenerate = !!selectedFormat && (prompt.trim().length > 5 || !!imagePreview)
+  // voix = toujours un prompt requis ; autres formats = prompt OU image suffisent
+  const canGenerate = !!selectedFormat && (
+    selectedFormat === 'voix'
+      ? prompt.trim().length > 5
+      : prompt.trim().length > 5 || !!imagePreview
+  )
   const isPolling   = generating && (selectedFormat === 'ugc' || selectedFormat === 'commercial')
   const effectiveImageUrl = imagePublicUrl.trim() || (imagePreview && !imagePreview.startsWith('blob:') ? imagePreview : undefined)
 

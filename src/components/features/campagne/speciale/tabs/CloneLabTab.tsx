@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import Button from '@/components/ui/Button'
 import { Input, Textarea } from '@/components/ui/Input'
 import { useToast } from '@/lib/stores/toastStore'
@@ -57,12 +57,17 @@ export default function CloneLabTab() {
   const audioRef = useRef<HTMLAudioElement>(null)
 
   // HeyGen clones
-  const allClones    = useCloneStore((s) => s.clones)
-  const readyClones  = allClones.filter((c) => c.status === 'completed')
-  const [heygenCloneId, setHeygenCloneId]         = useState<string | null>(null)
-  const [heygenGenerating, setHeygenGenerating]   = useState(false)
-  const [heygenVideoUrl, setHeygenVideoUrl]        = useState<string | null>(null)
+  const allClones   = useCloneStore((s) => s.clones)
+  const readyClones = useMemo(() => allClones.filter((c) => c.status === 'completed'), [allClones])
+  const [heygenCloneId, setHeygenCloneId]       = useState<string | null>(null)
+  const [heygenGenerating, setHeygenGenerating] = useState(false)
+  const [heygenVideoUrl, setHeygenVideoUrl]     = useState<string | null>(null)
   const heygenPollRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cleanup du poll HeyGen au démontage
+  useEffect(() => () => {
+    if (heygenPollRef.current) clearInterval(heygenPollRef.current)
+  }, [])
 
   // ── Form ────
   const [personaDescription, setPersonaDescription] = useState('')
@@ -664,7 +669,7 @@ export default function CloneLabTab() {
                                   avatarId: clone.heygenAvatarId,
                                   script:   result.script.slice(0, 2000),
                                   ratio:    '9:16',
-                                  language: platform,
+                                  language: 'fr', // langue du script généré par Claude
                                 })
                                 heygenPollRef.current = setInterval(async () => {
                                   const s = await actionGetCloneVideoStatus(videoId)

@@ -201,7 +201,17 @@ export async function generateCloneVideo(
   const key = getKey()
   const dim = RATIO_DIMENSIONS[params.ratio ?? '9:16']
 
-  // Voix : si voiceId fourni on l'utilise, sinon on utilise la voix clonée (type: "clone")
+  // Voix : si voiceId fourni on l'utilise explicitement.
+  // Sinon on utilise les voice_id HeyGen natifs par langue.
+  // ⚠️  Ces IDs sont issus du catalogue HeyGen public — à vérifier/mettre à jour
+  //     via GET https://api.heygen.com/v2/voices si une voix ne fonctionne pas.
+  const HEYGEN_VOICE_BY_LANG: Record<string, string> = {
+    fr: 'fr-FR-DeniseNeural',  // Azure Neural FR (supporté par HeyGen)
+    en: 'en-US-JennyNeural',   // Azure Neural EN (supporté par HeyGen)
+    es: 'es-ES-ElviraNeural',
+    de: 'de-DE-KatjaNeural',
+    pt: 'pt-BR-FranciscaNeural',
+  }
   const voice = params.voiceId
     ? {
         type:       'text',
@@ -212,10 +222,8 @@ export async function generateCloneVideo(
     : {
         type:       'text',
         input_text: params.script,
-        voice_id:   params.language === 'fr'
-          ? 'fr-FR-DeniseNeural'    // voix Azure FR fallback
-          : 'en-US-JennyNeural',    // voix Azure EN fallback
-        speed: 1.0,
+        voice_id:   HEYGEN_VOICE_BY_LANG[params.language ?? 'fr'] ?? HEYGEN_VOICE_BY_LANG.fr,
+        speed:      1.0,
       }
 
   const payload = {

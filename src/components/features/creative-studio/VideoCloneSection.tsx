@@ -49,8 +49,8 @@ export default function VideoCloneSection() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // ── Polling avatar creation
-  const avatarPollRef = useRef<NodeJS.Timeout | null>(null)
+  // ── Polling avatar creation (Map pour supporter plusieurs créations simultanées)
+  const avatarPollsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   // ── Generate video
   const [selectedCloneId, setSelectedCloneId] = useState<string | null>(null)
@@ -61,7 +61,18 @@ export default function VideoCloneSection() {
   const [genPhase, setGenPhase]               = useState('')
   const [genProgress, setGenProgress]         = useState(0)
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null)
-  const videoPollRef = useRef<NodeJS.Timeout | null>(null)
+  const videoPollRef   = useRef<NodeJS.Timeout | null>(null)
+  const videoTimeoutRef = useRef<NodeJS.Timeout | null>(null) // timeout 10 min
+
+  function cancelVideoGeneration() {
+    if (videoPollRef.current)   clearInterval(videoPollRef.current)
+    if (videoTimeoutRef.current) clearTimeout(videoTimeoutRef.current)
+    videoPollRef.current   = null
+    videoTimeoutRef.current = null
+    setGenerating(false)
+    setGenPhase('')
+    toast.error('Génération annulée')
+  }
 
   // Stable refs
   const completedClones = useMemo(() => clones.filter((c) => c.status === 'completed'), [clones])
@@ -71,11 +82,38 @@ export default function VideoCloneSection() {
     [clones, selectedCloneId],
   )
 
-  // Cleanup on unmount
+  // Cleanup on unmount — arrêter tous les polls actifs
   useEffect(() => () => {
-    if (avatarPollRef.current) clearInterval(avatarPollRef.current)
-    if (videoPollRef.current)  clearInterval(videoPollRef.current)
+    avatarPollsRef.current.forEach((id) => clearInterval(id))
+    avatarPollsRef.current.clear()
+    if (videoPollRef.current)    clearInterval(videoPollRef.current)
+    if (videoTimeoutRef.current) clearTimeout(videoTimeoutRef.current)
   }, [])
+
+  // Reprendre le polling des clones en `processing` après un refresh de page
+  useEffect(() => {
+    const processingOnMount = clones.filter((c) => c.status === 'processing')
+    processingOnMount.forEach((clone) => {
+      if (avatarPollsRef.current.has(clone.heygenAvatarId)) return // déjà en cours
+      const intervalId = setInterval(async () => {
+        try {
+          const status = await actionGetCloneStatus(clone.heygenAvatarId)
+          if (status.status === 'completed') {
+            clearInterval(avatarPollsRef.current.get(clone.heygenAvatarId))
+            avatarPollsRef.current.delete(clone.heygenAvatarId)
+            updateClone(clone.heygenAvatarId, { status: 'completed', previewUrl: status.previewUrl })
+            toast.success(`Clone "${clone.name}" prêt ✦`)
+          } else if (status.status === 'failed') {
+            clearInterval(avatarPollsRef.current.get(clone.heygenAvatarId))
+            avatarPollsRef.current.delete(clone.heygenAvatarId)
+            updateClone(clone.heygenAvatarId, { status: 'failed' })
+          }
+        } catch { /* silencieux */ }
+      }, 30_000)
+      avatarPollsRef.current.set(clone.heygenAvatarId, intervalId)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionnellement vide — s'exécute uniquement au montage
 
   // Progress animation while video generating
   useEffect(() => {
@@ -101,10 +139,13 @@ export default function VideoCloneSection() {
     setUploading(true)
     setUploadProgress(15)
 
+    // Capturer le nom AVANT le reset — évite la stale closure dans l'interval
+    const capturedName = cloneName.trim()
+
     try {
       const formData = new FormData()
       formData.append('video', videoFile)
-      formData.append('name', cloneName.trim())
+      formData.append('name', capturedName)
 
       setUploadProgress(40)
       const result = await actionCreateHeyGenClone(formData)
@@ -112,7 +153,7 @@ export default function VideoCloneSection() {
 
       // Sauvegarder localement
       addClone({
-        name:           cloneName.trim(),
+        name:           capturedName,
         heygenAvatarId: result.avatarId,
         status:         'processing',
       })
@@ -120,26 +161,29 @@ export default function VideoCloneSection() {
       setUploadProgress(100)
       toast.success('Clone soumis à HeyGen ✓ — traitement en cours (5-15 min)')
 
-      // Polling toutes les 30 secondes
-      avatarPollRef.current = setInterval(async () => {
+      // Nettoyer un éventuel poll précédent pour cet avatar (sécurité)
+      if (avatarPollsRef.current.has(result.avatarId)) {
+        clearInterval(avatarPollsRef.current.get(result.avatarId))
+      }
+
+      // Polling toutes les 30 secondes — chaque clone a son propre interval
+      const intervalId = setInterval(async () => {
         try {
           const status = await actionGetCloneStatus(result.avatarId)
           if (status.status === 'completed') {
-            clearInterval(avatarPollRef.current!)
-            updateClone(result.avatarId, {
-              status:     'completed',
-              previewUrl: status.previewUrl,
-            })
-            toast.success(`Clone "${cloneName.trim()}" prêt ✦`)
+            clearInterval(avatarPollsRef.current.get(result.avatarId))
+            avatarPollsRef.current.delete(result.avatarId)
+            updateClone(result.avatarId, { status: 'completed', previewUrl: status.previewUrl })
+            toast.success(`Clone "${capturedName}" prêt ✦`)
           } else if (status.status === 'failed') {
-            clearInterval(avatarPollRef.current!)
+            clearInterval(avatarPollsRef.current.get(result.avatarId))
+            avatarPollsRef.current.delete(result.avatarId)
             updateClone(result.avatarId, { status: 'failed' })
-            toast.error('Clone HeyGen : traitement échoué')
+            toast.error(`Clone "${capturedName}" : traitement échoué`)
           }
-        } catch {
-          // On continue le polling silencieusement
-        }
+        } catch { /* silencieux */ }
       }, 30_000)
+      avatarPollsRef.current.set(result.avatarId, intervalId)
 
       // Reset form et retour à l'onglet clones
       setCloneName('')
@@ -174,13 +218,26 @@ export default function VideoCloneSection() {
       setGenPhase('⏳ HeyGen génère votre clone vidéo...')
       toast.success('Vidéo soumise ✓ — génération en cours')
 
+      // Timeout 10 minutes — HeyGen ne devrait pas dépasser ça
+      videoTimeoutRef.current = setTimeout(() => {
+        if (videoPollRef.current) clearInterval(videoPollRef.current)
+        setGenerating(false)
+        setGenPhase('')
+        toast.error('HeyGen : timeout dépassé (10 min) — réessayez')
+      }, 10 * 60 * 1000)
+
       // Polling toutes les 10 secondes
+      const capturedCloneName = selectedClone.name
+      const capturedAvatarId  = selectedClone.heygenAvatarId
       videoPollRef.current = setInterval(async () => {
         try {
           const status = await actionGetCloneVideoStatus(videoId)
 
           if (status.status === 'completed' && status.videoUrl) {
             clearInterval(videoPollRef.current!)
+            clearTimeout(videoTimeoutRef.current!)
+            videoPollRef.current   = null
+            videoTimeoutRef.current = null
             setGeneratedVideoUrl(status.videoUrl)
             setGenerating(false)
             setGenPhase('')
@@ -188,24 +245,25 @@ export default function VideoCloneSection() {
             addAsset({
               type:       'video',
               url:        status.videoUrl,
-              title:      `Clone Vidéo · ${selectedClone.name}`,
+              title:      `Clone Vidéo · ${capturedCloneName}`,
               engine:     'heygen',
               prompt:     script.slice(0, 200),
               format:     ratio.val,
-              avatarName: selectedClone.name,
-              avatarId:   selectedClone.heygenAvatarId,
+              avatarName: capturedCloneName,
+              avatarId:   capturedAvatarId,
             })
             toast.success('Vidéo clone générée ✦')
 
           } else if (status.status === 'failed') {
             clearInterval(videoPollRef.current!)
+            clearTimeout(videoTimeoutRef.current!)
+            videoPollRef.current   = null
+            videoTimeoutRef.current = null
             setGenerating(false)
             setGenPhase('')
             toast.error('HeyGen : génération échouée · ' + (status.error ?? 'erreur inconnue'))
           }
-        } catch {
-          // On continue le polling silencieusement
-        }
+        } catch { /* silencieux */ }
       }, 10_000)
 
     } catch (e: any) {
@@ -597,9 +655,17 @@ export default function VideoCloneSection() {
                       style={{ width: `${genProgress}%` }}
                     />
                   </div>
-                  <p className="font-mono text-[9px] text-text-dim mt-2 opacity-60">
-                    HeyGen génère généralement une vidéo en 2 à 5 minutes
-                  </p>
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="font-mono text-[9px] text-text-dim opacity-60">
+                      HeyGen génère généralement une vidéo en 2 à 5 minutes
+                    </p>
+                    <button
+                      onClick={cancelVideoGeneration}
+                      className="font-mono text-[9px] text-coral border border-coral/30 px-2 py-1 rounded-neo hover:bg-coral/10 transition-colors"
+                    >
+                      ✕ Annuler
+                    </button>
+                  </div>
                 </div>
               )}
 
