@@ -8,38 +8,34 @@ type ButtonSize    = 'xs' | 'sm' | 'md' | 'lg'
 
 const variants: Record<ButtonVariant, string> = {
   primary: `
-    bg-accent text-bg-base border-2 border-accent font-bold
-    shadow-neo-sm
-    hover:shadow-neo hover:-translate-x-px hover:-translate-y-px
-    active:shadow-none active:translate-x-px active:translate-y-px
-    disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none
+    bg-accent text-bg-base border border-accent font-bold
+    hover:bg-accent/90 hover:border-accent/90
+    active:scale-[0.98]
+    disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none
   `,
   secondary: `
-    bg-transparent text-text-primary border-2 border-border-strong font-bold
-    shadow-neo-white-sm
-    hover:border-white/30 hover:shadow-neo-white hover:-translate-x-px hover:-translate-y-px
-    active:shadow-none active:translate-x-px active:translate-y-px
-    disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none
+    bg-fg/[0.04] text-text-primary border border-border-strong font-bold
+    hover:bg-fg/[0.08] hover:border-fg/30
+    active:scale-[0.98]
+    disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none
   `,
   ghost: `
-    bg-transparent text-text-secondary border-2 border-transparent font-medium
-    hover:text-text-primary hover:bg-white/[0.04] hover:border-border
-    active:bg-white/[0.06]
+    bg-transparent text-text-secondary border border-transparent font-medium
+    hover:text-text-primary hover:bg-fg/[0.05] hover:border-border
+    active:bg-fg/[0.08]
     disabled:opacity-40 disabled:cursor-not-allowed
   `,
   danger: `
-    bg-transparent text-coral border-2 border-border-coral font-bold
-    shadow-neo-coral
-    hover:bg-coral/10 hover:-translate-x-px hover:-translate-y-px
-    active:shadow-none active:translate-x-px active:translate-y-px
-    disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none
+    bg-transparent text-coral border border-border-coral font-bold
+    hover:bg-coral/10
+    active:scale-[0.98]
+    disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none
   `,
   'accent-outline': `
-    bg-transparent text-accent border-2 border-accent font-bold
-    shadow-neo
-    hover:bg-accent/10 hover:-translate-x-px hover:-translate-y-px
-    active:shadow-none active:translate-x-px active:translate-y-px
-    disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none
+    bg-transparent text-accent border border-accent font-bold
+    hover:bg-accent/10
+    active:scale-[0.98]
+    disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none
   `,
 }
 
@@ -82,7 +78,7 @@ export default function Button({
     >
       {loading ? (
         <>
-          <span className="w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+          <span className="w-3.5 h-3.5 rounded-full border border-current border-t-transparent animate-spin" />
           {children}
         </>
       ) : children}

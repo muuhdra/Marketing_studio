@@ -36,13 +36,26 @@ export type MinimaxVoice =
 export type TtsVoice  = ElevenLabsVoice | MinimaxVoice
 export type TtsFormat = 'mp3' | 'opus' | 'wav'
 
+// Catalogue de voix + émotions — défini dans voice-catalog (client-safe), ré-exporté ici.
+export {
+  VOICE_PROFILES,
+  getVoiceProfile,
+  MINIMAX_EMOTIONS,
+  type VoiceProfile,
+  type VoiceEngine,
+  type MinimaxEmotion,
+} from './voice-catalog'
+import type { MinimaxEmotion } from './voice-catalog'
+
 export interface GenerateSpeechParams {
-  text:    string
-  engine?: TtsEngine
-  voice?:  TtsVoice
-  model?:  string       // override model ID explicite
-  format?: TtsFormat
-  speed?:  number       // 0.5 – 2.0
+  text:     string
+  engine?:  TtsEngine
+  voice?:   TtsVoice
+  model?:   string       // override model ID explicite
+  format?:  TtsFormat
+  speed?:   number       // 0.5 – 2.0
+  pitch?:   number       // MiniMax : -12 à 12
+  emotion?: MinimaxEmotion  // MiniMax uniquement
 }
 
 export interface SpeechResult {
@@ -66,7 +79,7 @@ export async function generateSpeechElevenLabs(params: {
   speed?: number
 }): Promise<string /* base64 */> {
   const body = {
-    model: params.model ?? MODELS.tts.elevenLabs,
+    model: params.model ?? MODELS.tts.elevenTurbo,
     input: params.text,
     voice: params.voice ?? 'Rachel',
     ...(params.speed ? { speed: params.speed } : {}),
@@ -83,38 +96,52 @@ export async function generateSpeechElevenLabs(params: {
 
 // ─── MiniMax via AIML API ─────────────────────────────────────────────────────
 
+// L'audio peut être une chaîne (URL ou base64) OU un objet { url } selon le modèle.
+type MinimaxAudio = string | { url?: string } | undefined
 interface MinimaxTtsResponse {
-  audio_file?: string
-  audio?:      string
-  data?: {
-    audio?: string
-  }
+  audio_file?: MinimaxAudio
+  audio?:      MinimaxAudio
+  data?: { audio?: MinimaxAudio }
+  meta?: { credits_used?: number; usd_spent?: number }
 }
 
 export async function generateSpeechMinimax(params: {
-  text:   string
-  voice?: MinimaxVoice
-  model?: string
-  speed?: number
+  text:     string
+  voice?:   MinimaxVoice
+  model?:   string
+  speed?:   number
+  pitch?:   number
+  emotion?: MinimaxEmotion
 }): Promise<string /* base64 */> {
+  // Contrat AIML : POST /v1/tts · champ `text` · modèle 'minimax/speech-2.6-hd' · réponse `audio` (URL).
   const body = {
-    model:  params.model ?? MODELS.tts.minimax,
-    input:  params.text,
+    model: params.model ?? MODELS.tts.minimax,
+    text:  params.text,
     voice_setting: {
       voice_id: params.voice ?? 'Wise_Woman',
       speed:    params.speed ?? 1.0,
-      pitch:    0,
+      pitch:    params.pitch ?? 0,
       vol:      1.0,
+      ...(params.emotion ? { emotion: params.emotion } : {}),
     },
   }
 
-  const response = await aimlFetch<MinimaxTtsResponse>('/text-to-speech', {
+  const response = await aimlFetch<MinimaxTtsResponse>('/tts', {
     method:  'POST',
     body:    JSON.stringify(body),
-    version: 'v2',
+    version: 'v1',
   })
 
-  return response.audio_file ?? response.audio ?? response.data?.audio ?? ''
+  // Le champ audio peut être une chaîne (URL/base64) OU un objet { url }.
+  const field = response.audio ?? response.audio_file ?? response.data?.audio
+  const audio = typeof field === 'string' ? field : (field?.url ?? '')
+  if (!audio) return ''
+  // URL → on télécharge et convertit en base64 pour conserver le contrat audioBase64.
+  if (/^https?:\/\//.test(audio)) {
+    const fileRes = await fetch(audio)
+    return Buffer.from(await fileRes.arrayBuffer()).toString('base64')
+  }
+  return audio
 }
 
 // ─── OpenAI TTS (fallback via SDK) ──────────────────────────────────────────
@@ -143,14 +170,16 @@ export async function generateSpeechOpenAI(params: {
 // ─── Fonction unifiée ─────────────────────────────────────────────────────────
 
 export async function generateSpeech(params: GenerateSpeechParams): Promise<SpeechResult> {
-  const engine = params.engine ?? 'elevenlabs'
+  const engine = params.engine ?? 'minimax'   // défaut = MiniMax (ElevenLabs réservé au clonage)
 
   if (engine === 'minimax') {
     const audio = await generateSpeechMinimax({
-      text:  params.text,
-      voice: params.voice as MinimaxVoice | undefined,
-      model: params.model,
-      speed: params.speed,
+      text:    params.text,
+      voice:   params.voice as MinimaxVoice | undefined,
+      model:   params.model,
+      speed:   params.speed,
+      pitch:   params.pitch,
+      emotion: params.emotion,
     })
     return {
       audioBase64: audio,
@@ -170,27 +199,8 @@ export async function generateSpeech(params: GenerateSpeechParams): Promise<Spee
   return {
     audioBase64: audio,
     engine:      'elevenlabs',
-    model:       params.model ?? MODELS.tts.elevenLabs,
+    model:       params.model ?? MODELS.tts.elevenTurbo,
     voice:       params.voice ?? 'Rachel',
   }
 }
 
-// ─── Profils de voix par avatar ──────────────────────────────────────────────
-
-export const VOICE_PROFILES = [
-  // ElevenLabs
-  { id: 'rachel',   engine: 'elevenlabs' as TtsEngine, voice: 'Rachel'   as TtsVoice, label: 'Rachel',   gender: 'f', desc: 'Calme & professionnelle',  lang: 'FR/EN' },
-  { id: 'bella',    engine: 'elevenlabs' as TtsEngine, voice: 'Bella'    as TtsVoice, label: 'Bella',    gender: 'f', desc: 'Naturelle & chaleureuse',  lang: 'FR/EN' },
-  { id: 'domi',     engine: 'elevenlabs' as TtsEngine, voice: 'Domi'     as TtsVoice, label: 'Domi',     gender: 'f', desc: 'Forte & confiante',        lang: 'EN'    },
-  { id: 'elli',     engine: 'elevenlabs' as TtsEngine, voice: 'Elli'     as TtsVoice, label: 'Elli',     gender: 'f', desc: 'Douce & jeune',            lang: 'EN'    },
-  { id: 'adam',     engine: 'elevenlabs' as TtsEngine, voice: 'Adam'     as TtsVoice, label: 'Adam',     gender: 'm', desc: 'Profond & autoritaire',    lang: 'EN'    },
-  { id: 'antoni',   engine: 'elevenlabs' as TtsEngine, voice: 'Antoni'   as TtsVoice, label: 'Antoni',   gender: 'm', desc: 'Dynamique & jeune',        lang: 'EN'    },
-  // MiniMax
-  { id: 'wise',     engine: 'minimax'    as TtsEngine, voice: 'Wise_Woman'        as TtsVoice, label: 'Sage',     gender: 'f', desc: 'Sage & posée (MiniMax)',   lang: 'Multi' },
-  { id: 'friendly', engine: 'minimax'    as TtsEngine, voice: 'Friendly_Person'   as TtsVoice, label: 'Friendly', gender: 'n', desc: 'Amical & accessible',      lang: 'Multi' },
-  { id: 'lively',   engine: 'minimax'    as TtsEngine, voice: 'Lively_Girl'       as TtsVoice, label: 'Vivante',  gender: 'f', desc: 'Vivante & enthousiaste',   lang: 'Multi' },
-  { id: 'deep',     engine: 'minimax'    as TtsEngine, voice: 'Deep_Voice_Man'    as TtsVoice, label: 'Deep',     gender: 'm', desc: 'Grave & impactant',        lang: 'Multi' },
-  { id: 'casual',   engine: 'minimax'    as TtsEngine, voice: 'Casual_Guy'        as TtsVoice, label: 'Casual',   gender: 'm', desc: 'Décontracté & naturel',    lang: 'Multi' },
-] as const
-
-export type VoiceProfileId = typeof VOICE_PROFILES[number]['id']

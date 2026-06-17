@@ -8,7 +8,7 @@ const VARIANT_CONFIG: Record<ToastVariant, { icon: string; border: string; bg: s
   success: { icon: '✓', border: 'border-border-teal',   bg: 'bg-teal/10',   text: 'text-teal',   bar: 'bg-teal'   },
   error:   { icon: '✕', border: 'border-border-coral',  bg: 'bg-coral/10',  text: 'text-coral',  bar: 'bg-coral'  },
   warning: { icon: '⚠', border: 'border-amber/40',      bg: 'bg-amber/10',  text: 'text-amber',  bar: 'bg-amber'  },
-  info:    { icon: '✦', border: 'border-accent',         bg: 'bg-accent/10', text: 'text-accent', bar: 'bg-accent' },
+  info:    { icon: '', border: 'border-accent',         bg: 'bg-accent/10', text: 'text-accent', bar: 'bg-accent' },
 }
 
 // ─── Toast item ───────────────────────────────────────────────────────────────
@@ -20,15 +20,15 @@ function ToastItem({ toast }: { toast: Toast }) {
   return (
     <div className={`
       relative flex items-start gap-3 w-full
-      bg-bg-card border-2 ${cfg.border} ${cfg.bg}
+      bg-bg-card border ${cfg.border} ${cfg.bg}
       rounded-neo-lg px-4 py-3 shadow-neo
       animate-slide-up overflow-hidden
     `}>
       {/* Icône */}
       <div className={`
-        w-5 h-5 rounded-neo border-2 ${cfg.border} flex-shrink-0
+        w-5 h-5 rounded-neo border ${cfg.border} flex-shrink-0
         flex items-center justify-center
-        font-mono text-[10px] font-bold ${cfg.text}
+        font-sans text-[10px] font-bold ${cfg.text}
         mt-0.5
       `}>
         {cfg.icon}
@@ -42,7 +42,7 @@ function ToastItem({ toast }: { toast: Toast }) {
       {/* Close */}
       <button
         onClick={() => remove(toast.id)}
-        className={`flex-shrink-0 font-mono text-[14px] ${cfg.text} opacity-60 hover:opacity-100 transition-opacity mt-0.5`}
+        className={`flex-shrink-0 font-sans text-[14px] ${cfg.text} opacity-60 hover:opacity-100 transition-opacity mt-0.5`}
       >
         ×
       </button>

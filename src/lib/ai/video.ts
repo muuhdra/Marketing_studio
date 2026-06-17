@@ -11,7 +11,7 @@
  *   3. Retourne l'URL vidéo
  */
 
-import { aimlFetch } from './client'
+import { aimlFetch, MODELS } from './client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,7 +19,7 @@ export type VideoEngine      = 'kling' | 'seedance'
 export type KlingVersion     = 'v1.6-standard' | 'v2.1-standard' | 'v2.1-pro'
 export type SeedanceVersion  = 'lite' | 'pro'
 export type VideoAspectRatio = '9:16' | '16:9' | '1:1' | '4:3'
-export type VideoDuration    = 5 | 10
+export type VideoDuration    = 4 | 5 | 6 | 8 | 10 | 12 | 15   // Kling : 5/10 · Seedance 2.0 : 4/5/6/8/10/12/15
 
 export interface GenerateVideoParams {
   prompt:          string
@@ -42,38 +42,51 @@ export interface VideoJob {
   modelId:       string
 }
 
+// Réponse AIML tolérante : le champ exact varie selon le modèle (Kling/Seedance).
 interface AimlVideoResponse {
-  id:      string
-  status?: string
-  output?: { url: string; thumbnail?: string }[]
-  error?:  string
+  id?:             string
+  generation_id?:  string
+  status?:         string
+  // Variantes possibles de l'URL de sortie
+  output?:         { url?: string; thumbnail?: string }[] | { url?: string; thumbnail?: string }
+  video?:          { url?: string } | string
+  video_url?:      string
+  url?:            string
+  data?:           { video?: { url?: string }; url?: string; output?: { url?: string }[] }
+  error?:          string
+}
+
+// Extrait l'URL vidéo quel que soit le format de réponse
+function extractVideoUrl(r: AimlVideoResponse): string | undefined {
+  const out = r.output
+  const fromOut = Array.isArray(out) ? out[0]?.url : out?.url
+  const video = r.video
+  const fromVideo = typeof video === 'string' ? video : video?.url
+  return (
+    fromOut ??
+    fromVideo ??
+    r.video_url ??
+    r.url ??
+    r.data?.video?.url ??
+    r.data?.url ??
+    r.data?.output?.[0]?.url ??
+    undefined
+  )
 }
 
 // ─── Résolution du model ID ───────────────────────────────────────────────────
 
+// Note : la clé AIML n'expose qu'UNE variante par usage (10 modèles max).
+// Les sous-versions (klingVersion/seedanceVersion) sont donc ignorées ici.
 function resolveVideoModelId(params: GenerateVideoParams): string {
   const engine = params.engine ?? 'kling'
-
-  if (engine === 'seedance') {
-    return params.seedanceVersion === 'pro'
-      ? 'seedance-1-pro'
-      : 'seedance-1-lite'
-  }
-
-  // Kling AI (modèle principal — défaut v2.1 Pro)
-  switch (params.klingVersion ?? 'v2.1-pro') {
-    case 'v2.1-pro':
-    default:              return 'kling-video/v2.1/pro/text-to-video'   // ← principal
-    case 'v2.1-standard': return 'kling-video/v2.1/standard/text-to-video'
-    case 'v1.6-standard': return 'kling-video/v1.6/standard/text-to-video'
-  }
+  if (engine === 'seedance') return MODELS.video.seedance      // Seedance 2.0 — B-roll
+  return MODELS.video.klingText                                // Kling 2.1 Master — text-to-video
 }
 
-function resolveImg2VidModelId(params: GenerateVideoParams): string {
-  // Kling image-to-video
-  return params.klingVersion === 'v2.1-pro'
-    ? 'kling-video/v2.1/pro/image-to-video'
-    : 'kling-video/v1.6/standard/image-to-video'
+function resolveImg2VidModelId(engine: VideoEngine): string {
+  if (engine === 'seedance') return MODELS.video.seedance      // Seedance 2.0 — i2v (contrôle 1ère/dernière frame)
+  return MODELS.video.klingImg2Vid                             // Kling 2.1 Pro — image-to-video
 }
 
 // ─── Soumettre un job vidéo ───────────────────────────────────────────────────
@@ -81,7 +94,7 @@ function resolveImg2VidModelId(params: GenerateVideoParams): string {
 export async function submitVideoGeneration(params: GenerateVideoParams): Promise<VideoJob> {
   const engine  = params.engine ?? 'kling'
   const modelId = params.imageUrl
-    ? resolveImg2VidModelId(params)
+    ? resolveImg2VidModelId(engine)
     : resolveVideoModelId(params)
 
   const body: Record<string, unknown> = {
@@ -100,8 +113,10 @@ export async function submitVideoGeneration(params: GenerateVideoParams): Promis
     version: 'v2',
   })
 
+  const generationId = response.id ?? response.generation_id
+  if (!generationId) throw new Error('Soumission vidéo : aucun identifiant de génération renvoyé')
   return {
-    generationId: response.id,
+    generationId,
     status:       'pending',
     engine,
     modelId,
@@ -116,13 +131,17 @@ export async function getVideoStatus(generationId: string, engine: VideoEngine =
     { method: 'GET', version: 'v2' },
   )
 
-  const firstOutput = response.output?.[0]
+  const videoUrl = extractVideoUrl(response)
+  // Une URL présente ⇒ génération terminée, quel que soit le libellé de statut renvoyé
+  const status: VideoJob['status'] = videoUrl ? 'completed' : mapStatus(response.status)
+  const out = response.output
+  const thumbnail = Array.isArray(out) ? out[0]?.thumbnail : out?.thumbnail
 
   return {
     generationId,
-    status:       mapStatus(response.status),
-    videoUrl:     firstOutput?.url,
-    thumbnailUrl: firstOutput?.thumbnail,
+    status,
+    videoUrl,
+    thumbnailUrl: thumbnail,
     error:        response.error,
     engine,
     modelId:      '',
@@ -191,9 +210,10 @@ export function buildSeedanceCinematicPrompt(options: {
 // ─── Helper interne ───────────────────────────────────────────────────────────
 
 function mapStatus(raw?: string): VideoJob['status'] {
-  if (!raw)                return 'pending'
-  if (raw === 'completed') return 'completed'
-  if (raw === 'failed')    return 'failed'
-  if (raw === 'queued')    return 'pending'
+  const s = (raw ?? '').toLowerCase()
+  if (!s)                                                          return 'pending'
+  if (['completed', 'success', 'succeeded', 'finished', 'done'].includes(s)) return 'completed'
+  if (['failed', 'error', 'cancelled', 'canceled'].includes(s))   return 'failed'
+  if (['queued', 'pending', 'waiting', 'created'].includes(s))     return 'pending'
   return 'in_progress'
 }

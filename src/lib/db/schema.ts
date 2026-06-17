@@ -96,14 +96,21 @@ export const campaigns = pgTable('campaigns', {
   start_date: date('start_date'),
   end_date: date('end_date'),
   frequency: text('frequency'), // weekly, biweekly, monthly
+  monthly_content_target: integer('monthly_content_target'), // objectif de contenus à générer par mois
 
   pre_campaign_enabled: boolean('pre_campaign_enabled').notNull().default(false),
   pre_campaign_start: date('pre_campaign_start'),
+  pre_campaign_end: date('pre_campaign_end'),
+  pre_campaign_dna: text('pre_campaign_dna'),   // DA/direction de la pré-campagne
 
   post_campaign_enabled: boolean('post_campaign_enabled').notNull().default(false),
   post_campaign_end: date('post_campaign_end'),
+  post_campaign_delay_weeks: integer('post_campaign_delay_weeks'), // 2 | 3 | 4 | 6 semaines après la fin
+  post_campaign_results: jsonb('post_campaign_results'),           // données de bilan (saisies plus tard)
 
   dna_version: integer('dna_version').notNull().default(0),
+
+  assets_url: text('assets_url'),              // URL externe assets visuels (Notion, Drive, Dropbox…)
 
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -162,11 +169,24 @@ export const avatars = pgTable('avatars', {
 
   // Fichiers sources — Storage /assets/avatars/{id}/
   source_photo_url: text('source_photo_url'),
+  reference_sheet_url: text('reference_sheet_url'),   // planche de référence personnage (multi-poses)
   source_video_url: text('source_video_url'),
 
+  // Choix morphologiques du moteur de création (genre, peau, cheveux, yeux, physique…)
+  // → réhydratés à l'édition, et réutilisés pour orienter la voix et les régénérations
+  morphology: jsonb('morphology').$type<Record<string, string>>(),
+
   // Voix — persistante, cohérence cross-campagnes
-  voice_sample_url: text('voice_sample_url'),   // Extrait audio 30s min → Storage
-  voice_provider_id: text('voice_provider_id'), // ID ElevenLabs post-clonage
+  // ── Voix de synthèse (catalogue MiniMax/ElevenLabs via AIML) ──
+  voice_engine: text('voice_engine'),                 // 'minimax' | 'elevenlabs'
+  voice_id: text('voice_id'),                         // voix de base du catalogue (ex. 'Wise_Woman')
+  voice_mode: text('voice_mode'),                     // 'description' | 'manual' | 'clone'
+  voice_description: text('voice_description'),        // texte libre saisi pour la personnalisation
+  voice_settings: jsonb('voice_settings').$type<{ emotion?: string; speed?: number; pitch?: number }>(), // { emotion, speed, pitch }
+  voice_label: text('voice_label'),                   // libellé d'affichage
+  // ── Clonage ElevenLabs (Campagne Spéciale — API dédiée à venir) ──
+  voice_sample_url: text('voice_sample_url'),         // Extrait audio 30s min → Storage
+  voice_provider_id: text('voice_provider_id'),       // ID voix clonée (ElevenLabs)
   voice_provider: text('voice_provider').default('elevenlabs'),
 
   // Comportement dans les campagnes
@@ -183,6 +203,27 @@ export const avatars = pgTable('avatars', {
 // ─────────────────────────────────────────────
 // AVATAR OUTFITS
 // ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// PRODUITS — bibliothèque de marque
+// ─────────────────────────────────────────────
+
+export const products = pgTable('products', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  currency: text('currency').default('USD'),
+  price: decimal('price', { precision: 12, scale: 2 }),
+  benefits: text('benefits').array(),
+  image_url: text('image_url'),                  // chemin dans le bucket assets
+  additional_images: text('additional_images').array(),
+  source_url: text('source_url'),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('products_user_id_idx').on(t.user_id),
+])
 
 export const avatar_outfits = pgTable('avatar_outfits', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -347,6 +388,61 @@ export const content_jobs = pgTable('content_jobs', {
   index('jobs_status_idx').on(t.status),
   index('jobs_expires_at_idx').on(t.output_expires_at),
 ])
+
+// ─────────────────────────────────────────────
+// GENERATED OUTPUTS — Contenus générés (image/vidéo/voix)
+// Stockés dans le bucket `outputs` + métadonnées ici.
+// Supprimés définitivement après 48h (purge pg_cron sur expires_at).
+// ─────────────────────────────────────────────
+
+export const generated_outputs = pgTable('generated_outputs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id').notNull(),
+  campaign_id: uuid('campaign_id').references(() => campaigns.id, { onDelete: 'set null' }),
+
+  type: text('type').notNull(),          // image | video | audio
+  engine: text('engine'),                // kling-v2.1-pro | nano-banana | minimax | ...
+  title: text('title'),
+  prompt: text('prompt'),
+  format: text('format'),                // 9:16 | 16:9 | 1:1 | ...
+  duration_seconds: integer('duration_seconds'),  // vidéos : coût au prorata (facturation/s)
+  avatar_name: text('avatar_name'),      // avatar/persona associé (badge galerie)
+
+  storage_path: text('storage_path').notNull(),  // chemin dans le bucket OUTPUTS
+
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp('expires_at', { withTimezone: true }).notNull(),
+  // Fichier purgé après 48h, mais la ligne (métadonnée) est conservée pour les stats.
+  purged_at:  timestamp('purged_at', { withTimezone: true }),
+}, (t) => [
+  index('outputs_user_id_idx').on(t.user_id),
+  index('outputs_expires_at_idx').on(t.expires_at),
+])
+
+export type GeneratedOutput = typeof generated_outputs.$inferSelect
+
+// ─────────────────────────────────────────────
+// CONTENT TEMPLATES — Bibliothèque de templates (vidéos/images + prompt source)
+// Globaux (pas per-user) · fichiers dans le bucket public `templates`.
+// ─────────────────────────────────────────────
+
+export const content_templates = pgTable('content_templates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  kind: text('kind').notNull(),          // video | image
+  category: text('category').notNull(),  // ugc | commercial | shooting | visuel | autre
+  label: text('label').notNull(),
+  description: text('description'),
+  prompt: text('prompt'),                // prompt ayant servi à générer le contenu
+  storage_path: text('storage_path').notNull(),
+  sort_order: integer('sort_order').notNull().default(0),
+  active: boolean('active').notNull().default(true),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('templates_category_idx').on(t.category),
+  index('templates_sort_idx').on(t.sort_order),
+])
+
+export type ContentTemplate = typeof content_templates.$inferSelect
 
 // ─────────────────────────────────────────────
 // BUDGET USAGE — Tracking financier

@@ -7,5 +7,6 @@ export default async function Page() {
     campaigns = await listCampaigns()
   } catch {}
 
-  return <CalendrierView campaigns={campaigns} />
+  // serverNow : référence temporelle unique SSR↔client (évite le mismatch d'hydratation)
+  return <CalendrierView campaigns={campaigns} serverNow={Date.now()} />
 }

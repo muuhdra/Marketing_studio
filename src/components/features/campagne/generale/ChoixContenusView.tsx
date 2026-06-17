@@ -1,11 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import StepBar from '@/components/ui/StepBar'
 import Button from '@/components/ui/Button'
 import { useCampaignWizard } from '@/lib/stores/campaignWizardStore'
 import { saveContentTypes } from '@/lib/actions/wizard'
+import { listTemplates, type TemplateDTO } from '@/lib/actions/templates'
+import { useToast } from '@/lib/stores/toastStore'
+import { PRODUIT_FORMATS, APP_FORMATS } from '@/lib/content/taxonomy'
 
 type MarketingGroup = 'produit' | 'app' | null
 
@@ -13,87 +16,19 @@ interface ContentType {
   id: string
   label: string
   desc: string
-  videoUrl?: string
-}
-
-const VIDEOS = {
-  ugc:         'https://static.higgsfield.ai/marketing-studio-presets/ugc.mp4',
-  tutorial:    'https://static.higgsfield.ai/marketing-studio-presets/ugc_how_to.mp4',
-  unboxing:    'https://static.higgsfield.ai/marketing-studio-presets/ugc_unboxing.mp4',
-  review:      'https://static.higgsfield.ai/marketing-studio-presets/product_review.mp4',
-  hypermotion: 'https://static.higgsfield.ai/marketing-studio-presets/hyper-motion-mini.mp4',
-  tvspot:      'https://static.higgsfield.ai/marketing-studio-presets/tv-spot-mini.mp4',
-  tryon:       'https://static.higgsfield.ai/marketing-studio-presets/ugc_virtual_try_on.mp4',
-  protryon:    'https://static.higgsfield.ai/marketing-studio-presets/virtual_try_on.mp4',
-}
-
-const PRODUIT_FORMATS: Record<string, { label: string; types: ContentType[] }> = {
-  ugc: {
-    label: 'UGC',
-    types: [
-      { id: 'ugc-social',   label: 'UGC',                desc: 'Realistic social media videos', videoUrl: VIDEOS.ugc         },
-      { id: 'ugc-tutorial', label: 'Tutorials',          desc: 'Step-by-step tutorials',        videoUrl: VIDEOS.tutorial    },
-      { id: 'ugc-unboxing', label: 'Unboxing',           desc: 'High-quality unboxing',         videoUrl: VIDEOS.unboxing    },
-      { id: 'ugc-review',   label: 'Product Review',     desc: 'Authentic product reviews',     videoUrl: VIDEOS.review      },
-      { id: 'ugc-tryon',    label: 'UGC Virtual Try on', desc: 'Try before you buy',            videoUrl: VIDEOS.tryon       },
-    ],
-  },
-  commercial: {
-    label: 'Commercial',
-    types: [
-      { id: 'com-hypermotion', label: 'Hyper motion',       desc: 'Highlight your product',      videoUrl: VIDEOS.hypermotion },
-      { id: 'com-tvspot',      label: 'Tv spot',            desc: 'Authentic stories amplified', videoUrl: VIDEOS.tvspot      },
-      { id: 'com-protryon',   label: 'Pro Virtual Try on', desc: 'Advanced virtual try-on',     videoUrl: VIDEOS.protryon    },
-    ],
-  },
-  shooting: {
-    label: 'Shooting photo',
-    types: [
-      { id: 'shoot-packshot',    label: 'Packshot / Fond blanc',      desc: 'Le standard e-commerce (Amazon, Etsy)' },
-      { id: 'shoot-lifestyle',   label: 'Shooting Lifestyle',         desc: 'Le produit en utilisation réelle' },
-      { id: 'shoot-mode',        label: 'Shooting Mode / Mannequin',  desc: 'Mise en valeur de la coupe et matière' },
-      { id: 'shoot-flatlat',     label: 'Flat Lay / Vue de dessus',   desc: 'Produits disposés à plat avec props' },
-      { id: 'shoot-macro',       label: 'Photo de Détails / Macro',   desc: 'Focalisé sur la texture et fonctionnalités' },
-      { id: 'shoot-ghost',       label: 'Ghost Mannequin',            desc: 'Vêtement qui tient tout seul' },
-      { id: 'shoot-avantapres',  label: 'Avant/Après Démonstration',  desc: 'Personnage montrant l\'efficacité' },
-    ],
-  },
-}
-
-const APP_FORMATS: Record<string, { label: string; types: ContentType[] }> = {
-  ugc: {
-    label: 'UGC',
-    types: [
-      { id: 'app-ugc-social',   label: 'UGC',           desc: 'Realistic social media videos', videoUrl: VIDEOS.ugc      },
-      { id: 'app-ugc-tutorial', label: 'Tutorials',     desc: 'Step-by-step tutorials',        videoUrl: VIDEOS.tutorial },
-      { id: 'app-ugc-review',   label: 'Product Review', desc: 'Authentic product reviews',    videoUrl: VIDEOS.review   },
-    ],
-  },
-  commercial: {
-    label: 'Commercial',
-    types: [
-      { id: 'app-com-hypermotion', label: 'Hyper motion', desc: 'Highlight your product',      videoUrl: VIDEOS.hypermotion },
-      { id: 'app-com-tvspot',      label: 'Tv spot',      desc: 'Authentic stories amplified', videoUrl: VIDEOS.tvspot      },
-    ],
-  },
-  visuel: {
-    label: 'Visuel',
-    types: [
-      { id: 'app-vis-screenshots', label: 'Captures fonctionnelles',   desc: 'Interface épurée avec fonctionnalités clés' },
-      { id: 'app-vis-storytelling', label: 'Captures Storytelling',    desc: 'Plusieurs images montrant un flux continu' },
-      { id: 'app-vis-lifestyle',    label: 'Visuels en contexte',      desc: 'Vraies personnes utilisant l\'application' },
-      { id: 'app-vis-mockup',       label: 'Visuels avec appareils',   desc: 'Interface intégrée dans un cadre smartphone' },
-    ],
-  },
+  kind?: 'video' | 'image'   // template DB
+  url?: string               // preview (template DB)
+  prompt?: string            // prompt source (template DB)
 }
 
 const GROUPS = [
-  { key: 'produit' as const, label: 'Product',  desc: 'E-commerce, physique, DTC',    border: 'border-accent',        activeBg: 'bg-accent/5',  color: 'text-accent',  badge: 'bg-accent/10 text-accent border-accent/30'  },
-  { key: 'app'     as const, label: 'App',       desc: 'Applications mobiles & SaaS', border: 'border-border-purple', activeBg: 'bg-purple/5',  color: 'text-purple', badge: 'bg-purple/10 text-purple border-border-purple' },
+  { key: 'produit' as const, label: 'Product', desc: 'E-commerce, physique, DTC',    border: 'border-accent',        activeBg: 'bg-accent/5', color: 'text-accent',  badge: 'bg-accent/10 text-accent border-accent/30'     },
+  { key: 'app'     as const, label: 'App',     desc: 'Applications mobiles & SaaS', border: 'border-border-purple', activeBg: 'bg-purple/5', color: 'text-purple', badge: 'bg-purple/10 text-purple border-border-purple' },
 ]
 
 export default function ChoixContenusView() {
   const router = useRouter()
+  const toast  = useToast()
   const { campaignId, step2, setStep2 } = useCampaignWizard()
   const [saving, setSaving] = useState(false)
 
@@ -101,11 +36,71 @@ export default function ChoixContenusView() {
   const [activeFormat, setActiveFormat] = useState<string>('all')
   const [selected, setSelected]         = useState<Set<string>>(new Set(step2.selectedContentIds))
   const [modalOpen, setModalOpen]       = useState(false)
+  const [templates, setTemplates]       = useState<TemplateDTO[]>([])
 
-  const formats = group === 'produit' ? PRODUIT_FORMATS : group === 'app' ? APP_FORMATS : {}
+  // Fix #1 — Guard : redirect si pas de campagne créée
+  useEffect(() => {
+    if (!campaignId) {
+      toast.error('Créez d\'abord votre campagne à l\'étape 1')
+      router.replace('/campagne/etape-1')
+    }
+  }, [campaignId, router, toast])
+
+  // Templates DB (remplacent les previews ; repli sur la taxonomie codée si catégorie vide)
+  useEffect(() => { listTemplates().then(setTemplates).catch(() => {}) }, [])
+
+  const formats = useMemo(() => {
+    const base = group === 'produit' ? PRODUIT_FORMATS : group === 'app' ? APP_FORMATS : {}
+    const out: Record<string, { label: string; types: ContentType[] }> = {}
+    for (const [key, fmt] of Object.entries(base)) {
+      const tpl = templates.filter((t) => t.category === key)
+      out[key] = {
+        label: fmt.label,
+        types: tpl.length > 0
+          ? tpl.map((t) => ({ id: t.id, label: t.label, desc: t.description ?? '', kind: t.kind as 'video' | 'image', url: t.url, prompt: t.prompt ?? undefined }))
+          : fmt.types,
+      }
+    }
+    return out
+  }, [group, templates])
+
+  // Prompt source par id de template (pour pré-remplir la génération)
+  const promptById = useMemo(() => new Map(templates.map((t) => [t.id, t.prompt])), [templates])
+
+  // Catégorie (ugc/commercial/shooting/visuel) par id de carte — y compris UUID de template.
+  const categoryById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const [key, fmt] of Object.entries(formats)) for (const t of fmt.types) m.set(t.id, key)
+    return m
+  }, [formats])
+
+  // Les IDs de templates sont des UUID → on les ramène à un ID canonique que
+  // `mapContentId` (côté serveur) sait classer, sinon tout serait enregistré en UGC.
+  function canonicalId(id: string): string {
+    const cat = categoryById.get(id)
+    if (!cat) return id   // déjà un ID sémantique (repli taxonomie)
+    const app = group === 'app'
+    switch (cat) {
+      case 'commercial': return app ? 'app-com-x' : 'com-x'
+      case 'shooting':   return 'shoot-x'
+      case 'visuel':     return 'app-vis-x'
+      case 'ugc':        return app ? 'app-ugc-x' : 'ugc-x'
+      default:           return id
+    }
+  }
 
   function toggleType(id: string) {
     setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  // Fix #3 — Vider la sélection si on change de groupe
+  function handleGroupSelect(key: 'produit' | 'app') {
+    if (group !== key) {
+      setSelected(new Set())
+    }
+    setGroup(key)
+    setActiveFormat('all')
+    setModalOpen(true)
   }
 
   const displayedTypes = activeFormat === 'all'
@@ -135,11 +130,11 @@ export default function ChoixContenusView() {
           {GROUPS.map((g) => (
             <div
               key={g.key}
-              onClick={() => { setGroup(g.key); setActiveFormat('all'); setModalOpen(true) }}
+              onClick={() => handleGroupSelect(g.key)}
               className={`
-                relative p-6 rounded-neo-lg border-2 cursor-pointer transition-all duration-100
+                relative p-6 rounded-neo-lg border cursor-pointer transition-all duration-100
                 ${group === g.key
-                  ? `${g.border} ${g.activeBg} shadow-neo -translate-x-px -translate-y-px`
+                  ? `${g.border} ${g.activeBg} shadow-neo`
                   : 'border-border bg-bg-card hover:border-border-strong'
                 }
               `}
@@ -149,10 +144,7 @@ export default function ChoixContenusView() {
               </div>
               <div className="text-[12px] text-text-muted">{g.desc}</div>
               {selected.size > 0 && group === g.key && (
-                <div className={`
-                  mt-3 inline-block font-mono text-[10px] font-bold border rounded-neo px-2 py-0.5
-                  ${g.badge}
-                `}>
+                <div className={`mt-3 inline-block font-sans text-[10px] font-bold border rounded-neo px-2 py-0.5 ${g.badge}`}>
                   {selected.size} type{selected.size > 1 ? 's' : ''} configuré{selected.size > 1 ? 's' : ''}
                 </div>
               )}
@@ -168,11 +160,11 @@ export default function ChoixContenusView() {
           onClick={() => setModalOpen(false)}
         >
           <div
-            className="w-full max-w-[1050px] max-h-[88vh] bg-bg-card border-2 border-border rounded-neo-lg flex flex-col overflow-hidden shadow-[6px_6px_0px_rgba(200,245,90,0.15)] animate-slide-up"
+            className="w-full max-w-[1050px] max-h-[88vh] bg-bg-card border border-border rounded-neo-lg flex flex-col overflow-hidden shadow-neo-lg animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal header */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b-2 border-border">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
               <div>
                 <h2 className="font-display font-bold text-[14px] text-text-primary capitalize">
                   Configuration — {group}
@@ -180,7 +172,7 @@ export default function ChoixContenusView() {
                 <div className="flex gap-1.5 mt-2.5">
                   <button
                     onClick={() => setActiveFormat('all')}
-                    className={`font-mono text-[10px] font-bold px-3 py-1 rounded-neo border-2 transition-all
+                    className={`font-sans text-[10px] font-bold px-3 py-1 rounded-neo border transition-all
                       ${activeFormat === 'all' ? 'border-accent text-accent bg-accent/10' : 'border-border text-text-muted'}`}
                   >
                     All
@@ -189,7 +181,7 @@ export default function ChoixContenusView() {
                     <button
                       key={key}
                       onClick={() => setActiveFormat(key)}
-                      className={`font-mono text-[10px] font-bold px-3 py-1 rounded-neo border-2 transition-all
+                      className={`font-sans text-[10px] font-bold px-3 py-1 rounded-neo border transition-all
                         ${activeFormat === key ? 'border-accent text-accent bg-accent/10' : 'border-border text-text-muted'}`}
                     >
                       {fmt.label}
@@ -199,7 +191,7 @@ export default function ChoixContenusView() {
               </div>
               <button
                 onClick={() => setModalOpen(false)}
-                className="w-7 h-7 rounded-neo border-2 border-border flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                className="w-7 h-7 rounded-neo border border-border flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
               >
                 ×
               </button>
@@ -216,37 +208,33 @@ export default function ChoixContenusView() {
                       onClick={() => toggleType(type.id)}
                       className="flex flex-col gap-2.5 cursor-pointer group"
                     >
-                      {/* Card */}
                       <div className={`
-                        relative h-[240px] bg-bg-elevated rounded-neo-lg overflow-hidden border-2
+                        relative h-[240px] bg-bg-elevated rounded-neo-lg overflow-hidden border
                         transition-all duration-150
                         ${isSel ? 'border-accent shadow-neo' : 'border-border group-hover:border-border-strong'}
                       `}>
-                        {type.videoUrl ? (
+                        {type.url && type.kind === 'video' ? (
                           <video
-                            autoPlay muted loop playsInline src={type.videoUrl}
+                            autoPlay muted loop playsInline src={type.url}
                             className="w-full h-full object-cover"
                           />
+                        ) : type.url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={type.url} alt={type.label} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-bg-surface">
-                            <div className="w-10 h-10 rounded-neo border-2 border-border" />
+                            <div className="w-10 h-10 rounded-neo border border-border" />
                           </div>
                         )}
-
-                        {/* Checkmark */}
                         <div className={`
-                          absolute top-3 right-3 w-8 h-8 rounded-neo border-2 flex items-center justify-center
+                          absolute top-3 right-3 w-8 h-8 rounded-neo border flex items-center justify-center
                           text-[11px] font-bold transition-all
                           ${isSel ? 'bg-accent border-accent text-bg-base' : 'bg-black/40 border-border text-text-dim'}
                         `}>
                           {isSel ? '✓' : ''}
                         </div>
-
-                        {/* Bottom gradient */}
                         <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/70 to-transparent" />
                       </div>
-
-                      {/* Labels */}
                       <div className="px-1">
                         <div className={`text-[13px] font-bold ${isSel ? 'text-accent' : 'text-text-primary'}`}>
                           {type.label}
@@ -260,8 +248,8 @@ export default function ChoixContenusView() {
             </div>
 
             {/* Modal footer */}
-            <div className="flex items-center justify-between px-6 py-4 border-t-2 border-border bg-bg-surface">
-              <div className="font-mono text-[12px] text-text-muted">
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-bg-surface">
+              <div className="font-sans text-[12px] text-text-muted">
                 {selected.size} élément{selected.size > 1 ? 's' : ''} sélectionné{selected.size > 1 ? 's' : ''}
               </div>
               <Button size="sm" onClick={() => setModalOpen(false)}>
@@ -273,30 +261,37 @@ export default function ChoixContenusView() {
       )}
 
       {/* Bottom bar */}
-      <div className="flex items-center justify-between mt-8 pt-5 border-t-2 border-border">
+      <div className="flex items-center justify-between mt-8 pt-5 border-t border-border">
         <Button variant="ghost" onClick={() => router.push('/campagne/etape-1')}>
           ← Étape 1
         </Button>
         <div className="flex items-center gap-3">
           {selected.size === 0 && group && (
-            <span className="font-mono text-[11px] text-amber">
-              ⚠ Sélectionnez au moins un type
-            </span>
+            <span className="font-sans text-[11px] text-amber">⚠ Sélectionnez au moins un type</span>
           )}
           <Button
             disabled={!canAdvance || saving}
             loading={saving}
             onClick={async () => {
-              if (!canAdvance) return
+              if (!canAdvance || !campaignId) return
               const ids = Array.from(selected)
-              setStep2({ marketingGroup: group, selectedContentIds: ids })
-              // Persist en DB si campagne créée
-              if (campaignId) {
-                setSaving(true)
-                try { await saveContentTypes(campaignId, ids) } catch { /* continue */ }
+              // Prompts des templates sélectionnés → pré-remplissage de la génération
+              const seedPrompt = ids
+                .map((id) => promptById.get(id))
+                .filter((p): p is string => !!p && p.trim().length > 0)
+                .join('\n\n')
+              setStep2({ marketingGroup: group, selectedContentIds: ids, seedPrompt })
+              setSaving(true)
+              try {
+                // Fix #4 — Erreur DB remontée avec toast, pas de redirect si échec
+                // Canonicalise les UUID de templates → catégorie réelle (sinon tout en UGC)
+                await saveContentTypes(campaignId, ids.map(canonicalId))
+                router.push('/campagne/etape-3')
+              } catch (e: any) {
+                toast.error(e.message ?? 'Erreur lors de la sauvegarde des contenus')
+              } finally {
                 setSaving(false)
               }
-              router.push('/campagne/etape-3')
             }}
           >
             Suivant — Assigner les Avatars →

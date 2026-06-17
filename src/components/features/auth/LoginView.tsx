@@ -88,27 +88,27 @@ export default function LoginView() {
         </div>
 
         {/* Card */}
-        <div className="bg-bg-card border-2 border-border rounded-neo-lg p-8 shadow-neo">
+        <div className="bg-bg-card border border-border rounded-neo-lg p-8 shadow-neo">
 
           {/* ── Confirmation envoi ── */}
           {step === 'sent' ? (
             <div className="text-center py-4">
-              <div className="w-14 h-14 rounded-neo-lg border-2 border-teal bg-teal/10 flex items-center justify-center text-2xl mx-auto mb-5">
-                ✉
+              <div className="w-14 h-14 rounded-neo-lg border border-teal bg-teal/10 flex items-center justify-center text-2xl mx-auto mb-5 text-teal">
+                ✓
               </div>
               <h1 className="font-display font-bold text-[20px] text-text-primary mb-2">
                 Vérifie ta boîte mail
               </h1>
               <p className="text-[13px] text-text-muted leading-relaxed mb-6">
                 Un lien de connexion a été envoyé à<br />
-                <span className="font-mono text-[12px] text-accent font-bold">{sentTo}</span>
+                <span className="font-sans text-[12px] text-accent font-bold">{sentTo}</span>
               </p>
-              <p className="font-mono text-[11px] text-text-dim">
+              <p className="font-sans text-[11px] text-text-dim">
                 Le lien expire dans 1 heure.
               </p>
               <button
                 onClick={() => { setStep('idle'); setEmail(''); setShowForm(!savedEmail) }}
-                className="mt-6 font-mono text-[11px] text-text-muted hover:text-text-primary underline transition-colors"
+                className="mt-6 font-sans text-[11px] text-text-muted hover:text-text-primary underline transition-colors"
               >
                 Utiliser un autre email
               </button>
@@ -120,7 +120,7 @@ export default function LoginView() {
               <div className="mb-7">
                 <p className="nb-label mb-2">Accès privé</p>
                 <h1 className="font-display font-bold text-[22px] text-text-primary mb-1">
-                  Bon retour 👋
+                  Bon retour 
                 </h1>
                 <p className="text-[12.5px] text-text-muted">
                   Connexion en un clic avec ton compte habituel.
@@ -128,19 +128,19 @@ export default function LoginView() {
               </div>
 
               {/* Bouton quick-connect */}
-              <div className="flex items-center gap-3 bg-bg-surface border-2 border-border rounded-neo-lg px-4 py-3 mb-4">
-                <div className="w-9 h-9 rounded-neo border-2 border-accent bg-accent/10 flex items-center justify-center font-mono text-[12px] font-bold text-accent flex-shrink-0">
+              <div className="flex items-center gap-3 bg-bg-surface border border-border rounded-neo-lg px-4 py-3 mb-4">
+                <div className="w-9 h-9 rounded-neo border border-accent bg-accent/10 flex items-center justify-center font-sans text-[12px] font-bold text-accent flex-shrink-0">
                   {savedEmail!.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-mono text-[12px] font-bold text-text-primary truncate">{savedEmail}</p>
-                  <p className="font-mono text-[10px] text-text-dim">Compte mémorisé</p>
+                  <p className="font-sans text-[12px] font-bold text-text-primary truncate">{savedEmail}</p>
+                  <p className="font-sans text-[10px] text-text-dim">Compte mémorisé</p>
                 </div>
               </div>
 
               {error && (
-                <div className="bg-coral/5 border-2 border-coral/30 rounded-neo px-3.5 py-2.5 mb-4">
-                  <p className="font-mono text-[11px] text-coral">{error}</p>
+                <div className="bg-coral/5 border border-coral/30 rounded-neo px-3.5 py-2.5 mb-4">
+                  <p className="font-sans text-[11px] text-coral">{error}</p>
                 </div>
               )}
 
@@ -150,25 +150,25 @@ export default function LoginView() {
                 loading={step === 'quick-loading'}
                 onClick={handleQuickConnect}
               >
-                {step === 'quick-loading' ? 'Envoi du lien...' : '⚡ Connexion rapide'}
+                {step === 'quick-loading' ? 'Envoi du lien...' : 'Connexion rapide'}
               </Button>
 
               <div className="flex items-center gap-3 mt-5">
                 <div className="flex-1 h-px bg-border" />
-                <span className="font-mono text-[10px] text-text-dim">ou</span>
+                <span className="font-sans text-[10px] text-text-dim">ou</span>
                 <div className="flex-1 h-px bg-border" />
               </div>
 
               <button
                 onClick={() => setShowForm(true)}
-                className="w-full mt-4 font-mono text-[11px] text-text-muted hover:text-text-primary transition-colors text-center"
+                className="w-full mt-4 font-sans text-[11px] text-text-muted hover:text-text-primary transition-colors text-center"
               >
                 Utiliser un autre email →
               </button>
 
               <button
                 onClick={handleForgetEmail}
-                className="w-full mt-2 font-mono text-[10px] text-text-dim hover:text-text-muted transition-colors text-center"
+                className="w-full mt-2 font-sans text-[10px] text-text-dim hover:text-text-muted transition-colors text-center"
               >
                 Oublier ce compte
               </button>
@@ -199,8 +199,8 @@ export default function LoginView() {
                 />
 
                 {error && (
-                  <div className="bg-coral/5 border-2 border-coral/30 rounded-neo px-3.5 py-2.5">
-                    <p className="font-mono text-[11px] text-coral">{error}</p>
+                  <div className="bg-coral/5 border border-coral/30 rounded-neo px-3.5 py-2.5">
+                    <p className="font-sans text-[11px] text-coral">{error}</p>
                   </div>
                 )}
 
@@ -211,27 +211,27 @@ export default function LoginView() {
                   fullWidth
                   size="lg"
                 >
-                  {step === 'loading' ? 'Envoi...' : '✦ Envoyer le lien magique'}
+                  {step === 'loading' ? 'Envoi...' : 'Envoyer le lien magique'}
                 </Button>
               </form>
 
               {savedEmail && (
                 <button
                   onClick={() => setShowForm(false)}
-                  className="w-full mt-4 font-mono text-[11px] text-text-muted hover:text-text-primary transition-colors text-center"
+                  className="w-full mt-4 font-sans text-[11px] text-text-muted hover:text-text-primary transition-colors text-center"
                 >
                   ← Revenir à la connexion rapide
                 </button>
               )}
 
-              <p className="font-mono text-[10px] text-text-dim text-center mt-5 leading-relaxed">
+              <p className="font-sans text-[10px] text-text-dim text-center mt-5 leading-relaxed">
                 Accès réservé. Si tu n'as pas d'invitation,<br />contacte l'administrateur.
               </p>
             </>
           )}
         </div>
 
-        <p className="font-mono text-[10px] text-text-dim text-center mt-5">
+        <p className="font-sans text-[10px] text-text-dim text-center mt-5">
           Marketing Studio · Usage privé
         </p>
       </div>

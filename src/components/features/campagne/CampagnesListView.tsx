@@ -35,7 +35,7 @@ const STATUS_META: Record<CampaignStatus, { label: string; color: string; dot: s
   pre_campaign:  { label: 'Pré-camp.',   color: 'text-amber border-amber/50',           dot: 'bg-amber'           },
   active:        { label: 'Active',      color: 'text-teal border-border-teal',         dot: 'bg-teal'            },
   post_campaign: { label: 'Post-camp.',  color: 'text-purple border-purple/50',         dot: 'bg-purple'          },
-  archived:      { label: 'Archivée',    color: 'text-text-dim/50 border-border/40',    dot: 'bg-border/50'       },
+  archived:      { label: 'Archivée',    color: 'text-text-dim/50 border-fg/40',    dot: 'bg-fg/[0.08]'       },
 }
 
 const STATUS_NEXT: Partial<Record<CampaignStatus, CampaignStatus>> = {
@@ -102,8 +102,8 @@ function CampaignCard({
 
   return (
     <div
-      className={`relative flex flex-col bg-bg-card border-2 border-border rounded-neo-lg overflow-hidden
-        transition-all duration-150 hover:border-border-strong hover:-translate-x-px hover:-translate-y-px
+      className={`relative flex flex-col bg-bg-card border border-border rounded-neo-lg overflow-hidden
+        transition-all duration-150 hover:border-border-strong
         ${working ? 'opacity-60 pointer-events-none' : ''}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
@@ -114,34 +114,34 @@ function CampaignCard({
         {nextS && nextL && (
           <button
             onClick={(e) => { e.preventDefault(); onStatusChange(campaign.id, nextS) }}
-            className="font-mono text-[9px] font-bold bg-teal/90 text-bg-base border border-border-teal rounded-neo px-2 py-1 hover:bg-teal transition-colors"
+            className="font-sans text-[9px] font-bold bg-teal/90 text-bg-base border border-border-teal rounded-neo px-2 py-1 hover:bg-teal transition-colors"
           >
             {nextL}
           </button>
         )}
         <button
           onClick={(e) => { e.preventDefault(); onDelete(campaign.id) }}
-          className="font-mono text-[9px] font-bold bg-bg-card border border-border text-coral rounded-neo px-2 py-1 hover:bg-coral/10 transition-colors"
+          className="font-sans text-[9px] font-bold bg-bg-card border border-border text-coral rounded-neo px-2 py-1 hover:bg-coral/10 transition-colors"
         >
-          🗑
+          Suppr.
         </button>
       </div>
 
       <Link href={`/campagne/${campaign.id}`} className="flex flex-col flex-1 p-5">
         {/* Top */}
         <div className="flex items-center gap-2 mb-4">
-          <span className={`flex items-center gap-1.5 font-mono text-[9px] font-bold border rounded-neo px-2 py-0.5 ${meta.color}`}>
+          <span className={`flex items-center gap-1.5 font-sans text-[9px] font-bold border rounded-neo px-2 py-0.5 ${meta.color}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${meta.dot} ${campaign.status === 'active' ? 'animate-pulse' : ''}`} />
             {meta.label}
           </span>
-          <span className="font-mono text-[9px] text-text-dim border border-border rounded px-1.5 py-0.5">
+          <span className="font-sans text-[9px] text-text-dim border border-border rounded px-1.5 py-0.5">
             {campaign.campaign_type === 'generale' ? 'Générale' : 'Spéciale'}
           </span>
           {campaign.pre_campaign_enabled && (
-            <span className="font-mono text-[8px] text-amber border border-amber/30 rounded px-1 py-0.5">pré</span>
+            <span className="font-sans text-[8px] text-amber border border-amber/30 rounded px-1 py-0.5">pré</span>
           )}
           {campaign.post_campaign_enabled && (
-            <span className="font-mono text-[8px] text-purple border border-purple/30 rounded px-1 py-0.5">post</span>
+            <span className="font-sans text-[8px] text-purple border border-purple/30 rounded px-1 py-0.5">post</span>
           )}
         </div>
 
@@ -151,7 +151,7 @@ function CampaignCard({
         </h3>
 
         {/* Dates */}
-        <p className="font-mono text-[10px] text-text-dim mb-3">
+        <p className="font-sans text-[10px] text-text-dim mb-3">
           {campaign.start_date ? formatDateShort(campaign.start_date) : 'Sans date'}
           {campaign.end_date   ? ` → ${formatDateShort(campaign.end_date)}` : ''}
           {left !== null && left >= 0 && campaign.status === 'active' && (
@@ -161,10 +161,10 @@ function CampaignCard({
 
         {/* Barre de progression (si dates définies) */}
         {campaign.start_date && campaign.end_date && (
-          <div className="mt-auto pt-3 border-t border-border/50">
+          <div className="mt-auto pt-3 border-t border-fg/50">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="font-mono text-[9px] text-text-dim">Progression</span>
-              <span className="font-mono text-[9px] font-bold text-text-muted">{progress}%</span>
+              <span className="font-sans text-[9px] text-text-dim">Progression</span>
+              <span className="font-sans text-[9px] font-bold text-text-muted">{progress}%</span>
             </div>
             <div className="h-1 bg-bg-base rounded-full overflow-hidden">
               <div
@@ -179,11 +179,11 @@ function CampaignCard({
         )}
 
         {!campaign.start_date && (
-          <div className="mt-auto pt-3 border-t border-border/50 flex items-center justify-between">
-            <span className="font-mono text-[9px] text-text-dim">
+          <div className="mt-auto pt-3 border-t border-fg/50 flex items-center justify-between">
+            <span className="font-sans text-[9px] text-text-dim">
               Créé le {formatDate(campaign.created_at as string)}
             </span>
-            <span className="font-mono text-[10px] font-bold text-accent group-hover:translate-x-0.5 transition-transform">→</span>
+            <span className="font-sans text-[10px] font-bold text-accent group-hover:translate-x-0.5 transition-transform">→</span>
           </div>
         )}
       </Link>
@@ -209,17 +209,17 @@ function CampaignRow({
   const nextL = STATUS_NEXT_LABEL[campaign.status]
 
   return (
-    <div className={`group flex items-center gap-4 px-4 py-3 border-b-2 border-border last:border-0
+    <div className={`group flex items-center gap-4 px-4 py-3 border-b border-border last:border-0
       hover:bg-bg-elevated transition-colors ${working ? 'opacity-60 pointer-events-none' : ''}`}>
       {/* Status dot */}
       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${meta.dot} ${campaign.status === 'active' ? 'animate-pulse' : ''}`} />
 
       {/* Name */}
       <Link href={`/campagne/${campaign.id}`} className="flex-1 min-w-0">
-        <p className="font-mono text-[12px] font-bold text-text-primary truncate group-hover:text-accent transition-colors">
+        <p className="font-sans text-[12px] font-bold text-text-primary truncate group-hover:text-accent transition-colors">
           {campaign.name}
         </p>
-        <p className="font-mono text-[10px] text-text-dim">
+        <p className="font-sans text-[10px] text-text-dim">
           {campaign.campaign_type === 'generale' ? 'Générale' : 'Spéciale'}
           {campaign.start_date ? ` · ${formatDateShort(campaign.start_date)}` : ''}
           {campaign.end_date ? ` → ${formatDateShort(campaign.end_date)}` : ''}
@@ -227,12 +227,12 @@ function CampaignRow({
       </Link>
 
       {/* Status badge */}
-      <span className={`font-mono text-[9px] font-bold border rounded-neo px-2 py-0.5 flex-shrink-0 ${meta.color}`}>
+      <span className={`font-sans text-[9px] font-bold border rounded-neo px-2 py-0.5 flex-shrink-0 ${meta.color}`}>
         {meta.label}
       </span>
 
       {/* Date créée */}
-      <span className="font-mono text-[10px] text-text-dim flex-shrink-0 hidden md:block w-28 text-right">
+      <span className="font-sans text-[10px] text-text-dim flex-shrink-0 hidden md:block w-28 text-right">
         {formatDate(campaign.created_at as string)}
       </span>
 
@@ -241,16 +241,16 @@ function CampaignRow({
         {nextS && nextL && (
           <button
             onClick={() => onStatusChange(campaign.id, nextS)}
-            className="font-mono text-[9px] font-bold text-teal border border-border-teal rounded px-2 py-0.5 hover:bg-teal/10 transition-colors"
+            className="font-sans text-[9px] font-bold text-teal border border-border-teal rounded px-2 py-0.5 hover:bg-teal/10 transition-colors"
           >
             {nextL}
           </button>
         )}
         <button
           onClick={() => onDelete(campaign.id)}
-          className="font-mono text-[10px] text-coral hover:text-coral border border-transparent hover:border-coral/30 rounded p-1 transition-colors"
+          className="font-sans text-[10px] text-coral hover:text-coral border border-transparent hover:border-coral/30 rounded px-1.5 py-1 transition-colors"
         >
-          🗑
+          Suppr.
         </button>
       </div>
     </div>
@@ -363,7 +363,7 @@ export default function CampagnesListView({ campaigns: initial }: { campaigns: C
             <button
               key={f.id}
               onClick={() => setStatusFilter(f.id)}
-              className={`flex items-center gap-1.5 font-mono text-[10px] font-bold border rounded-neo px-3 py-1.5 transition-all
+              className={`flex items-center gap-1.5 font-sans text-[10px] font-bold border rounded-neo px-3 py-1.5 transition-all
                 ${statusFilter === f.id
                   ? 'bg-accent text-bg-base border-accent'
                   : 'text-text-dim border-border hover:border-accent hover:text-accent'
@@ -385,7 +385,7 @@ export default function CampagnesListView({ campaigns: initial }: { campaigns: C
             <button
               key={t}
               onClick={() => setTypeFilter(t)}
-              className={`font-mono text-[10px] font-bold border rounded-neo px-2.5 py-1.5 transition-all
+              className={`font-sans text-[10px] font-bold border rounded-neo px-2.5 py-1.5 transition-all
                 ${typeFilter === t
                   ? 'bg-purple/20 text-purple border-purple/50'
                   : 'text-text-dim border-border hover:border-purple/40'
@@ -427,13 +427,13 @@ export default function CampagnesListView({ campaigns: initial }: { campaigns: C
       {/* ── Empty state (no campaigns) ── */}
       {campaigns.length === 0 && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-16 h-16 rounded-neo-lg border-2 border-dashed border-border flex items-center justify-center text-3xl mb-5">
-            📭
+          <div className="w-16 h-16 rounded-neo-lg border border-dashed border-border flex items-center justify-center text-2xl mb-5 text-text-dim">
+            ●
           </div>
           <p className="font-display font-bold text-[16px] text-text-primary mb-2">
             Aucune campagne pour l'instant
           </p>
-          <p className="font-mono text-[12px] text-text-dim mb-6">
+          <p className="font-sans text-[12px] text-text-dim mb-6">
             Créez votre première campagne pour démarrer le pipeline IA.
           </p>
           <Link href="/campagne/nouveau">
@@ -450,7 +450,7 @@ export default function CampagnesListView({ campaigns: initial }: { campaigns: C
           </p>
           <button
             onClick={() => { setStatusFilter('all'); setTypeFilter('all'); setSearchQ('') }}
-            className="font-mono text-[11px] text-accent hover:underline"
+            className="font-sans text-[11px] text-accent hover:underline"
           >
             Réinitialiser les filtres
           </button>
@@ -472,9 +472,9 @@ export default function CampagnesListView({ campaigns: initial }: { campaigns: C
 
           {/* Nouvelle campagne */}
           <Link href="/campagne/nouveau" className="block group">
-            <div className="flex flex-col items-center justify-center bg-bg-surface border-2 border-dashed border-border rounded-neo-lg min-h-[180px] transition-all group-hover:border-accent group-hover:bg-accent/5 group-hover:-translate-x-px group-hover:-translate-y-px">
-              <div className="w-10 h-10 rounded-neo border-2 border-border flex items-center justify-center text-xl text-text-dim group-hover:border-accent group-hover:text-accent transition-colors mb-2">+</div>
-              <span className="font-mono text-[10px] font-bold text-text-dim group-hover:text-accent transition-colors">Nouvelle campagne</span>
+            <div className="flex flex-col items-center justify-center bg-bg-surface border border-dashed border-border rounded-neo-lg min-h-[180px] transition-all group-hover:border-accent group-hover:bg-accent/5 group-hover:border-border-strong">
+              <div className="w-10 h-10 rounded-neo border border-border flex items-center justify-center text-xl text-text-dim group-hover:border-accent group-hover:text-accent transition-colors mb-2">+</div>
+              <span className="font-sans text-[10px] font-bold text-text-dim group-hover:text-accent transition-colors">Nouvelle campagne</span>
             </div>
           </Link>
         </div>
@@ -482,13 +482,13 @@ export default function CampagnesListView({ campaigns: initial }: { campaigns: C
 
       {/* ── List view ── */}
       {filtered.length > 0 && viewMode === 'list' && (
-        <div className="bg-bg-card border-2 border-border rounded-neo-lg overflow-hidden">
+        <div className="bg-bg-card border border-border rounded-neo-lg overflow-hidden">
           {/* Header list */}
-          <div className="flex items-center gap-4 px-4 py-2 border-b-2 border-border bg-bg-surface">
+          <div className="flex items-center gap-4 px-4 py-2 border-b border-border bg-bg-surface">
             <div className="w-2" />
-            <div className="flex-1 font-mono text-[9px] font-bold text-text-dim uppercase tracking-wider">Campagne</div>
-            <div className="font-mono text-[9px] font-bold text-text-dim uppercase tracking-wider w-20 text-center">Statut</div>
-            <div className="font-mono text-[9px] font-bold text-text-dim uppercase tracking-wider w-28 text-right hidden md:block">Créée le</div>
+            <div className="flex-1 font-sans text-[9px] font-bold text-text-dim uppercase tracking-wider">Campagne</div>
+            <div className="font-sans text-[9px] font-bold text-text-dim uppercase tracking-wider w-20 text-center">Statut</div>
+            <div className="font-sans text-[9px] font-bold text-text-dim uppercase tracking-wider w-28 text-right hidden md:block">Créée le</div>
             <div className="w-20" />
           </div>
           {filtered.map((c) => (

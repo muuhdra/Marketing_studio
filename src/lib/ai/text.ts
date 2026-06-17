@@ -9,6 +9,7 @@
 
 import { createAimlClient, MODELS } from './client'
 import { type ResearchContext, formatResearchForPrompt } from './research'
+import { parseJsonLoose } from './json'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,11 +80,9 @@ export interface StrategyResult {
 
 // ─── Helpers internes ─────────────────────────────────────────────────────────
 
-/** Résout le model ID AIML depuis le choix 'chatgpt' | 'claude' */
-function resolveModel(choice?: 'chatgpt' | 'claude', fast = false): string {
-  if (choice === 'claude') return fast ? MODELS.text.claudeFast : MODELS.text.claude
-  // Par défaut : ChatGPT
-  return fast ? MODELS.text.chatgptFast : MODELS.text.chatgpt
+/** Résout le model ID AIML depuis le choix 'chatgpt' | 'claude' (pas de variante "fast" : 10 modèles max sur la clé) */
+function resolveModel(choice?: 'chatgpt' | 'claude'): string {
+  return choice === 'claude' ? MODELS.text.claude : MODELS.text.chatgpt
 }
 
 // ─── generateScript — ChatGPT par défaut ─────────────────────────────────────
@@ -135,14 +134,14 @@ JSON exact :
   })
 
   const raw = response.choices[0]?.message?.content ?? '{}'
-  return { ...JSON.parse(raw), model: modelId }
+  return { ...parseJsonLoose<ScriptResult>(raw), model: modelId }
 }
 
 // ─── generateCopy — ChatGPT (créativité copy) ───────────────────────────────
 
 export async function generateCopy(params: GenerateCopyParams): Promise<CopyResult> {
   const client  = createAimlClient()
-  const modelId = resolveModel(params.model, true)   // fast par défaut pour le copy
+  const modelId = resolveModel(params.model)   // copy
 
   const response = await client.chat.completions.create({
     model:    modelId,
@@ -173,7 +172,7 @@ JSON exact :
   })
 
   const raw = response.choices[0]?.message?.content ?? '{}'
-  return { ...JSON.parse(raw), model: modelId }
+  return { ...parseJsonLoose<CopyResult>(raw), model: modelId }
 }
 
 // ─── generateStrategy — Claude (raisonnement profond) ──────────────────────
@@ -225,7 +224,7 @@ JSON exact :
   })
 
   const raw = response.choices[0]?.message?.content ?? '{}'
-  return { ...JSON.parse(raw), model: modelId }
+  return { ...parseJsonLoose<StrategyResult>(raw), model: modelId }
 }
 
 // ─── generateHooks — ChatGPT (créativité max) ───────────────────────────────
@@ -236,7 +235,7 @@ export async function generateHooks(
   model?: 'chatgpt' | 'claude',
 ): Promise<string[]> {
   const client  = createAimlClient()
-  const modelId = resolveModel(model, true)
+  const modelId = resolveModel(model)
 
   const response = await client.chat.completions.create({
     model:    modelId,
@@ -260,7 +259,7 @@ Règles : max 10 mots, commence par un verbe d'action ou une question choc, impa
   })
 
   const raw    = response.choices[0]?.message?.content ?? '{}'
-  const parsed = JSON.parse(raw) as { hooks: string[] }
+  const parsed = parseJsonLoose<{ hooks: string[] }>(raw)
   return parsed.hooks ?? []
 }
 
@@ -314,5 +313,5 @@ JSON exact (respecte scrupuleusement ce schéma) :
   })
 
   const raw = response.choices[0]?.message?.content ?? '{}'
-  return { ...JSON.parse(raw), model: MODELS.text.claude }
+  return { ...parseJsonLoose<ScriptResult>(raw), model: MODELS.text.claude }
 }

@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { avatars } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 
 // ─── Helper auth ─────────────────────────────────────────────────────────────
@@ -38,6 +38,27 @@ export async function listAvatars() {
     .orderBy(avatars.created_at)
 }
 
+// ─── Voix des avatars (pour verrouiller la voix en génération) ───────────────
+
+export async function listAvatarVoices() {
+  const user = await getAuthUser()
+  const rows = await db
+    .select({
+      id:             avatars.id,
+      name:           avatars.name,
+      voice_engine:   avatars.voice_engine,
+      voice_id:       avatars.voice_id,
+      voice_mode:     avatars.voice_mode,
+      voice_settings: avatars.voice_settings,
+      voice_label:    avatars.voice_label,
+    })
+    .from(avatars)
+    .where(eq(avatars.user_id, user.id))
+    .orderBy(avatars.created_at)
+  // Seuls les avatars dont la voix est configurée
+  return rows.filter((r) => !!r.voice_id)
+}
+
 // ─── CREATE ──────────────────────────────────────────────────────────────────
 
 export async function createAvatar(data: {
@@ -46,6 +67,7 @@ export async function createAvatar(data: {
   ethnicity?:       string | null
   style_tags?:      string[]
   continuity_mode?: 'evolutif' | 'verrouille'
+  morphology?:      Record<string, string> | null
 }) {
   const user = await getAuthUser()
 
@@ -58,6 +80,7 @@ export async function createAvatar(data: {
       ethnicity:        data.ethnicity       ?? null,
       style_tags:       data.style_tags      ?? [],
       continuity_mode:  data.continuity_mode ?? 'evolutif',
+      morphology:       data.morphology      ?? null,
       status:           'draft',
     })
     .returning()
@@ -78,6 +101,19 @@ export async function updateAvatar(
     style_tags:       string[]
     continuity_mode:  'evolutif' | 'verrouille'
     status:           'draft' | 'active' | 'archived'
+    morphology:       Record<string, string> | null
+    source_photo_url: string | null
+    // ── Voix ──
+    voice_engine:      string | null
+    voice_id:          string | null
+    voice_mode:        string | null
+    voice_description: string | null
+    voice_settings:    { emotion?: string; speed?: number; pitch?: number } | null
+    voice_label:       string | null
+    // ── Clonage (Campagne Spéciale) ──
+    voice_provider:    string | null
+    voice_provider_id: string | null
+    voice_sample_url:  string | null
   }>
 ) {
   const user = await getAuthUser()
@@ -88,10 +124,11 @@ export async function updateAvatar(
       ...data,
       updated_at: new Date(),
     })
-    .where(eq(avatars.id, id))
+    // user_id dans le WHERE — la mutation ne touche jamais l'avatar d'un autre utilisateur
+    .where(and(eq(avatars.id, id), eq(avatars.user_id, user.id)))
     .returning()
 
-  if (!updated || updated.user_id !== user.id) {
+  if (!updated) {
     throw new Error('Avatar introuvable ou accès refusé')
   }
 

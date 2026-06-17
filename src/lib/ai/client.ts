@@ -34,53 +34,41 @@ export const AIML_BASE_V2 = 'https://api.aimlapi.com/v2'
  *   Voix expressif        → MiniMax          (expressif, multi-langue)
  *   Veille & tendances    → Perplexity Sonar (recherche web temps réel)
  */
+// ⚠️ AIML limite une clé API à 10 modèles. Cette liste DOIT correspondre
+// exactement aux 10 modèles activés sur la clé (sinon erreur "model not allowed").
+// 10 modèles : GPT-4o · Claude 4.5 Opus · Gemini 2.5 Flash · Nano Banana 2 ·
+//   Eleven Turbo v2.5 · Sonar · Seedance 2.0 · Speech 2.8 HD ·
+//   Kling 2.1 Pro Image-to-Video · Kling 2.1 Master Text-to-Video
 export const MODELS = {
 
-  // ── 1. Texte ─────────────────────────────────────────────────────────────
+  // ── 1. Texte (3) ─────────────────────────────────────────────────────────
   text: {
-    // ChatGPT — scripts UGC, copy, hooks (créativité + rapidité)
-    chatgpt:      'gpt-4o',
-    chatgptFast:  'gpt-4o-mini',
-    // Claude — stratégie, Clone Lab, raisonnement profond
-    claude:       'claude-opus-4-5',
-    claudeFast:   'claude-3-5-haiku-20241022',
+    chatgpt: 'gpt-4o',                    // GPT-4o — scripts UGC, copy, hooks
+    claude:  'claude-opus-4-5',           // Claude 4.5 Opus — stratégie, Clone Lab
+    gemini:  'google/gemini-2.5-flash',   // Gemini 2.5 Flash — analyse vidéo frame par frame
   },
 
-  // ── 2. Image ─────────────────────────────────────────────────────────────
+  // ── 2. Image (1) ─────────────────────────────────────────────────────────
   image: {
-    // Nano Banana — SEUL modèle image (visuels, moodboards, portraits, thumbnails)
-    nanoBanana:   'nanobanana',
+    nanoBanana: 'google/nano-banana-2',   // Nano Banana 2 — SEUL modèle image (confirmé AIML)
   },
 
-  // ── 3. Vidéo ─────────────────────────────────────────────────────────────
+  // ── 3. Vidéo (3) ─────────────────────────────────────────────────────────
   video: {
-    // Kling AI — MODÈLE PRINCIPAL vidéo (UGC, avatars, talking head, img2vid)
-    klingStandard:  'kling-video/v1.6/standard/text-to-video',
-    klingPro:       'kling-video/v2.1/pro/text-to-video',      // ← principal
-    klingImg2Vid:   'kling-video/v2.1/pro/image-to-video',     // avatar photo → vidéo
-    // Seedance — B-roll cinématique, plans produit, ambiance
-    seedanceLite:   'seedance-1-lite',
-    seedancePro:    'seedance-1-pro',
+    klingText:    'klingai/v2.1-master-text-to-video',      // Kling 2.1 Master T2V (confirmé catalogue AIML)
+    klingImg2Vid: 'kling-video/v2.1/pro/image-to-video',    // Kling 2.1 Pro I2V (confirmé catalogue AIML)
+    seedance:     'bytedance/dreamina-seedance-2-0',        // Seedance 2.0 — B-roll (confirmé catalogue AIML)
   },
 
-  // ── 4. Voix / TTS ────────────────────────────────────────────────────────
+  // ── 4. Voix / TTS (2) ────────────────────────────────────────────────────
   tts: {
-    // ElevenLabs — clonage vocal, multilingue, émotionnel
-    elevenLabs:     'eleven_multilingual_v2',
-    elevenTurbo:    'eleven_turbo_v2_5',
-    // MiniMax — TTS haute qualité, voix expressives
-    minimax:        'minimax-speech-01',
-    minimaxHD:      'minimax-speech-01-hd',
+    minimax:     'minimax/speech-2.8-hd',  // Speech 2.8 HD — synthèse principale (AIML : POST /v1/tts)
+    elevenTurbo: 'elevenlabs/eleven_turbo_v2_5',  // Eleven Turbo v2.5 — clonage vocal (confirmé catalogue AIML)
   },
 
-  // ── 5. Research Agent — Perplexity (veille web temps réel) ──────────────
+  // ── 5. Research Agent — Perplexity (1) ───────────────────────────────────
   research: {
-    // Sonar — recherche web rapide avec citations
-    sonar:          'perplexity/sonar',
-    // Sonar Pro — recherche approfondie, multi-sources
-    sonarPro:       'perplexity/sonar-pro',
-    // Sonar Reasoning — web search + raisonnement structuré
-    sonarReasoning: 'perplexity/sonar-reasoning',
+    sonar: 'perplexity/sonar',             // Sonar — veille web temps réel
   },
 
 } as const

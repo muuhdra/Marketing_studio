@@ -718,7 +718,7 @@ Chaque domaine doit regrouper autant que possible:
 - tests transverses dans des dossiers dédiés si intégration ou e2e
 - schémas Zod ou équivalent près des frontières d’entrée
 - code provider séparé par fournisseur
-  - exemples: `src/lib/providers/fal`, `src/lib/providers/heygen`
+  - exemples: `src/lib/providers/fal`
 - tâches Trigger.dev séparées par domaine métier, pas par fournisseur seul
 - aucun composant métier critique dans `src/components` générique sans raison claire
 
@@ -976,8 +976,6 @@ content-ugc/
 │   │   │   ├── provider-webhooks/
 │   │   │   │   ├── fal/
 │   │   │   │   │   └── route.ts
-│   │   │   │   ├── heygen/
-│   │   │   │   │   └── route.ts
 │   │   │   │   └── trigger/
 │   │   │   │       └── route.ts
 │   │   │   └── uploads/
@@ -1076,7 +1074,6 @@ content-ugc/
 │   │   ├── providers/
 │   │   │   ├── contracts/
 │   │   │   ├── fal/
-│   │   │   ├── heygen/
 │   │   │   ├── elevenlabs/
 │   │   │   ├── openai/
 │   │   │   └── shared/

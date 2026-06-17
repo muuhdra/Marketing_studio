@@ -90,9 +90,8 @@ export interface ResearchParams {
  */
 export async function runResearchAgent(params: ResearchParams): Promise<ResearchContext> {
   const client  = createAimlClient()
-  const modelId = params.depth === 'deep'
-    ? MODELS.research.sonarPro
-    : MODELS.research.sonar
+  // Une seule variante Sonar sur la clé (10 modèles max) — `depth` n'influe plus sur le modèle
+  const modelId = MODELS.research.sonar
 
   const locale   = params.locale ?? 'fr'
   const platform = params.platform === 'all'

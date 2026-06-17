@@ -43,12 +43,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
           id={inputId}
           className={cn(
             'bg-bg-input text-text-primary placeholder:text-text-faint',
-            'border-2 rounded-neo-md font-sans text-[13.5px]',
+            'border rounded-neo-md font-sans text-[13.5px]',
             'px-3.5 py-2.5 w-full outline-none',
             'transition-all duration-150',
             'border-border hover:border-border-strong',
             'focus:border-accent focus:shadow-neo-sm',
-            error && 'border-coral focus:border-coral focus:shadow-neo-coral',
+            error && 'border-coral focus:border-coral',
             icon && 'pl-9',
             suffix && 'pr-10',
             className,
@@ -62,10 +62,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
         )}
       </div>
       {error && (
-        <p className="font-mono text-xs text-coral">{error}</p>
+        <p className="font-sans text-xs text-coral">{error}</p>
       )}
       {hint && !error && (
-        <p className="font-mono text-xs text-text-dim">{hint}</p>
+        <p className="font-sans text-xs text-text-dim">{hint}</p>
       )}
     </div>
   )
@@ -102,7 +102,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({
         id={inputId}
         className={cn(
           'bg-bg-input text-text-primary placeholder:text-text-faint',
-          'border-2 rounded-neo-md font-sans text-[13.5px]',
+          'border rounded-neo-md font-sans text-[13.5px]',
           'px-3.5 py-2.5 w-full outline-none resize-y leading-relaxed',
           'transition-all duration-150',
           'border-border hover:border-border-strong',
@@ -113,10 +113,10 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({
         {...props}
       />
       {error && (
-        <p className="font-mono text-xs text-coral">{error}</p>
+        <p className="font-sans text-xs text-coral">{error}</p>
       )}
       {hint && !error && (
-        <p className="font-mono text-xs text-text-dim">{hint}</p>
+        <p className="font-sans text-xs text-text-dim">{hint}</p>
       )}
     </div>
   )

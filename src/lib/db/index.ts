@@ -13,7 +13,9 @@ if (!connectionString) {
 
 // Client postgres-js — utilisé par Drizzle ORM
 // max: 1 en serverless (Next.js API routes / Server Actions)
-const client = postgres(connectionString, { max: 1 })
+// prepare: false → compatible pooler Supabase (transaction mode) ET évite l'erreur
+// « cached plan must not change result type » quand on ajoute des colonnes à chaud.
+const client = postgres(connectionString, { max: 1, prepare: false })
 
 // Instance Drizzle avec le schéma complet
 export const db = drizzle(client, { schema })

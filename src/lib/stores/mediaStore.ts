@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
+import { listOutputs, deleteOutput, type OutputDTO } from '@/lib/actions/outputs'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,7 +13,6 @@ export type MediaEngine =
   | 'minimax'
   | 'claude'
   | 'chatgpt'
-  | 'heygen'
 
 export interface MediaAsset {
   id:            string
@@ -37,50 +36,60 @@ export interface MediaAsset {
   createdAt:     string          // ISO 8601
 }
 
-interface MediaStore {
-  assets: MediaAsset[]
-
-  // Actions
-  addAsset:     (asset: Omit<MediaAsset, 'id' | 'createdAt'>) => string
-  removeAsset:  (id: string) => void
-  clearAll:     () => void
-  updateAsset:  (id: string, patch: Partial<MediaAsset>) => void
+// Mappe un output serveur (Supabase, 48h) vers la forme MediaAsset utilisée par l'UI.
+function toMediaAsset(o: OutputDTO): MediaAsset {
+  return {
+    id:        o.id,
+    type:      o.type as MediaType,
+    url:       o.url,
+    title:     o.title ?? '',
+    engine:    (o.engine ?? 'nano-banana') as MediaEngine,
+    format:    o.format ?? undefined,
+    campaignId:   o.campaignId ?? undefined,
+    campaignName: o.campaignName ?? undefined,
+    avatarName:   o.avatarName ?? undefined,
+    duration:     o.durationSeconds ?? undefined,
+    createdAt: o.createdAt,
+  }
 }
 
-// ─── Store ───────────────────────────────────────────────────────────────────
+interface MediaStore {
+  assets:  MediaAsset[]
+  loading: boolean
 
-export const useMediaStore = create<MediaStore>()(
-  persist(
-    (set) => ({
-      assets: [],
+  // Cache alimenté par le serveur (bucket `outputs`, expiration 48h gérée côté DB).
+  loadFromServer: () => Promise<void>
+  removeAsset:     (id: string) => Promise<void>
+  clearAll:        () => Promise<void>
+}
 
-      addAsset: (asset) => {
-        const id = `media_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-        const newAsset: MediaAsset = {
-          ...asset,
-          id,
-          createdAt: new Date().toISOString(),
-        }
-        set((s) => ({ assets: [newAsset, ...s.assets] }))
-        return id
-      },
+// ─── Store — cache client des outputs serveur (plus de localStorage) ─────────
 
-      removeAsset: (id) =>
-        set((s) => ({ assets: s.assets.filter((a) => a.id !== id) })),
+export const useMediaStore = create<MediaStore>()((set, get) => ({
+  assets:  [],
+  loading: false,
 
-      clearAll: () => set({ assets: [] }),
-
-      updateAsset: (id, patch) =>
-        set((s) => ({
-          assets: s.assets.map((a) => (a.id === id ? { ...a, ...patch } : a)),
-        })),
-    }),
-    {
-      name:    'media-library',
-      storage: createJSONStorage(() => localStorage),
+  loadFromServer: async () => {
+    set({ loading: true })
+    try {
+      const list = await listOutputs()
+      set({ assets: list.map(toMediaAsset), loading: false })
+    } catch {
+      set({ loading: false })
     }
-  )
-)
+  },
+
+  removeAsset: async (id) => {
+    try { await deleteOutput(id) } catch { /* best-effort */ }
+    set((s) => ({ assets: s.assets.filter((a) => a.id !== id) }))
+  },
+
+  clearAll: async () => {
+    const ids = get().assets.map((a) => a.id)
+    await Promise.allSettled(ids.map((id) => deleteOutput(id)))
+    set({ assets: [] })
+  },
+}))
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -93,7 +102,6 @@ export function engineLabel(engine: MediaEngine): string {
     'minimax':         'MiniMax',
     'claude':          'Claude',
     'chatgpt':         'ChatGPT',
-    'heygen':          'HeyGen',
   }
   return labels[engine] ?? engine
 }
@@ -107,16 +115,8 @@ export function engineColor(engine: MediaEngine): string {
     'minimax':         'text-pink border-pink/40',
     'claude':          'text-purple border-purple/40',
     'chatgpt':         'text-teal border-border-teal/40',
-    'heygen':          'text-pink border-pink/40',
   }
   return colors[engine] ?? 'text-text-dim border-border'
-}
-
-export function typeIcon(type: MediaType): string {
-  return type === 'image'  ? '🖼'
-       : type === 'video'  ? '🎬'
-       : type === 'audio'  ? '🎵'
-       : '👤'
 }
 
 export function typeLabel(type: MediaType): string {

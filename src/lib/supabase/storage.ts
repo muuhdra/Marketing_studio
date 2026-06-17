@@ -1,27 +1,41 @@
 // ─────────────────────────────────────────────
 // SUPABASE STORAGE — Helpers
-// 2 buckets : assets (persistent) + outputs (éphémère 24h)
+// 2 buckets : assets (persistent) + outputs (éphémère 48h)
 // ─────────────────────────────────────────────
 
 // Noms des buckets
 export const BUCKETS = {
-  ASSETS: 'assets',    // Backbone : avatars, ADN, tenues, environments, voix
-  OUTPUTS: 'outputs',  // Éphémère : vidéos/images/audio générés (24h TTL)
+  ASSETS: 'assets',        // Backbone : avatars, ADN, tenues, environments, voix
+  OUTPUTS: 'outputs',      // Éphémère : vidéos/images/audio générés (48h TTL)
+  TEMPLATES: 'templates',  // Public : templates de contenu (vidéos/images + prompt)
 } as const
 
 // Chemins dans le bucket ASSETS
+// ⚠️ userId en 1er dossier → conforme à la policy RLS (storage.foldername(name))[1] = auth.uid()
 export const ASSET_PATHS = {
-  avatarPhoto: (avatarId: string) => `avatars/${avatarId}/photo`,
-  avatarVideo: (avatarId: string) => `avatars/${avatarId}/video`,
-  avatarVoice: (avatarId: string) => `avatars/${avatarId}/voice`,        // ← Voix persistante
-  avatarOutfit: (avatarId: string, outfitId: string) =>
-    `avatars/${avatarId}/outfits/${outfitId}`,
-  avatarEnvironment: (avatarId: string, envId: string) =>
-    `avatars/${avatarId}/environments/${envId}`,
-  avatarCloneSource: (avatarId: string) =>
-    `avatars/${avatarId}/clone_source`,
+  // Chemin fixe (sans extension) → un ré-upload écrase toujours le même objet,
+  // pas d'orphelin si l'extension change. Le content-type est stocké à l'upload.
+  avatarPhoto: (userId: string, avatarId: string) =>
+    `${userId}/avatars/${avatarId}/photo`,
+  avatarSheet: (userId: string, avatarId: string) =>
+    `${userId}/avatars/${avatarId}/sheet`,
+  avatarVoice: (userId: string, avatarId: string, ext: string = 'mp3') =>
+    `${userId}/avatars/${avatarId}/voice.${ext}`,
+  avatarOutfit: (userId: string, avatarId: string, outfitId: string, ext: string = 'png') =>
+    `${userId}/avatars/${avatarId}/outfits/${outfitId}.${ext}`,
+  avatarEnvironment: (userId: string, avatarId: string, envId: string, ext: string = 'png') =>
+    `${userId}/avatars/${avatarId}/environments/${envId}.${ext}`,
+  avatarCloneSource: (userId: string, avatarId: string, ext: string = 'mp4') =>
+    `${userId}/avatars/${avatarId}/clone_source.${ext}`,
   campaignDna: (campaignId: string, version: number) =>
     `campaigns/${campaignId}/dna/v${version}`,
+  // Upload ADN avant que la campagne ne soit créée (rattaché à l'user).
+  // userId en 1er dossier → la policy RLS (storage.foldername(name))[1] = auth.uid() s'applique.
+  campaignDnaDraft: (userId: string, fileId: string, ext: string) =>
+    `${userId}/campaigns/dna-drafts/${fileId}.${ext}`,
+  // Image de produit (persistante) — userId en 1er dossier (RLS)
+  productImage: (userId: string, fileId: string, ext: string = 'png') =>
+    `${userId}/products/${fileId}.${ext}`,
 } as const
 
 // Chemins dans le bucket OUTPUTS (éphémère)
@@ -29,8 +43,8 @@ export const OUTPUT_PATHS = {
   job: (jobId: string, ext: string = 'mp4') => `jobs/${jobId}/output.${ext}`,
 } as const
 
-// TTL output en heures
-export const OUTPUT_TTL_HOURS = 24
+// TTL output en heures (contenus générés supprimés définitivement après ce délai)
+export const OUTPUT_TTL_HOURS = 48
 
 // Génère une signed URL pour un output (expire après OUTPUT_TTL_HOURS)
 export function getOutputExpiresAt(): Date {

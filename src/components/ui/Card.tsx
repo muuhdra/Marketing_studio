@@ -5,11 +5,11 @@ import { cn } from '@/lib/utils'
 type CardVariant = 'default' | 'accent' | 'purple' | 'teal' | 'coral' | 'flat'
 
 const variantStyles: Record<CardVariant, string> = {
-  default: 'border-border bg-bg-card hover:border-border-strong hover:-translate-x-px hover:-translate-y-px hover:shadow-neo-white',
-  accent:  'border-accent bg-bg-card shadow-neo hover:-translate-x-px hover:-translate-y-px hover:shadow-neo-lg',
-  purple:  'border-border-purple bg-bg-card shadow-neo-purple hover:-translate-x-px hover:-translate-y-px',
-  teal:    'border-border-teal bg-bg-card shadow-neo-teal hover:-translate-x-px hover:-translate-y-px',
-  coral:   'border-border-coral bg-bg-card shadow-neo-coral hover:-translate-x-px hover:-translate-y-px',
+  default: 'border-border bg-bg-card hover:border-border-strong',
+  accent:  'border-accent bg-bg-card',
+  purple:  'border-border-purple bg-bg-card',
+  teal:    'border-border-teal bg-bg-card',
+  coral:   'border-border-coral bg-bg-card',
   flat:    'border-border bg-bg-surface',
 }
 
@@ -26,9 +26,9 @@ interface CardProps {
 
 const paddingStyles = {
   none: '',
-  sm:   'p-3',
-  md:   'p-5',
-  lg:   'p-7',
+  sm:   'p-4',
+  md:   'p-6',
+  lg:   'p-8',
 }
 
 export default function Card({
@@ -47,7 +47,7 @@ export default function Card({
       onClick={onClick}
       style={legacyStyle}
       className={cn(
-        'relative border-2 rounded-neo-lg overflow-hidden transition-all duration-150',
+        'relative border rounded-neo-lg overflow-hidden transition-all duration-150',
         variantStyles[variant],
         paddingStyles[padding],
         onClick && 'cursor-pointer',

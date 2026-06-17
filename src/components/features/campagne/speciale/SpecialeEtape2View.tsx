@@ -1,8 +1,11 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/ui/Button'
 import CloneLabTab from './tabs/CloneLabTab'
+import { useCampaignWizard } from '@/lib/stores/campaignWizardStore'
+import { useToast } from '@/lib/stores/toastStore'
 
 const STEPS = [
   { n: '✓', label: 'Config',    done: true,  active: false },
@@ -12,6 +15,16 @@ const STEPS = [
 
 export default function SpecialeEtape2View() {
   const router = useRouter()
+  const toast  = useToast()
+  const campaignId = useCampaignWizard((s) => s.campaignId)
+
+  // Guard : pas de projet créé → retour à l'étape 1
+  useEffect(() => {
+    if (!campaignId) {
+      toast.error('Créez d\'abord votre projet à l\'étape 1')
+      router.replace('/campagne/speciale/etape-1')
+    }
+  }, [campaignId, router, toast])
 
   return (
     <div className="animate-fade-in">
@@ -19,11 +32,11 @@ export default function SpecialeEtape2View() {
       {/* Header */}
       <div className="flex items-center justify-between mb-9">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-neo-md border-2 border-border-purple bg-purple/15 flex items-center justify-center text-[18px] text-purple">
-            🧬
+          <div className="w-10 h-10 rounded-neo-md border border-border-purple bg-purple/15 flex items-center justify-center text-[18px] text-purple">
+            ●
           </div>
           <div>
-            <p className="font-mono text-[10px] font-bold text-purple uppercase tracking-widest mb-0.5">
+            <p className="font-sans text-[10px] font-bold text-purple uppercase tracking-widest mb-0.5">
               Campagne Spéciale · Étape 2/3
             </p>
             <h1 className="font-display font-bold text-[20px] text-text-primary">Clone Lab</h1>
@@ -54,7 +67,7 @@ export default function SpecialeEtape2View() {
       <CloneLabTab />
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-12 pt-6 border-t-2 border-border">
+      <div className="flex items-center justify-between mt-12 pt-6 border-t border-border">
         <Button variant="ghost" onClick={() => router.push('/campagne/speciale/etape-1')}>
           ← Retour Configuration
         </Button>

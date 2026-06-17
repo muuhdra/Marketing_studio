@@ -7,5 +7,8 @@ export default async function Page() {
     avatars = await listAvatars()
   } catch { /* middleware gère le non-authentifié */ }
 
-  return <AttributionAvatarsView dbAvatars={avatars} />
+  // Les avatars archivés ne sont pas assignables à une campagne
+  const assignable = avatars.filter((a) => a.status !== 'archived')
+
+  return <AttributionAvatarsView dbAvatars={assignable} />
 }

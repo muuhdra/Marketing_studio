@@ -1,439 +1,214 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { createBrowserClient } from '@supabase/ssr'
 import { Input } from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
+import { useToast } from '@/lib/stores/toastStore'
+import { useSettings, DEFAULT_STUDIO_NAME, DEFAULT_THEME, type Theme } from '@/lib/stores/settingsStore'
+import { useMediaStore } from '@/lib/stores/mediaStore'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface ApiKey {
-  id:      string
-  name:    string
-  icon:    string
-  env:     string
-  masked:  string
-  status:  'connected' | 'missing' | 'error'
-  desc:    string
+interface Props {
+  currentUser: { email: string; createdAt: string | null } | null
 }
 
-// ─── Data ────────────────────────────────────────────────────────────────────
+export default function ParametresView({ currentUser }: Props) {
+  const toast  = useToast()
+  const router = useRouter()
 
-const API_KEYS: ApiKey[] = [
-  {
-    id:     'aimlapi',
-    name:   'AIML API',
-    icon:   '⚡',
-    env:    'AIMLAPI_KEY',
-    masked: 'aiml-••••••••••••••••••••••••••••••••',
-    status: 'connected',
-    desc:   'Hub IA unifié — GPT-4o, Claude, Nano Banana, Kling, ElevenLabs, Seedance via une seule clé',
-  },
-  {
-    id:     'supabase',
-    name:   'Supabase',
-    icon:   '🗄️',
-    env:    'NEXT_PUBLIC_SUPABASE_URL',
-    masked: 'https://••••••••.supabase.co',
-    status: 'connected',
-    desc:   'Base de données, authentification, storage fichiers',
-  },
-  {
-    id:     'resend',
-    name:   'Resend',
-    icon:   '📧',
-    env:    'RESEND_API_KEY',
-    masked: 're_••••••••••••••••••',
-    status: 'missing',
-    desc:   'Emails transactionnels (invitations équipe, notifications campagne)',
-  },
-]
+  // ── Réglages persistés ──
+  const setSettings = useSettings((s) => s.setSettings)
+  const [mounted, setMounted] = useState(false)
+  const [form, setForm] = useState({ studioName: DEFAULT_STUDIO_NAME, locale: 'fr-FR' })
+  const [theme, setTheme] = useState<Theme>(DEFAULT_THEME)
+  const [saved, setSaved] = useState(false)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-// Modèles actifs dans Marketing Studio — tous via AIML API (une seule clé)
-// Assignations confirmées :
-//   Scripts UGC  → ChatGPT (créativité)   Clone Lab → Claude (persona)
-//   Visuels      → Nano Banana (seul modèle image — visuels, moodboards, portraits)
-//   Vidéo UGC    → Kling v2.1 Pro (principal)  B-roll → Seedance
-//   Voix         → ElevenLabs (émotionnel) ou MiniMax (expressif)
-const AIML_MODELS = [
-  {
-    category:  'Texte & Scripts',
-    icon:      '🧠',
-    primary:   'ChatGPT (OpenAI)',
-    secondary: 'Claude (Anthropic)',
-    badge:     null,
-    models:    ['gpt-4o', 'gpt-4o-mini', 'claude-opus-4-5', 'claude-3-5-haiku'],
-    usage:     'Scripts UGC & hooks (ChatGPT) · Stratégie & Clone Lab (Claude)',
-    detail:    'ChatGPT → rapidité & créativité · Claude → raisonnement profond',
-    color:     'text-accent border-accent/30 bg-accent/5',
-  },
-  {
-    category:  'Génération Image',
-    icon:      '🖼️',
-    primary:   'Nano Banana',
-    secondary: null,
-    badge:     'PRINCIPAL',
-    models:    ['nanobanana'],
-    usage:     'Visuels campagne, moodboards, portraits, thumbnails',
-    detail:    'Nano Banana → seul modèle image — visuels, portraits, moodboards',
-    color:     'text-teal border-border-teal bg-teal/5',
-  },
-  {
-    category:  'Génération Vidéo',
-    icon:      '🎬',
-    primary:   'Kling AI (v2.1 Pro)',
-    secondary: 'Seedance (B-roll)',
-    badge:     'PRINCIPAL',
-    models:    ['kling-video/v2.1/pro', 'kling-video/v2.1/standard', 'kling-video/v1.6/standard', 'seedance-1-pro'],
-    usage:     'UGC & avatars (Kling v2.1 Pro) · B-roll cinématique (Seedance)',
-    detail:    'Kling → talking head, lifestyle, img2vid · Seedance → plans produit, ambiance',
-    color:     'text-purple border-border-purple bg-purple/5',
-  },
-  {
-    category:  'Voix & TTS',
-    icon:      '🎙️',
-    primary:   'ElevenLabs (émotionnel)',
-    secondary: 'MiniMax (expressif)',
-    badge:     null,
-    models:    ['eleven_multilingual_v2', 'eleven_turbo_v2_5', 'minimax-speech-01', 'minimax-speech-01-hd'],
-    usage:     'Voix avatar émotionnelle (ElevenLabs) · TTS multi-langue expressif (MiniMax)',
-    detail:    'ElevenLabs → clonage vocal, multilingue · MiniMax → voix expressives HD',
-    color:     'text-coral border-border-coral bg-coral/5',
-  },
-  {
-    category:  'Research Agent',
-    icon:      '🔍',
-    primary:   'Perplexity Sonar Pro',
-    secondary: 'Sonar Reasoning',
-    badge:     null,
-    models:    ['perplexity/sonar', 'perplexity/sonar-pro', 'perplexity/sonar-reasoning'],
-    usage:     'Veille tendances · Formats viraux · Contexte culturel avatar · Scripts à jour',
-    detail:    'Injecté automatiquement avant chaque génération de script UGC',
-    color:     'text-amber border-amber/40 bg-amber/5',
-  },
-]
+  // ── Compteurs données locales (gatés mounted) ──
+  const assetCount = useMediaStore((s) => s.assets.length)
 
-const STATUS_CONFIG = {
-  connected: { label: 'Connecté',  dot: 'bg-teal',   text: 'text-teal',   border: 'border-border-teal'        },
-  missing:   { label: 'Manquant',  dot: 'bg-amber',  text: 'text-amber',  border: 'border-amber/40'            },
-  error:     { label: 'Erreur',    dot: 'bg-coral',  text: 'text-coral',  border: 'border-border-coral'        },
-}
+  useEffect(() => {
+    setMounted(true)
+    useMediaStore.getState().loadFromServer()
+    const s = useSettings.getState()
+    setForm({ studioName: s.studioName, locale: s.locale })
+    setTheme(s.theme)
+    document.documentElement.lang = s.locale.split('-')[0]
+  }, [])
 
-// ─── Component ───────────────────────────────────────────────────────────────
-
-export default function ParametresView() {
-  const [activeSection, setActiveSection] = useState<'general' | 'api' | 'equipe' | 'systeme'>('general')
-  const [showKey, setShowKey]             = useState<string | null>(null)
-
-  // Champs "Général"
-  const [studioName, setStudioName]   = useState('Marketing Studio')
-  const [timezone, setTimezone]       = useState('Europe/Paris')
-  const [locale, setLocale]           = useState('fr-FR')
-  const [saved, setSaved]             = useState(false)
-
-  function handleSave() {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  // Bascule de thème : persiste + applique immédiatement sur <html>.
+  function applyTheme(next: Theme) {
+    setTheme(next)
+    setSettings({ theme: next })
+    document.documentElement.dataset.theme = next
   }
 
-  const NAV = [
-    { id: 'general',  label: 'Général',         icon: '⚙' },
-    { id: 'api',      label: 'Clés API',         icon: '🔑' },
-    { id: 'equipe',   label: 'Équipe',           icon: '👥' },
-    { id: 'systeme',  label: 'Système',          icon: '🖥' },
-  ] as const
+  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
+
+  function handleSave() {
+    const studioName = form.studioName.trim() || DEFAULT_STUDIO_NAME
+    setSettings({ studioName, locale: form.locale })
+    document.documentElement.lang = form.locale.split('-')[0]
+    setSaved(true)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    savedTimer.current = setTimeout(() => setSaved(false), 2000)
+  }
+
+  async function handleLogout() {
+    try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
+      await supabase.auth.signOut()
+      router.push('/login')
+    } catch {
+      toast.error('Erreur lors de la déconnexion')
+    }
+  }
+
+  // ── Actions de nettoyage local ──
+  function clearWizard() {
+    if (!confirm('Vider le cache du wizard de campagne en cours ?')) return
+    sessionStorage.removeItem('campaign-wizard')
+    toast.success('Cache du wizard vidé')
+  }
+  async function clearMedia() {
+    if (!confirm(`Supprimer définitivement les ${assetCount} contenu(s) généré(s) ? (fichiers + métadonnées Supabase)`)) return
+    await useMediaStore.getState().clearAll()
+    toast.success('Contenus générés supprimés')
+  }
+
+  const joinedFmt = currentUser?.createdAt
+    ? new Date(currentUser.createdAt).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+    : '—'
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in max-w-[680px]">
 
       {/* ── Header ── */}
       <div className="mb-8">
         <p className="nb-label mb-2">Configuration</p>
-        <h1 className="font-display font-bold text-[32px] tracking-tight text-text-primary">
-          Paramètres
-        </h1>
+        <h1 className="font-display font-bold text-[32px] tracking-tight text-text-primary">Paramètres</h1>
       </div>
 
-      <div className="grid grid-cols-[200px_1fr] gap-6">
+      <div className="flex flex-col gap-5">
 
-        {/* ── Sidebar nav ── */}
-        <div className="flex flex-col gap-1">
-          {NAV.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => setActiveSection(n.id)}
-              className={`
-                flex items-center gap-3 px-4 py-2.5 rounded-neo-md text-left
-                font-mono text-[12px] font-bold transition-all duration-150
-                ${activeSection === n.id
-                  ? 'bg-accent text-bg-base shadow-neo-sm'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-white/[0.04]'
-                }
-              `}
-            >
-              <span className="text-base">{n.icon}</span>
-              {n.label}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Contenu ── */}
-        <div className="min-w-0">
-
-          {/* ── Général ── */}
-          {activeSection === 'general' && (
-            <div className="bg-bg-card border-2 border-border rounded-neo-lg p-6">
-              <h2 className="font-display font-bold text-[16px] text-text-primary mb-6">
-                Paramètres généraux
-              </h2>
-              <div className="flex flex-col gap-5 max-w-[500px]">
-                <Input
-                  label="Nom du studio"
-                  value={studioName}
-                  onChange={(e) => setStudioName(e.target.value)}
-                />
-                <div>
-                  <label className="nb-label block mb-1.5">Fuseau horaire</label>
-                  <select
-                    value={timezone}
-                    onChange={(e) => setTimezone(e.target.value)}
-                    className="nb-input text-[13px] py-2.5 px-3.5"
-                  >
-                    <option value="Europe/Paris">Europe/Paris (UTC+2)</option>
-                    <option value="America/New_York">America/New_York (UTC-4)</option>
-                    <option value="America/Los_Angeles">America/Los_Angeles (UTC-7)</option>
-                    <option value="Asia/Tokyo">Asia/Tokyo (UTC+9)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="nb-label block mb-1.5">Locale</label>
-                  <select
-                    value={locale}
-                    onChange={(e) => setLocale(e.target.value)}
-                    className="nb-input text-[13px] py-2.5 px-3.5"
-                  >
-                    <option value="fr-FR">Français (FR)</option>
-                    <option value="en-US">English (US)</option>
-                    <option value="en-GB">English (GB)</option>
-                  </select>
-                </div>
-                <div className="pt-2">
-                  <Button onClick={handleSave} size="sm">
-                    {saved ? '✓ Enregistré' : 'Sauvegarder'}
-                  </Button>
-                </div>
-              </div>
+        {/* ── Identité du studio ── */}
+        <section className="bg-bg-card border border-border rounded-neo-lg p-6">
+          <h2 className="font-display font-bold text-[15px] text-text-primary mb-1">Identité du studio</h2>
+          <p className="font-sans text-[10px] text-text-dim mb-5">Le nom apparaît dans la barre latérale et l'en-tête.</p>
+          <div className="flex flex-col gap-5">
+            <Input
+              label="Nom du studio"
+              value={form.studioName}
+              onChange={(e) => setForm((f) => ({ ...f, studioName: e.target.value }))}
+            />
+            <div>
+              <label className="nb-label block mb-1.5">Langue</label>
+              <select
+                value={form.locale}
+                onChange={(e) => setForm((f) => ({ ...f, locale: e.target.value }))}
+                className="nb-input text-[13px] py-2.5 px-3.5 max-w-[260px]"
+              >
+                <option value="fr-FR">Français (FR)</option>
+                <option value="en-US">English (US)</option>
+                <option value="en-GB">English (GB)</option>
+              </select>
+              <p className="font-sans text-[10px] text-text-dim mt-1.5">Définit l'attribut de langue du document.</p>
             </div>
-          )}
-
-          {/* ── API Keys ── */}
-          {activeSection === 'api' && (
-            <div className="bg-bg-card border-2 border-border rounded-neo-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="font-display font-bold text-[16px] text-text-primary">
-                  Clés API
-                </h2>
-                <p className="font-mono text-[11px] text-text-dim">
-                  Gérées via les variables d'environnement Vercel
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                {API_KEYS.map((k) => {
-                  const cfg = STATUS_CONFIG[k.status]
-                  return (
-                    <div
-                      key={k.id}
-                      className={`
-                        flex items-center gap-4 p-4 rounded-neo-lg border-2 transition-all
-                        ${k.status === 'connected' ? 'border-border hover:border-border-strong' : cfg.border}
-                        ${k.status === 'missing' ? 'bg-amber/[0.03]' : ''}
-                      `}
-                    >
-                      {/* Icon + name */}
-                      <div className="text-2xl flex-shrink-0">{k.icon}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-mono text-[12px] font-bold text-text-primary">{k.name}</span>
-                          <span className={`flex items-center gap-1 font-mono text-[9px] font-bold ${cfg.text}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                            {cfg.label}
-                          </span>
-                        </div>
-                        <p className="font-mono text-[10px] text-text-dim">{k.desc}</p>
-                        {k.status !== 'missing' && (
-                          <p className="font-mono text-[10px] text-text-dim mt-1 truncate">
-                            {showKey === k.id ? k.env + '=...' : k.masked}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {k.status === 'missing' ? (
-                          <a
-                            href="https://vercel.com/dashboard"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-mono text-[10px] font-bold text-amber border border-amber/40 rounded-neo px-2.5 py-1.5 hover:bg-amber/10 transition-colors"
-                          >
-                            Configurer →
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => setShowKey(showKey === k.id ? null : k.id)}
-                            className="font-mono text-[10px] text-text-dim border border-border rounded-neo px-2.5 py-1.5 hover:border-border-strong hover:text-text-secondary transition-colors"
-                          >
-                            {showKey === k.id ? 'Masquer' : '👁'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* AIML Models — 5 catégories */}
-              <div className="mt-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <h3 className="font-display font-bold text-[14px] text-text-primary">
-                    Modèles actifs via AIML API
-                  </h3>
-                  <span className="font-mono text-[9px] font-bold text-accent border border-accent/40 bg-accent/5 px-2 py-0.5 rounded-neo">
-                    1 clé · 9 modèles
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {AIML_MODELS.map((cat) => (
-                    <div key={cat.category} className={`rounded-neo-lg border-2 p-4 ${cat.color}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-base">{cat.icon}</span>
-                        <p className="font-mono text-[10px] font-bold opacity-90">{cat.category}</p>
-                        {cat.badge && (
-                          <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded border border-current/40 bg-current/10 opacity-80">
-                            {cat.badge}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mb-1.5">
-                        <p className="font-display font-bold text-[12px]">{cat.primary}</p>
-                        {cat.secondary && <p className="font-mono text-[10px] opacity-60">+ {cat.secondary}</p>}
-                      </div>
-                      <p className="font-mono text-[9px] opacity-70 mb-1 leading-relaxed">{cat.usage}</p>
-                      <p className="font-mono text-[8px] opacity-45 mb-2 leading-relaxed italic">{cat.detail}</p>
-                      <div className="flex flex-wrap gap-1">
-                        {cat.models.map((m) => (
-                          <span key={m} className="font-mono text-[8px] px-1.5 py-0.5 rounded border border-current/20 bg-bg-base/20">
-                            {m}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-5 bg-bg-surface border border-border rounded-neo p-4">
-                <p className="font-mono text-[11px] text-text-dim">
-                  💡 Les clés API sont lues depuis les variables d'environnement.
-                  Elles ne sont jamais exposées côté client.
-                  Pour les modifier : <strong className="text-text-secondary">Vercel → Settings → Environment Variables</strong>.
-                </p>
-              </div>
+            <div>
+              <Button onClick={handleSave} size="sm" disabled={!mounted}>
+                {saved ? '✓ Enregistré' : 'Sauvegarder'}
+              </Button>
             </div>
-          )}
+          </div>
+        </section>
 
-          {/* ── Équipe ── */}
-          {activeSection === 'equipe' && (
-            <div className="bg-bg-card border-2 border-border rounded-neo-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="font-display font-bold text-[16px] text-text-primary">Équipe</h2>
-                <p className="font-mono text-[10px] text-text-dim">Accès géré via Supabase Auth</p>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                {[
-                  { email: 'zutgame@gmail.com', role: 'Admin',        joined: 'Juin 2026', active: true  },
-                  { email: 'user2@example.com',  role: 'Collaborateur', joined: '—',        active: false },
-                ].map((u) => (
-                  <div key={u.email} className={`flex items-center gap-4 p-4 rounded-neo-lg border-2 ${u.active ? 'border-border' : 'border-border/50 opacity-60'}`}>
-                    <div className="w-9 h-9 rounded-neo-md border-2 border-border bg-bg-elevated flex items-center justify-center font-mono text-[11px] font-bold text-accent">
-                      {u.email.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-mono text-[12px] font-bold text-text-primary truncate">{u.email}</p>
-                      <p className="font-mono text-[10px] text-text-dim">Rejoint : {u.joined}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`font-mono text-[9px] font-bold px-2 py-1 rounded border ${
-                        u.role === 'Admin'
-                          ? 'text-accent border-accent bg-accent/10'
-                          : 'text-text-muted border-border'
-                      }`}>
-                        {u.role}
-                      </span>
-                      {u.active && (
-                        <span className="flex items-center gap-1 font-mono text-[9px] text-teal">
-                          <span className="w-1.5 h-1.5 rounded-full bg-teal" />
-                          Actif
-                        </span>
-                      )}
-                    </div>
+        {/* ── Apparence ── */}
+        <section className="bg-bg-card border border-border rounded-neo-lg p-6">
+          <h2 className="font-display font-bold text-[15px] text-text-primary mb-1">Apparence</h2>
+          <p className="font-sans text-[10px] text-text-dim mb-5">Thème de l'interface — appliqué immédiatement et mémorisé sur cet appareil.</p>
+          <div className="grid grid-cols-2 gap-3 max-w-[420px]">
+            {([
+              { id: 'dark'  as Theme, label: 'Sombre',  sub: 'Bleu nuit',  sw: ['#080c18', '#0e1428', '#2dd4bf'] },
+              { id: 'light' as Theme, label: 'Clair',   sub: 'Blanc',      sw: ['#ffffff', '#f4f6fb', '#0f9e86'] },
+            ]).map((opt) => {
+              const active = mounted && theme === opt.id
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => applyTheme(opt.id)}
+                  disabled={!mounted}
+                  className={`text-left rounded-neo-lg border p-3.5 transition-all
+                    ${active ? 'border-accent shadow-neo-sm' : 'border-border hover:border-border-strong'}`}
+                >
+                  <div className="flex items-center gap-1.5 mb-3">
+                    {opt.sw.map((c, i) => (
+                      <span key={i} className="w-5 h-5 rounded-neo border border-border" style={{ background: c }} />
+                    ))}
                   </div>
-                ))}
-              </div>
+                  <p className="text-[13px] font-bold text-text-primary flex items-center gap-2">
+                    {opt.label}
+                    {active && <span className="font-sans text-[9px] text-accent">● actif</span>}
+                  </p>
+                  <p className="font-sans text-[10px] text-text-dim">{opt.sub}</p>
+                </button>
+              )
+            })}
+          </div>
+        </section>
 
-              <div className="mt-5 bg-bg-surface border border-border rounded-neo p-4">
-                <p className="font-mono text-[11px] text-text-dim">
-                  👥 Pour inviter un nouveau membre, créez l'utilisateur directement dans
-                  <strong className="text-text-secondary"> Supabase → Authentication → Users</strong> et assignez-lui un mot de passe ou envoyez un magic link.
-                </p>
+        {/* ── Compte ── */}
+        <section className="bg-bg-card border border-border rounded-neo-lg p-6">
+          <h2 className="font-display font-bold text-[15px] text-text-primary mb-1">Compte</h2>
+          <p className="font-sans text-[10px] text-text-dim mb-5">Accès géré via Supabase Auth — pas d'inscription publique.</p>
+          {currentUser ? (
+            <div className="flex items-center gap-4 p-4 rounded-neo-lg border border-border">
+              <div className="w-10 h-10 rounded-neo-md border border-border bg-bg-elevated flex items-center justify-center font-sans text-[12px] font-bold text-accent flex-shrink-0">
+                {currentUser.email.slice(0, 2).toUpperCase()}
               </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-sans text-[12px] font-bold text-text-primary truncate">{currentUser.email}</p>
+                <p className="font-sans text-[10px] text-text-dim">Membre depuis : {joinedFmt}</p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={handleLogout}>Déconnexion</Button>
             </div>
+          ) : (
+            <p className="font-sans text-[11px] text-text-dim">Non authentifié.</p>
           )}
+          <p className="font-sans text-[10px] text-text-dim mt-4 bg-bg-surface border border-border rounded-neo p-3">
+            Pour ajouter un membre : <strong className="text-text-secondary">Supabase → Authentication → Users</strong> (mot de passe ou magic link).
+          </p>
+        </section>
 
-          {/* ── Système ── */}
-          {activeSection === 'systeme' && (
-            <div className="flex flex-col gap-4">
-              <div className="bg-bg-card border-2 border-border rounded-neo-lg p-6">
-                <h2 className="font-display font-bold text-[16px] text-text-primary mb-5">Informations système</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { label: 'Framework',    value: 'Next.js 16 (App Router)'   },
-                    { label: 'Runtime',      value: 'Node.js 20 · Vercel Edge'  },
-                    { label: 'Base de données', value: 'Supabase + Drizzle ORM' },
-                    { label: 'Auth',         value: 'Supabase Auth (Magic Link)' },
-                    { label: 'Storage',      value: 'Supabase Storage'          },
-                    { label: 'Déploiement',  value: 'Vercel (Production)'       },
-                    { label: 'Version app',  value: 'v0.1.0 — Alpha'            },
-                    { label: 'Environnement', value: process.env.NODE_ENV ?? 'development' },
-                  ].map((r) => (
-                    <div key={r.label} className="flex flex-col gap-1 py-3 border-b border-border/50 last:border-0">
-                      <span className="nb-label">{r.label}</span>
-                      <span className="font-mono text-[12px] text-text-primary">{r.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+        {/* ── Données locales ── */}
+        <section className="bg-bg-card border border-border-coral rounded-neo-lg p-6">
+          <h2 className="font-display font-bold text-[15px] text-coral mb-1">Données & contenus</h2>
+          <p className="font-sans text-[10px] text-text-dim mb-5">Cache local du wizard (navigateur) et contenus générés (Supabase, supprimés auto après 48h).</p>
 
-              <div className="bg-bg-card border-2 border-border-coral rounded-neo-lg p-6">
-                <h2 className="font-display font-bold text-[14px] text-coral mb-4">Zone dangereuse</h2>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[13px] font-medium text-text-primary mb-1">Vider le cache du wizard</p>
-                    <p className="font-mono text-[11px] text-text-dim">Supprime l'état temporaire des campagnes en cours de création</p>
-                  </div>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => { sessionStorage.removeItem('campaign-wizard'); window.location.reload() }}
-                  >
-                    🗑 Vider
-                  </Button>
+          <div className="flex flex-col divide-y divide-border/50">
+            {[
+              { title: 'Cache du wizard de campagne', sub: 'État temporaire de la campagne en cours de création', action: clearWizard, count: null as number | null },
+              { title: 'Contenus générés (Supabase)', sub: 'Images, vidéos et voix — supprimés automatiquement après 48h', action: clearMedia, count: assetCount },
+            ].map((row) => (
+              <div key={row.title} className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-text-primary mb-0.5 flex items-center gap-2">
+                    {row.title}
+                    {mounted && row.count !== null && (
+                      <span className="font-sans text-[9px] text-text-dim border border-border rounded-neo px-1.5 py-0.5">{row.count}</span>
+                    )}
+                  </p>
+                  <p className="font-sans text-[10px] text-text-dim">{row.sub}</p>
                 </div>
+                <Button variant="danger" size="sm" onClick={row.action}>Vider</Button>
               </div>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   )

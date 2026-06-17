@@ -2,10 +2,11 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Bell, Coins, LogOut } from 'lucide-react'
+import { Bell, LogOut } from 'lucide-react'
 import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
+import { getEstimatedMonthlyCost } from '@/lib/actions/outputs'
 
 const HIDDEN_PATHS = ['/campagne/etape-', '/campagne/speciale/']
 
@@ -31,6 +32,7 @@ export default function Topbar() {
 
   const [user, setUser]               = useState<User | null>(null)
   const [menuOpen, setMenuOpen]       = useState(false)
+  const [monthlyCost, setMonthlyCost] = useState<number | null>(null)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,6 +47,20 @@ export default function Topbar() {
     return () => listener.subscription.unsubscribe()
   }, [])
 
+  // Coût estimé du mois — rechargé à chaque navigation ET au retour de focus
+  // (couvre une génération faite sans changer de page : on actualise en revenant à l'onglet).
+  useEffect(() => {
+    const refresh = () => getEstimatedMonthlyCost().then((r) => setMonthlyCost(r.total)).catch(() => {})
+    refresh()
+    const onFocus = () => { if (document.visibilityState === 'visible') refresh() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
+  }, [pathname])
+
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/login')
@@ -58,28 +74,31 @@ export default function Topbar() {
     <header className="sticky top-0 z-50 flex items-center justify-end px-7 py-5 gap-3 pointer-events-none">
       <div className="flex items-center gap-3 pointer-events-auto">
 
-        {/* Budget chip */}
-        <Link href="/budget" className="
-          flex items-center gap-1.5 px-3 py-1.5
-          border-2 border-accent rounded-neo-md bg-bg-card shadow-neo-sm
-          font-mono text-xs font-bold text-accent
-          transition-all duration-100
-          hover:shadow-neo hover:-translate-x-px hover:-translate-y-px
-        ">
-          <Coins size={12} />
-          38.20 / 50 USD
-        </Link>
+        {/* Indicateur conso estimée du mois */}
+        {monthlyCost !== null && (
+          <Link
+            href="/analytics"
+            title="Coût estimé des contenus générés ce mois — voir Analytics"
+            className="
+              flex items-center gap-2 h-9 px-3 rounded-neo-md
+              border border-amber/40 bg-bg-card
+              transition-all duration-100
+            "
+          >
+            <span className="font-sans text-[8.5px] font-bold text-text-dim uppercase tracking-wider">Ce mois</span>
+            <span className="font-display font-bold text-[13px] text-amber leading-none">~${monthlyCost.toFixed(2)}</span>
+          </Link>
+        )}
 
         {/* Notifications */}
         <button className="
           relative flex items-center justify-center w-9 h-9 rounded-neo-md
-          border-2 border-border bg-bg-card text-text-muted
+          border border-border bg-bg-card text-text-muted
           transition-all duration-100
           hover:border-border-strong hover:text-text-primary hover:shadow-neo-white-sm
-          hover:-translate-x-px hover:-translate-y-px
         ">
           <Bell size={15} />
-          <span className="absolute top-1 right-1 w-2 h-2 rounded-neo bg-accent border border-bg-card" />
+          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-accent border border-bg-card" />
         </button>
 
         {/* Avatar utilisateur + menu */}
@@ -89,11 +108,10 @@ export default function Topbar() {
             title={user?.email ?? 'Utilisateur'}
             className="
               flex items-center justify-center w-9 h-9 rounded-neo-md
-              border-2 border-border-purple bg-bg-card shadow-neo-purple
+              border border-border-purple bg-purple/10
               font-display font-bold text-xs text-purple
               transition-all duration-100
-              hover:-translate-x-px hover:-translate-y-px
-              hover:shadow-[3px_3px_0px_rgba(160,154,224,0.6)]
+              hover:bg-purple/20 hover:border-purple/50
             "
           >
             {initials}
@@ -107,11 +125,11 @@ export default function Topbar() {
                 className="fixed inset-0 z-40"
                 onClick={() => setMenuOpen(false)}
               />
-              <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[220px] bg-bg-card border-2 border-border rounded-neo-lg overflow-hidden shadow-neo animate-fade-in">
+              <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[220px] bg-bg-card border border-border rounded-neo-lg overflow-hidden shadow-neo animate-fade-in">
 
                 {/* User info */}
-                <div className="px-4 py-3 border-b-2 border-border">
-                  <div className="font-mono text-[10px] text-text-dim mb-0.5">Connecté en tant que</div>
+                <div className="px-4 py-3 border-b border-border">
+                  <div className="font-sans text-[10px] text-text-dim mb-0.5">Connecté en tant que</div>
                   <div className="text-[12px] font-medium text-text-primary truncate">
                     {user?.email ?? '—'}
                   </div>
@@ -127,7 +145,6 @@ export default function Topbar() {
                       hover:bg-bg-elevated hover:text-text-primary transition-colors
                     "
                   >
-                    <span className="text-[14px]">⚙</span>
                     Paramètres
                   </Link>
                   <button

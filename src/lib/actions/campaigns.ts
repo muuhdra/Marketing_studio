@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { campaigns } from '@/lib/db/schema'
 import { eq, desc, and } from 'drizzle-orm'
 import {
+  campaign_dna,
   campaign_content_types,
   campaign_avatar_assignments,
   avatars,
@@ -54,7 +55,12 @@ export async function createCampaign(data: {
   endDate?:            string
   preCampaignEnabled?: boolean
   preCampaignStart?:   string
+  preCampaignEnd?:     string
+  preCampaignDna?:     string
   postCampaignEnabled?: boolean
+  postCampaignDelayWeeks?: number | null
+  monthlyContentTarget?: number | null
+  assetsUrl?:          string
 }) {
   const user = await getAuthUser()
 
@@ -69,7 +75,12 @@ export async function createCampaign(data: {
       end_date:             data.endDate     || null,
       pre_campaign_enabled: data.preCampaignEnabled  ?? false,
       pre_campaign_start:   data.preCampaignStart    || null,
+      pre_campaign_end:     data.preCampaignEnd      || null,
+      pre_campaign_dna:     data.preCampaignDna?.trim() || null,
       post_campaign_enabled: data.postCampaignEnabled ?? false,
+      post_campaign_delay_weeks: data.postCampaignDelayWeeks ?? null,
+      monthly_content_target: data.monthlyContentTarget ?? null,
+      assets_url:           data.assetsUrl?.trim()   || null,
     })
     .returning()
 
@@ -106,6 +117,14 @@ export async function getCampaignWithDetails(id: string) {
 
   if (!campaign) throw new Error('Campagne introuvable')
 
+  // ADN — dernière version (le CŒUR injecté dans les prompts IA)
+  const [dna] = await db
+    .select()
+    .from(campaign_dna)
+    .where(eq(campaign_dna.campaign_id, id))
+    .orderBy(desc(campaign_dna.version))
+    .limit(1)
+
   // Contenus sélectionnés
   const contentTypes = await db
     .select()
@@ -127,7 +146,7 @@ export async function getCampaignWithDetails(id: string) {
     .leftJoin(avatars, eq(campaign_avatar_assignments.avatar_id, avatars.id))
     .where(eq(campaign_avatar_assignments.campaign_id, id))
 
-  return { campaign, contentTypes, assignments }
+  return { campaign, dna: dna ?? null, contentTypes, assignments }
 }
 
 // ─── UPDATE — modifier une campagne existante ────────────────────────────────
@@ -141,7 +160,13 @@ export async function updateCampaign(
     endDate:              string
     preCampaignEnabled:   boolean
     preCampaignStart:     string
+    preCampaignEnd:       string
+    preCampaignDna:       string
     postCampaignEnabled:  boolean
+    postCampaignDelayWeeks: number | null
+    postCampaignResults:  unknown
+    monthlyContentTarget: number | null
+    assetsUrl:            string
   }>
 ) {
   const user = await getAuthUser()
@@ -149,19 +174,27 @@ export async function updateCampaign(
   const [updated] = await db
     .update(campaigns)
     .set({
-      ...(data.name               !== undefined && { name: data.name }),
-      ...(data.status             !== undefined && { status: data.status }),
-      ...(data.startDate          !== undefined && { start_date: data.startDate }),
-      ...(data.endDate            !== undefined && { end_date: data.endDate }),
-      ...(data.preCampaignEnabled !== undefined && { pre_campaign_enabled: data.preCampaignEnabled }),
-      ...(data.preCampaignStart   !== undefined && { pre_campaign_start: data.preCampaignStart }),
-      ...(data.postCampaignEnabled !== undefined && { post_campaign_enabled: data.postCampaignEnabled }),
+      ...(data.name                  !== undefined && { name: data.name }),
+      ...(data.status                !== undefined && { status: data.status }),
+      ...(data.startDate             !== undefined && { start_date: data.startDate || null }),
+      ...(data.endDate               !== undefined && { end_date: data.endDate || null }),
+      ...(data.preCampaignEnabled    !== undefined && { pre_campaign_enabled: data.preCampaignEnabled }),
+      ...(data.preCampaignStart      !== undefined && { pre_campaign_start: data.preCampaignStart || null }),
+      ...(data.preCampaignEnd        !== undefined && { pre_campaign_end: data.preCampaignEnd || null }),
+      ...(data.preCampaignDna        !== undefined && { pre_campaign_dna: data.preCampaignDna.trim() || null }),
+      ...(data.postCampaignEnabled   !== undefined && { post_campaign_enabled: data.postCampaignEnabled }),
+      ...(data.postCampaignDelayWeeks !== undefined && { post_campaign_delay_weeks: data.postCampaignDelayWeeks }),
+      ...(data.postCampaignResults   !== undefined && { post_campaign_results: data.postCampaignResults }),
+      ...(data.monthlyContentTarget  !== undefined && { monthly_content_target: data.monthlyContentTarget }),
+      ...(data.assetsUrl             !== undefined && { assets_url: data.assetsUrl.trim() || null }),
       updated_at: new Date(),
     })
-    .where(eq(campaigns.id, id))
+    // user_id dans le WHERE — l'UPDATE ne touche jamais la campagne d'un autre utilisateur
+    // (la connexion Drizzle bypasse la RLS, le filtre doit être applicatif)
+    .where(and(eq(campaigns.id, id), eq(campaigns.user_id, user.id)))
     .returning()
 
-  if (!updated || updated.user_id !== user.id) {
+  if (!updated) {
     throw new Error('Campagne introuvable ou accès refusé')
   }
 

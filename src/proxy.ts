@@ -1,10 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Routes totalement exclues du middleware (pas de vérification session)
+// Routes totalement exclues du proxy (pas de vérification session)
 const BYPASS_ROUTES = ['/auth/callback', '/auth/']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Bypass complet pour les routes auth — laisser Next.js gérer directement

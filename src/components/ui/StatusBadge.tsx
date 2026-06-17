@@ -1,10 +1,11 @@
 type Status = 'active' | 'done' | 'pre' | 'draft'
 
-const config: Record<Status, { label: string; color: string; bg: string; border: string }> = {
-  active:  { label: 'En cours',      color: '#c8f55a', bg: '#c8f55a14', border: '#c8f55a30' },
-  done:    { label: 'Terminée',      color: '#5dcaa5', bg: '#5dcaa514', border: '#5dcaa530' },
-  pre:     { label: 'Pré-campagne',  color: '#a09ae0', bg: '#7f77dd14', border: '#7f77dd30' },
-  draft:   { label: 'Brouillon',     color: '#8888a4', bg: '#1e1e2e',   border: '#2a2a40'   },
+// Couleurs via vars CSS (canaux RGB) → s'adaptent au thème (clair/sombre).
+const config: Record<Status, { label: string; cssVar: string }> = {
+  active:  { label: 'En cours',     cssVar: '--accent' },
+  done:    { label: 'Terminée',     cssVar: '--teal' },
+  pre:     { label: 'Pré-campagne', cssVar: '--purple' },
+  draft:   { label: 'Brouillon',    cssVar: '--text-secondary' },
 }
 
 export default function StatusBadge({ status }: { status: Status }) {
@@ -15,9 +16,9 @@ export default function StatusBadge({ status }: { status: Status }) {
       padding: '3px 8px',
       borderRadius: 20,
       fontWeight: 500,
-      color: c.color,
-      background: c.bg,
-      border: `1px solid ${c.border}`,
+      color: `rgb(var(${c.cssVar}))`,
+      background: `rgb(var(${c.cssVar}) / 0.10)`,
+      border: `1px solid rgb(var(${c.cssVar}) / 0.22)`,
       whiteSpace: 'nowrap',
     }}>
       {c.label}

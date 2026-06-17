@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Button from '@/components/ui/Button'
+import GenerationProgress, { type GenStep } from '@/components/ui/GenerationProgress'
 import { Input, Textarea } from '@/components/ui/Input'
 import { useToast } from '@/lib/stores/toastStore'
 import {
@@ -9,30 +10,16 @@ import {
   actionGenerateSpeech,
   actionGenerateAvatarPhoto,
 } from '@/lib/actions/ai'
-import { useMediaStore } from '@/lib/stores/mediaStore'
-import { useCloneStore } from '@/lib/stores/cloneStore'
-import {
-  actionGenerateCloneVideo,
-  actionGetCloneVideoStatus,
-} from '@/lib/actions/heygen'
+import { persistOutput } from '@/lib/actions/outputs'
+import { VOICE_PROFILES } from '@/lib/ai/voice-catalog'
 
-// ─── Voice profiles disponibles ──────────────────────────────────────────────
-
-import type { TtsEngine, TtsVoice } from '@/lib/ai/tts'
-
-const VOICE_OPTIONS: { id: string; label: string; sub: string; engine: TtsEngine; voice: TtsVoice }[] = [
-  { id: 'rachel',  label: 'Rachel',   sub: 'Féminine · Naturelle',    engine: 'elevenlabs', voice: 'Rachel'          },
-  { id: 'bella',   label: 'Bella',    sub: 'Féminine · Chaleureuse',  engine: 'elevenlabs', voice: 'Bella'           },
-  { id: 'adam',    label: 'Adam',     sub: 'Masculine · Autoritaire', engine: 'elevenlabs', voice: 'Adam'            },
-  { id: 'elli',    label: 'Elli',     sub: 'Féminine · Douce',        engine: 'elevenlabs', voice: 'Elli'            },
-  { id: 'lively',  label: 'Vivante',  sub: 'Féminine · Enthousiaste', engine: 'minimax',    voice: 'Lively_Girl'     },
-  { id: 'casual',  label: 'Casual',   sub: 'Masculin · Décontracté',  engine: 'minimax',    voice: 'Casual_Guy'      },
-]
+// Catalogue central de voix (MiniMax) — `sub` dérivé des tags.
+const voiceSub = (tags: string[]) => tags.slice(0, 2).join(' · ')
 
 const PLATFORMS = [
-  { value: 'tiktok',    label: 'TikTok',    icon: '📱' },
-  { value: 'instagram', label: 'Instagram', icon: '📸' },
-  { value: 'youtube',   label: 'YouTube',   icon: '▶️'  },
+  { value: 'tiktok',    label: 'TikTok'    },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'youtube',   label: 'YouTube'   },
 ] as const
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -53,21 +40,8 @@ interface CloneResult {
 export default function CloneLabTab() {
 
   const toast    = useToast()
-  const addAsset = useMediaStore((s) => s.addAsset)
   const audioRef = useRef<HTMLAudioElement>(null)
 
-  // HeyGen clones
-  const allClones   = useCloneStore((s) => s.clones)
-  const readyClones = useMemo(() => allClones.filter((c) => c.status === 'completed'), [allClones])
-  const [heygenCloneId, setHeygenCloneId]       = useState<string | null>(null)
-  const [heygenGenerating, setHeygenGenerating] = useState(false)
-  const [heygenVideoUrl, setHeygenVideoUrl]     = useState<string | null>(null)
-  const heygenPollRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Cleanup du poll HeyGen au démontage
-  useEffect(() => () => {
-    if (heygenPollRef.current) clearInterval(heygenPollRef.current)
-  }, [])
 
   // ── Form ────
   const [personaDescription, setPersonaDescription] = useState('')
@@ -75,7 +49,7 @@ export default function CloneLabTab() {
   const [product, setProduct]                       = useState('')
   const [platform, setPlatform]                     = useState<'tiktok' | 'instagram' | 'youtube'>('tiktok')
   const [duration, setDuration]                     = useState(30)
-  const [selectedVoice, setSelectedVoice]           = useState(VOICE_OPTIONS[0])
+  const [selectedVoice, setSelectedVoice]           = useState(VOICE_PROFILES[0])
   const [generatePhoto, setGeneratePhoto]           = useState(true)
   const [generateVoice, setGenerateVoice]           = useState(true)
 
@@ -128,14 +102,14 @@ export default function CloneLabTab() {
           })
           cloneResult.photoUrl = photoRes.url
           setResult({ ...cloneResult })
-          addAsset({
+          await persistOutput({
             type:      'image',
-            url:       photoRes.url,
+            sourceUrl: photoRes.url,
             title:     `Clone Portrait · ${personaName || 'Persona'}`,
             engine:    'nano-banana',
-            avatarName: personaName || undefined,
             prompt:    personaDescription.slice(0, 200),
-          })
+            avatarName: personaName || undefined,
+          }).catch(() => {})
         } catch (e: any) {
           toast.error('Photo IA : ' + (e.message ?? 'Erreur'))
         } finally {
@@ -151,19 +125,18 @@ export default function CloneLabTab() {
           const voiceRes = await actionGenerateSpeech({
             text:   scriptRes.script.slice(0, 500), // 500 chars max pour preview
             engine: selectedVoice.engine,
-            voice:  selectedVoice.voice,
+            voice:  selectedVoice.voice as never,
           })
           cloneResult.audioB64 = voiceRes.audioBase64
           setResult({ ...cloneResult })
-          addAsset({
+          await persistOutput({
             type:      'audio',
-            url:       `data:audio/mpeg;base64,${voiceRes.audioBase64}`,
+            dataUrl:   `data:audio/mpeg;base64,${voiceRes.audioBase64}`,
             title:     `Voix Clone · ${selectedVoice.label}${personaName ? ` · ${personaName}` : ''}`,
             engine:    selectedVoice.engine === 'elevenlabs' ? 'elevenlabs' : 'minimax',
-            avatarName: personaName || undefined,
             prompt:    scriptRes.script.slice(0, 200),
-            mimeType:  'audio/mpeg',
-          })
+            avatarName: personaName || undefined,
+          }).catch(() => {})
         } catch (e: any) {
           toast.error('Voix IA : ' + (e.message ?? 'Erreur'))
         } finally {
@@ -172,7 +145,7 @@ export default function CloneLabTab() {
       }
 
       setPhase('done')
-      toast.success('Clone Lab terminé ✦')
+      toast.success('Clone Lab terminé')
 
     } catch (e: any) {
       setPhase('idle')
@@ -187,32 +160,39 @@ export default function CloneLabTab() {
     setActiveSection('form')
   }
 
+  // ─── Tracker de génération (étapes dynamiques selon les options) ──────────
+  const genSteps: GenStep[] = [{ key: 'script', label: 'Claude — script persona' }]
+  if (generatePhoto) genSteps.push({ key: 'photo', label: 'Nano Banana — photo réaliste' })
+  if (generateVoice) genSteps.push({ key: 'voice', label: `${selectedVoice.engine === 'minimax' ? 'MiniMax' : 'ElevenLabs'} — voix synthétisée` })
+  const genRunning = phase === 'script' || phase === 'photo' || phase === 'voice'
+  const genCurrent = phase === 'done' ? genSteps.length : Math.max(0, genSteps.findIndex((s) => s.key === phase))
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="animate-fade-in flex flex-col gap-8">
 
       {/* ── Header IA ── */}
-      <div className="flex items-center gap-3 p-4 bg-purple/5 border-2 border-border-purple rounded-neo-lg">
-        <div className="w-10 h-10 rounded-neo-md border-2 border-border-purple bg-purple/15 flex items-center justify-center text-xl flex-shrink-0">
-          🧬
+      <div className="flex items-center gap-3 p-4 bg-purple/5 border border-border-purple rounded-neo-lg">
+        <div className="w-10 h-10 rounded-neo-md border border-border-purple bg-purple/15 flex items-center justify-center text-xl flex-shrink-0 text-purple">
+          ●
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-display font-bold text-[13px] text-purple mb-0.5">Clone Lab · Pipeline IA</div>
-          <div className="font-mono text-[10px] text-text-dim">
-            Claude Opus 4 · Script persona &nbsp;·&nbsp; Nano Banana · Photo réaliste &nbsp;·&nbsp; ElevenLabs · Voix synthétisée
+          <div className="font-sans text-[10px] text-text-dim">
+            Claude Opus 4 · Script persona &nbsp;·&nbsp; Nano Banana · Photo réaliste &nbsp;·&nbsp; MiniMax · Voix synthétisée
           </div>
         </div>
         {phase !== 'idle' && phase !== 'done' && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <div className="w-2 h-2 rounded-full bg-purple animate-pulse" />
-            <span className="font-mono text-[10px] text-purple capitalize">
+            <span className="font-sans text-[10px] text-purple capitalize">
               {phase === 'script' ? 'Rédaction...' : phase === 'photo' ? 'Photo IA...' : 'Synthèse vocale...'}
             </span>
           </div>
         )}
         {phase === 'done' && (
-          <span className="font-mono text-[10px] text-teal font-bold">✓ Clone généré</span>
+          <span className="font-sans text-[10px] text-teal font-bold">✓ Clone généré</span>
         )}
       </div>
 
@@ -221,7 +201,7 @@ export default function CloneLabTab() {
         <div className="flex gap-2">
           <button
             onClick={() => setActiveSection('form')}
-            className={`font-mono text-[11px] font-bold px-4 py-2 rounded-neo border-2 transition-all
+            className={`font-sans text-[11px] font-bold px-4 py-2 rounded-neo border transition-all
               ${activeSection === 'form'
                 ? 'border-purple text-purple bg-purple/10'
                 : 'border-border text-text-muted hover:border-border-strong'}`}
@@ -230,12 +210,12 @@ export default function CloneLabTab() {
           </button>
           <button
             onClick={() => setActiveSection('result')}
-            className={`font-mono text-[11px] font-bold px-4 py-2 rounded-neo border-2 transition-all
+            className={`font-sans text-[11px] font-bold px-4 py-2 rounded-neo border transition-all
               ${activeSection === 'result'
                 ? 'border-purple text-purple bg-purple/10'
                 : 'border-border text-text-muted hover:border-border-strong'}`}
           >
-            ✦ Résultats
+            Résultats
           </button>
         </div>
       )}
@@ -248,7 +228,7 @@ export default function CloneLabTab() {
           <div>
             <div className="flex items-center gap-3 mb-4">
               <h2 className="font-display font-bold text-[17px] text-text-primary">Identité du Persona</h2>
-              <span className="font-mono text-[9px] font-bold text-purple border border-border-purple px-2 py-0.5 rounded-neo">
+              <span className="font-sans text-[9px] font-bold text-purple border border-border-purple px-2 py-0.5 rounded-neo">
                 CLAUDE · DEEPCLONE
               </span>
             </div>
@@ -277,10 +257,10 @@ export default function CloneLabTab() {
                 value={personaDescription}
                 onChange={(e) => setPersonaDescription(e.target.value)}
                 placeholder={`Ex: Femme de 28 ans, lifestyle minimaliste, parle avec authenticité et humour doux. Public Gen Z/Millennial. Utilise un ton direct mais chaleureux. Aime les recommandations "bestie to bestie". Évite les formules trop commerciales. Ponctue avec des emojis naturels.`}
-                className="w-full bg-purple/[0.02] border-2 border-border-purple/30 focus:border-border-purple rounded-neo-lg px-4 py-3 text-text-primary text-[12.5px] leading-relaxed resize-y transition-colors focus:outline-none placeholder:text-text-dim"
+                className="w-full bg-purple/[0.02] border border-border-purple/30 focus:border-border-purple rounded-neo-lg px-4 py-3 text-text-primary text-[12.5px] leading-relaxed resize-y transition-colors focus:outline-none placeholder:text-text-dim"
               />
               {personaDescription.length > 0 && personaDescription.length < 20 && (
-                <p className="font-mono text-[10px] text-amber mt-1.5">
+                <p className="font-sans text-[10px] text-amber mt-1.5">
                   ⚠ Décrivez davantage le persona pour un meilleur résultat ({20 - personaDescription.length} car. min)
                 </p>
               )}
@@ -300,13 +280,12 @@ export default function CloneLabTab() {
                     <button
                       key={p.value}
                       onClick={() => setPlatform(p.value)}
-                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-neo border-2 text-left transition-all
+                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-neo border text-left transition-all
                         ${platform === p.value
                           ? 'border-purple bg-purple/10 text-purple'
                           : 'border-border text-text-muted hover:border-border-strong'}`}
                     >
-                      <span>{p.icon}</span>
-                      <span className="font-mono text-[11px] font-bold">{p.label}</span>
+                      <span className="font-sans text-[11px] font-bold">{p.label}</span>
                     </button>
                   ))}
                 </div>
@@ -320,12 +299,12 @@ export default function CloneLabTab() {
                     <button
                       key={d}
                       onClick={() => setDuration(d)}
-                      className={`px-3 py-2.5 rounded-neo border-2 text-left transition-all
+                      className={`px-3 py-2.5 rounded-neo border text-left transition-all
                         ${duration === d
                           ? 'border-purple bg-purple/10 text-purple'
                           : 'border-border text-text-muted hover:border-border-strong'}`}
                     >
-                      <span className="font-mono text-[11px] font-bold">{d}s</span>
+                      <span className="font-sans text-[11px] font-bold">{d}s</span>
                     </button>
                   ))}
                 </div>
@@ -339,38 +318,38 @@ export default function CloneLabTab() {
                   {/* Photo toggle */}
                   <div
                     onClick={() => setGeneratePhoto(!generatePhoto)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-neo border-2 cursor-pointer transition-all
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-neo border cursor-pointer transition-all
                       ${generatePhoto ? 'border-accent bg-accent/5' : 'border-border text-text-muted hover:border-border-strong'}`}
                   >
-                    <div className={`w-8 h-4 rounded-neo border-2 relative flex-shrink-0 transition-all
+                    <div className={`w-8 h-4 rounded-neo border relative flex-shrink-0 transition-all
                       ${generatePhoto ? 'bg-accent border-accent' : 'bg-bg-base border-border'}`}>
                       <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-neo transition-all
                         ${generatePhoto ? 'left-[17px] bg-bg-base' : 'left-[1px] bg-text-dim'}`} />
                     </div>
                     <div>
-                      <div className={`font-mono text-[10px] font-bold ${generatePhoto ? 'text-accent' : 'text-text-muted'}`}>
-                        🖼️ Photo IA
+                      <div className={`font-sans text-[10px] font-bold ${generatePhoto ? 'text-accent' : 'text-text-muted'}`}>
+                        Photo IA
                       </div>
-                      <div className="font-mono text-[9px] text-text-dim">Nano Banana portrait</div>
+                      <div className="font-sans text-[9px] text-text-dim">Nano Banana portrait</div>
                     </div>
                   </div>
 
                   {/* Voice toggle */}
                   <div
                     onClick={() => setGenerateVoice(!generateVoice)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-neo border-2 cursor-pointer transition-all
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-neo border cursor-pointer transition-all
                       ${generateVoice ? 'border-teal bg-teal/5' : 'border-border text-text-muted hover:border-border-strong'}`}
                   >
-                    <div className={`w-8 h-4 rounded-neo border-2 relative flex-shrink-0 transition-all
+                    <div className={`w-8 h-4 rounded-neo border relative flex-shrink-0 transition-all
                       ${generateVoice ? 'bg-teal border-teal' : 'bg-bg-base border-border'}`}>
                       <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-neo transition-all
                         ${generateVoice ? 'left-[17px] bg-bg-base' : 'left-[1px] bg-text-dim'}`} />
                     </div>
                     <div>
-                      <div className={`font-mono text-[10px] font-bold ${generateVoice ? 'text-teal' : 'text-text-muted'}`}>
-                        🎙️ Voix IA
+                      <div className={`font-sans text-[10px] font-bold ${generateVoice ? 'text-teal' : 'text-text-muted'}`}>
+                        Voix IA
                       </div>
-                      <div className="font-mono text-[9px] text-text-dim">ElevenLabs preview</div>
+                      <div className="font-sans text-[9px] text-text-dim">{selectedVoice.engine === 'minimax' ? 'MiniMax' : 'ElevenLabs'} preview</div>
                     </div>
                   </div>
 
@@ -384,19 +363,19 @@ export default function CloneLabTab() {
             <div>
               <label className="nb-label block mb-3">Profil vocal</label>
               <div className="flex gap-2 flex-wrap">
-                {VOICE_OPTIONS.map((v) => (
+                {VOICE_PROFILES.map((v) => (
                   <button
                     key={v.id}
                     onClick={() => setSelectedVoice(v)}
-                    className={`flex flex-col items-start px-4 py-3 rounded-neo border-2 transition-all
+                    className={`flex flex-col items-start px-4 py-3 rounded-neo border transition-all
                       ${selectedVoice.id === v.id
-                        ? 'border-teal bg-teal/10 text-teal shadow-neo-teal'
+                        ? 'border-teal bg-teal/10 text-teal'
                         : 'border-border text-text-muted hover:border-border-strong'}`}
                   >
-                    <span className={`font-mono text-[11px] font-bold ${selectedVoice.id === v.id ? 'text-teal' : ''}`}>
+                    <span className={`font-sans text-[11px] font-bold ${selectedVoice.id === v.id ? 'text-teal' : ''}`}>
                       {v.label}
                     </span>
-                    <span className="font-mono text-[9px] text-text-dim">{v.sub}</span>
+                    <span className="font-sans text-[9px] text-text-dim">{voiceSub(v.tags)}</span>
                   </button>
                 ))}
               </div>
@@ -413,13 +392,13 @@ export default function CloneLabTab() {
               disabled={!canGenerate || (phase !== 'idle' && phase !== 'done')}
               variant="primary"
             >
-              {phase === 'script' ? '🧬 Rédaction du script Clone...' :
-               phase === 'photo'  ? '🖼️ Génération photo IA...' :
-               phase === 'voice'  ? '🎙️ Synthèse vocale...' :
-               '🧬 Lancer le Clone Lab'}
+              {phase === 'script' ? 'Rédaction du script Clone...' :
+               phase === 'photo'  ? 'Génération photo IA...' :
+               phase === 'voice'  ? 'Synthèse vocale...' :
+               'Lancer le Clone Lab'}
             </Button>
             {!canGenerate && (
-              <p className="font-mono text-[10px] text-text-dim text-center mt-2">
+              <p className="font-sans text-[10px] text-text-dim text-center mt-2">
                 Remplissez la description du persona et le produit pour continuer
               </p>
             )}
@@ -431,35 +410,40 @@ export default function CloneLabTab() {
       {activeSection === 'result' && (
         <div className="flex flex-col gap-6">
 
+          {/* Tracker d'étapes pendant la génération */}
+          {genRunning && (
+            <GenerationProgress steps={genSteps} current={genCurrent} active={genRunning} accent="purple" />
+          )}
+
           {/* Loading skeleton */}
           {phase === 'script' && !result && (
             <div className="flex flex-col gap-4">
               <div className="h-6 bg-purple/10 rounded-neo animate-pulse w-1/3" />
-              <div className="h-40 bg-purple/5 border-2 border-border-purple/30 rounded-neo-lg animate-pulse" />
+              <div className="h-40 bg-purple/5 border border-border-purple/30 rounded-neo-lg animate-pulse" />
               <div className="h-4 bg-bg-surface rounded-neo animate-pulse w-2/3" />
               <div className="h-4 bg-bg-surface rounded-neo animate-pulse w-1/2" />
             </div>
           )}
 
           {result && (
-            <div className="grid grid-cols-[1fr_320px] gap-5">
+            <div className="grid grid-cols-[1fr_320px] gap-5 animate-reveal">
 
               {/* ── Script ── */}
               <div className="flex flex-col gap-5">
 
                 {/* Hooks */}
                 {result.hooks.length > 0 && (
-                  <div className="bg-bg-card border-2 border-border rounded-neo-lg p-5">
+                  <div className="bg-bg-card border border-border rounded-neo-lg p-5">
                     <div className="flex items-center gap-2 mb-4">
                       <h3 className="font-display font-bold text-[14px] text-text-primary">Hooks d'Accroche</h3>
-                      <span className="font-mono text-[9px] text-purple border border-border-purple px-1.5 py-0.5 rounded-neo">
+                      <span className="font-sans text-[9px] text-purple border border-border-purple px-1.5 py-0.5 rounded-neo">
                         {result.hooks.length} options
                       </span>
                     </div>
                     <div className="flex flex-col gap-2.5">
                       {result.hooks.map((hook, i) => (
                         <div key={i} className="flex items-start gap-3 p-3 bg-purple/5 border border-border-purple/30 rounded-neo">
-                          <span className="font-mono text-[10px] font-bold text-purple flex-shrink-0 mt-0.5">#{i + 1}</span>
+                          <span className="font-sans text-[10px] font-bold text-purple flex-shrink-0 mt-0.5">#{i + 1}</span>
                           <p className="text-[12px] text-text-primary leading-relaxed">{hook}</p>
                         </div>
                       ))}
@@ -468,20 +452,20 @@ export default function CloneLabTab() {
                 )}
 
                 {/* Script complet */}
-                <div className="bg-bg-card border-2 border-accent/30 rounded-neo-lg p-5">
+                <div className="bg-bg-card border border-accent/30 rounded-neo-lg p-5">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-display font-bold text-[14px] text-text-primary">Script Clone · {duration}s</h3>
                     <div className="flex items-center gap-2">
                       {result.tone && (
-                        <span className="font-mono text-[9px] text-text-dim border border-border px-2 py-0.5 rounded-neo">
+                        <span className="font-sans text-[9px] text-text-dim border border-border px-2 py-0.5 rounded-neo">
                           Ton: {result.tone}
                         </span>
                       )}
                       <button
                         onClick={() => navigator.clipboard.writeText(result!.script).then(() => toast.success('Script copié'))}
-                        className="font-mono text-[10px] text-accent border border-accent/30 px-2 py-1 rounded-neo hover:bg-accent/10 transition-colors"
+                        className="font-sans text-[10px] text-accent border border-accent/30 px-2 py-1 rounded-neo hover:bg-accent/10 transition-colors"
                       >
-                        📋 Copier
+                        Copier
                       </button>
                     </div>
                   </div>
@@ -492,8 +476,8 @@ export default function CloneLabTab() {
                   </div>
                   {result.cta && (
                     <div className="mt-3 flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-text-dim">CTA :</span>
-                      <span className="font-mono text-[11px] text-accent font-bold">{result.cta}</span>
+                      <span className="font-sans text-[10px] text-text-dim">CTA :</span>
+                      <span className="font-sans text-[11px] text-accent font-bold">{result.cta}</span>
                     </div>
                   )}
                 </div>
@@ -503,29 +487,27 @@ export default function CloneLabTab() {
               <div className="flex flex-col gap-4">
 
                 {/* Photo IA */}
-                <div className="bg-bg-card border-2 border-border rounded-neo-lg overflow-hidden">
-                  <div className="h-[240px] bg-bg-elevated flex items-center justify-center relative border-b-2 border-border">
+                <div className="bg-bg-card border border-border rounded-neo-lg overflow-hidden">
+                  <div className="h-[240px] bg-bg-elevated flex items-center justify-center relative border-b border-border">
                     {photoLoading && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                        <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                        <span className="font-mono text-[10px] text-text-dim">Nano Banana...</span>
+                        <div className="w-10 h-10 border border-accent border-t-transparent rounded-full animate-spin" />
+                        <span className="font-sans text-[10px] text-text-dim">Nano Banana...</span>
                       </div>
                     )}
                     {result.photoUrl && !photoLoading ? (
                       <img
                         src={result.photoUrl}
-                        alt={personaName || 'Clone IA'}
+                        alt={personaName || 'Clone'}
                         className="w-full h-full object-cover"
                       />
                     ) : !photoLoading && (
-                      <div className="w-20 h-20 rounded-full border-2 border-dashed border-border-purple bg-purple/10 flex items-center justify-center">
-                        <span className="text-2xl">
-                          {generatePhoto ? '🖼️' : '👤'}
-                        </span>
+                      <div className="w-20 h-20 rounded-full border border-dashed border-border-purple bg-purple/10 flex items-center justify-center">
+                        <span className="text-2xl text-purple/60">●</span>
                       </div>
                     )}
                     {result.photoUrl && (
-                      <div className="absolute top-3 right-3 bg-accent/90 text-bg-base font-mono text-[9px] font-bold px-2 py-0.5 rounded-neo">
+                      <div className="absolute top-3 right-3 bg-accent/90 text-bg-base font-sans text-[9px] font-bold px-2 py-0.5 rounded-neo">
                         Nano Banana
                       </div>
                     )}
@@ -535,7 +517,7 @@ export default function CloneLabTab() {
                     <div className="font-display font-bold text-[15px] text-text-primary mb-0.5">
                       {personaName || 'Clone'}
                     </div>
-                    <div className="font-mono text-[10px] text-text-dim line-clamp-2">
+                    <div className="font-sans text-[10px] text-text-dim line-clamp-2">
                       {personaDescription.slice(0, 80)}...
                     </div>
                   </div>
@@ -543,19 +525,18 @@ export default function CloneLabTab() {
 
                 {/* Audio preview */}
                 {(generateVoice || voiceLoading || result.audioB64) && (
-                  <div className="bg-bg-card border-2 border-border-teal rounded-neo-lg p-4">
+                  <div className="bg-bg-card border border-border-teal rounded-neo-lg p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="text-lg">🎙️</span>
                       <div>
-                        <div className="font-mono text-[11px] font-bold text-teal">Voix Clone</div>
-                        <div className="font-mono text-[9px] text-text-dim">{selectedVoice.sub}</div>
+                        <div className="font-sans text-[11px] font-bold text-teal">Voix Clone</div>
+                        <div className="font-sans text-[9px] text-text-dim">{voiceSub(selectedVoice.tags)}</div>
                       </div>
                     </div>
 
                     {voiceLoading && (
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 border border-teal border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                        <span className="font-mono text-[10px] text-text-dim">Synthèse en cours...</span>
+                        <span className="font-sans text-[10px] text-text-dim">Synthèse en cours...</span>
                       </div>
                     )}
 
@@ -569,19 +550,19 @@ export default function CloneLabTab() {
                     )}
 
                     {!result.audioB64 && !voiceLoading && (
-                      <p className="font-mono text-[10px] text-text-dim">En attente du script...</p>
+                      <p className="font-sans text-[10px] text-text-dim">En attente du script...</p>
                     )}
                   </div>
                 )}
 
                 {/* Infos génération */}
                 {phase === 'done' && (
-                  <div className="bg-teal/5 border-2 border-border-teal rounded-neo p-3">
-                    <p className="font-mono text-[10px] text-teal font-bold mb-1">✓ Clone Lab terminé</p>
-                    <p className="font-mono text-[10px] text-text-dim leading-relaxed">
+                  <div className="bg-teal/5 border border-border-teal rounded-neo p-3">
+                    <p className="font-sans text-[10px] text-teal font-bold mb-1">✓ Clone Lab terminé</p>
+                    <p className="font-sans text-[10px] text-text-dim leading-relaxed">
                       Script · {result.script.split(' ').length} mots
                       {result.photoUrl ? ' · Photo Nano Banana' : ''}
-                      {result.audioB64 ? ' · Voix ElevenLabs' : ''}
+                      {result.audioB64 ? ` · Voix ${selectedVoice.engine === 'minimax' ? 'MiniMax' : 'ElevenLabs'}` : ''}
                     </p>
                   </div>
                 )}
@@ -589,115 +570,19 @@ export default function CloneLabTab() {
                 {/* Actions */}
                 {phase === 'done' && (
                   <div className="flex flex-col gap-2">
-                    <Button fullWidth size="sm">
-                      💾 Sauvegarder le Clone
-                    </Button>
+                    {(result.photoUrl || result.audioB64) && (
+                      <p className="font-sans text-[10px] text-teal flex items-center gap-1.5 px-1">
+                        {result.photoUrl && result.audioB64 ? 'Photo + voix ajoutées à la galerie'
+                          : result.photoUrl ? 'Photo ajoutée à la galerie'
+                          : 'Voix ajoutée à la galerie'}
+                      </p>
+                    )}
                     <Button variant="ghost" fullWidth size="sm" onClick={reset}>
                       ↩ Nouveau Clone
                     </Button>
                   </div>
                 )}
 
-                {/* ── HeyGen : Générer avec mon clone ── */}
-                {phase === 'done' && result && (
-                  <div className="mt-2 bg-pink/5 border-2 border-pink/30 rounded-neo-lg p-4 flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">🎭</span>
-                      <div className="font-mono text-[11px] font-bold text-pink">
-                        Générer une vidéo avec mon clone
-                      </div>
-                    </div>
-
-                    {readyClones.length === 0 ? (
-                      <p className="font-mono text-[10px] text-text-dim leading-relaxed">
-                        Aucun clone prêt. Créez le vôtre dans{' '}
-                        <strong className="text-pink">Creative Studio → Clone IA</strong> pour générer une vidéo avec votre visage.
-                      </p>
-                    ) : (
-                      <>
-                        {/* Sélection du clone */}
-                        <div className="flex gap-1.5 flex-wrap">
-                          {readyClones.map((c) => (
-                            <button
-                              key={c.id}
-                              onClick={() => setHeygenCloneId(c.id)}
-                              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-neo border-2 text-left transition-all
-                                ${heygenCloneId === c.id
-                                  ? 'border-pink bg-pink/10 text-pink'
-                                  : 'border-border text-text-muted hover:border-pink/50'}`}
-                            >
-                              {c.previewUrl
-                                ? <img src={c.previewUrl} alt="" className="w-5 h-5 rounded-neo object-cover" />
-                                : <span>👤</span>}
-                              <span className="font-mono text-[10px] font-bold">{c.name}</span>
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Vidéo résultat */}
-                        {heygenVideoUrl && (
-                          <div className="rounded-neo border-2 border-teal overflow-hidden">
-                            <video src={heygenVideoUrl} controls autoPlay loop className="w-full max-h-[220px] object-contain bg-black" />
-                            <div className="p-2 flex items-center justify-between">
-                              <span className="font-mono text-[9px] text-teal font-bold">✦ Clone vidéo prête</span>
-                              <a href={heygenVideoUrl} download className="font-mono text-[9px] text-teal border border-teal/30 px-2 py-0.5 rounded-neo hover:bg-teal/10">
-                                ⬇ DL
-                              </a>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Generating state */}
-                        {heygenGenerating && (
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 border-2 border-pink border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                            <span className="font-mono text-[10px] text-pink">HeyGen génère votre vidéo clone... (2-5 min)</span>
-                          </div>
-                        )}
-
-                        {!heygenGenerating && !heygenVideoUrl && (
-                          <Button
-                            size="sm"
-                            fullWidth
-                            disabled={!heygenCloneId}
-                            onClick={async () => {
-                              const clone = readyClones.find((c) => c.id === heygenCloneId)
-                              if (!clone || !result) return
-                              setHeygenGenerating(true)
-                              try {
-                                const { videoId } = await actionGenerateCloneVideo({
-                                  avatarId: clone.heygenAvatarId,
-                                  script:   result.script.slice(0, 2000),
-                                  ratio:    '9:16',
-                                  language: 'fr', // langue du script généré par Claude
-                                })
-                                heygenPollRef.current = setInterval(async () => {
-                                  const s = await actionGetCloneVideoStatus(videoId)
-                                  if (s.status === 'completed' && s.videoUrl) {
-                                    clearInterval(heygenPollRef.current!)
-                                    setHeygenVideoUrl(s.videoUrl)
-                                    setHeygenGenerating(false)
-                                    addAsset({ type: 'video', url: s.videoUrl, title: `Clone Vidéo · ${clone.name}`, engine: 'heygen', avatarName: clone.name })
-                                    toast.success('Vidéo clone prête ✦')
-                                  } else if (s.status === 'failed') {
-                                    clearInterval(heygenPollRef.current!)
-                                    setHeygenGenerating(false)
-                                    toast.error('HeyGen : génération échouée')
-                                  }
-                                }, 10_000)
-                              } catch (e: any) {
-                                setHeygenGenerating(false)
-                                toast.error(e.message ?? 'Erreur HeyGen')
-                              }
-                            }}
-                          >
-                            🎬 Générer avec {readyClones.find((c) => c.id === heygenCloneId)?.name ?? 'mon clone'}
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           )}

@@ -1,50 +1,61 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ──────────────────────────────────────────────
-   DESIGN TOKENS — Studio UGC IA
-   Neo-Brutalism Dark Edition
+   DESIGN TOKENS — Studio UGC IA · Sunrise (clair + orange)
+   Couleurs en CANAUX RGB ("R G B") → consommées via rgb(var(--x) / a).
+   Esthétique : fond clair chaud, accent orange, cartes douces + dégradés.
    ────────────────────────────────────────────── */
-:root {
-  /* Backgrounds */
-  --bg-base:     #0a0a0f;
-  --bg-surface:  #0f0f18;
-  --bg-card:     #111119;
-  --bg-elevated: #161622;
-  --bg-overlay:  #1c1c2a;
-  --bg-input:    #0d0d15;
+:root, [data-theme="dark"], [data-theme="light"] {
+  /* Backgrounds — clair chaud */
+  --bg-base:     255 255 255;
+  --bg-surface:  255 247 243;   /* off-white tiède */
+  --bg-card:     255 255 255;
+  --bg-elevated: 255 240 233;   /* pêche clair */
+  --bg-overlay:  255 255 255;
+  --bg-input:    250 248 246;
 
-  /* Borders */
-  --border:        rgba(255,255,255,0.08);
-  --border-strong: rgba(255,255,255,0.16);
-  --border-accent: #c8f55a;
+  /* Foreground (bordures / overlays / ombres) — sombre */
+  --fg: 17 17 19;
 
   /* Text */
-  --text-primary:   #e8e4dc;
-  --text-secondary: #8888a4;
-  --text-muted:     #5a5a72;
-  --text-dim:       #44445a;
-  --text-faint:     #3a3a52;
+  --text-primary:   24 24 27;
+  --text-secondary: 82 82 91;
+  --text-muted:     113 113 122;
+  --text-dim:       161 161 170;
+  --text-faint:     196 196 204;
 
-  /* Palette */
-  --accent:  #c8f55a;
-  --purple:  #a09ae0;
-  --teal:    #5dcaa5;
-  --coral:   #f0997b;
-  --amber:   #ef9f27;
-  --pink:    #ed93b1;
+  /* Accent ORANGE + couleurs de données */
+  --accent:  255 92 40;     /* #FF5C28 — orange HeyOz */
+  --purple:  139 92 246;
+  --teal:    20 160 140;
+  --coral:   240 90 70;
+  --amber:   235 150 20;
+  --pink:    225 70 130;
+  --green:   34 160 95;
+  --blue:    45 110 220;
+}
 
-  /* Neo-Brutalism shadows */
-  --shadow-neo:        3px 3px 0px rgba(200,245,90,0.45);
-  --shadow-neo-sm:     2px 2px 0px rgba(200,245,90,0.45);
-  --shadow-neo-lg:     5px 5px 0px rgba(200,245,90,0.45);
-  --shadow-neo-solid:  4px 4px 0px #c8f55a;
-  --shadow-neo-white:  3px 3px 0px rgba(255,255,255,0.12);
-  --shadow-neo-purple: 3px 3px 0px rgba(160,154,224,0.45);
-  --shadow-neo-teal:   3px 3px 0px rgba(93,202,165,0.45);
-  --shadow-neo-coral:  3px 3px 0px rgba(240,153,123,0.45);
+:root {
+  /* Bordures dérivées du foreground (subtiles sur fond clair) */
+  --border:        rgb(var(--fg) / 0.08);
+  --border-strong: rgb(var(--fg) / 0.14);
+  --border-accent: rgb(var(--accent));
+
+  /* Ombres douces façon carte claire */
+  --shadow-neo:        0 1px 2px rgb(17 17 19 / 0.04), 0 8px 24px rgb(17 17 19 / 0.06);
+  --shadow-neo-sm:     0 1px 3px rgb(17 17 19 / 0.06);
+  --shadow-neo-lg:     0 12px 36px rgb(17 17 19 / 0.10);
+  --shadow-neo-solid:  0 6px 20px rgb(var(--accent) / 0.30);
+  --shadow-neo-white:  0 1px 3px rgb(17 17 19 / 0.05);
+  --shadow-neo-purple: 0 8px 24px rgb(var(--purple) / 0.18);
+  --shadow-neo-teal:   0 8px 24px rgb(var(--teal) / 0.16);
+  --shadow-neo-coral:  0 8px 24px rgb(var(--coral) / 0.16);
+
+  /* Dégradé d'accent réutilisable (cartes Create Image / Video) */
+  --gradient-accent: linear-gradient(135deg, rgb(255 138 90), rgb(255 70 30));
 }
 
 /* ──────────────────────────────────────────────
@@ -54,15 +65,20 @@
 
 body {
   font-family: 'DM Sans', sans-serif;
-  background: var(--bg-base);
-  color: var(--text-primary);
+  background:
+    radial-gradient(120% 55% at 78% -8%, rgb(255 92 40 / 0.12), transparent 60%),
+    radial-gradient(90% 45% at 12% -6%, rgb(255 138 90 / 0.10), transparent 55%),
+    rgb(var(--bg-base));
+  background-attachment: fixed;
+  color: rgb(var(--text-primary));
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Syne', sans-serif;
+  font-family: 'Inter', sans-serif;
   margin: 0;
 }
 
@@ -76,19 +92,19 @@ a { color: inherit; text-decoration: none; }
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.08);
+  background: rgb(var(--fg) / 0.08);
   border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,255,255,0.14);
+  background: rgb(var(--fg) / 0.14);
 }
 
 /* ──────────────────────────────────────────────
    SELECTION
    ────────────────────────────────────────────── */
 ::selection {
-  background: rgba(200,245,90,0.2);
-  color: #c8f55a;
+  background: rgb(var(--accent) / 0.25);
+  color: rgb(var(--text-primary));
 }
 
 /* ──────────────────────────────────────────────
@@ -102,10 +118,10 @@ input[type="url"],
 input[type="password"],
 textarea,
 select {
-  background: var(--bg-input);
-  border: 2px solid var(--border);
+  background: rgb(var(--bg-input));
+  border: 1px solid var(--border);
   border-radius: 6px;
-  color: var(--text-primary);
+  color: rgb(var(--text-primary));
   font-family: 'DM Sans', sans-serif;
   font-size: 13.5px;
   padding: 10px 14px;
@@ -123,13 +139,13 @@ input[type="url"]:focus,
 input[type="password"]:focus,
 textarea:focus,
 select:focus {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-neo-sm);
+  border-color: rgb(var(--accent));
+  box-shadow: 0 0 0 3px rgb(var(--accent) / 0.15);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--text-faint);
+  color: rgb(var(--text-faint));
 }
 
 textarea {
@@ -146,106 +162,99 @@ input[type="number"] { width: auto; }
 
   /* Carte de base */
   .nb-card {
-    @apply bg-bg-card border-2 rounded-neo-lg transition-all duration-150;
-    border-color: rgba(255,255,255,0.08);
+    @apply bg-bg-card border rounded-neo-lg transition-all duration-150;
+    border-color: var(--border);
   }
 
   .nb-card-hover:hover {
-    border-color: rgba(255,255,255,0.16);
+    border-color: var(--border-strong);
     box-shadow: var(--shadow-neo-white);
-    transform: translate(-1px, -1px);
   }
 
   /* Carte accentuée */
   .nb-card-accent {
-    @apply bg-bg-card rounded-neo-lg border-2 transition-all duration-150;
-    border-color: var(--accent);
+    @apply bg-bg-card rounded-neo-lg border transition-all duration-150;
+    border-color: rgb(var(--accent) / 0.55);
     box-shadow: var(--shadow-neo);
   }
 
   .nb-card-accent:hover {
+    border-color: rgb(var(--accent) / 0.8);
     box-shadow: var(--shadow-neo-lg);
-    transform: translate(-1px, -1px);
   }
 
   /* Bouton primaire */
   .nb-btn-primary {
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-neo-md font-sans font-bold text-sm cursor-pointer transition-all duration-100 select-none;
-    background: var(--accent);
-    color: var(--bg-base);
-    border: 2px solid var(--accent);
-    box-shadow: var(--shadow-neo-sm);
+    background: rgb(var(--accent));
+    color: rgb(var(--bg-base));
+    border: 1px solid rgb(var(--accent));
   }
 
   .nb-btn-primary:hover {
-    box-shadow: var(--shadow-neo);
-    transform: translate(-1px, -1px);
+    background: rgb(var(--accent) / 0.88);
+    border-color: rgb(var(--accent) / 0.88);
   }
 
   .nb-btn-primary:active {
-    box-shadow: none;
-    transform: translate(1px, 1px);
+    transform: scale(0.98);
   }
 
   .nb-btn-primary:disabled {
     opacity: 0.4;
     cursor: not-allowed;
     transform: none;
-    box-shadow: none;
   }
 
   /* Bouton secondaire */
   .nb-btn-secondary {
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-neo-md font-sans font-bold text-sm cursor-pointer transition-all duration-100 select-none;
-    background: transparent;
-    color: var(--text-primary);
-    border: 2px solid rgba(255,255,255,0.16);
-    box-shadow: var(--shadow-neo-white);
+    background: rgb(var(--fg) / 0.04);
+    color: rgb(var(--text-primary));
+    border: 1px solid var(--border-strong);
   }
 
   .nb-btn-secondary:hover {
-    border-color: rgba(255,255,255,0.3);
-    box-shadow: 3px 3px 0px rgba(255,255,255,0.18);
-    transform: translate(-1px, -1px);
+    background: rgb(var(--fg) / 0.08);
+    border-color: rgb(var(--fg) / 0.28);
   }
 
   .nb-btn-secondary:active {
-    box-shadow: none;
-    transform: translate(1px, 1px);
+    transform: scale(0.98);
   }
 
   /* Bouton ghost */
   .nb-btn-ghost {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-neo-md font-sans font-medium text-sm cursor-pointer transition-all duration-100 select-none;
     background: transparent;
-    color: var(--text-secondary);
-    border: 2px solid transparent;
+    color: rgb(var(--text-secondary));
+    border: 1px solid transparent;
   }
 
   .nb-btn-ghost:hover {
-    color: var(--text-primary);
-    background: rgba(255,255,255,0.04);
-    border-color: rgba(255,255,255,0.08);
+    color: rgb(var(--text-primary));
+    background: rgb(var(--fg) / 0.05);
+    border-color: var(--border);
   }
 
-  /* Badge */
+  /* Badge — pill doux */
   .nb-badge {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-neo font-mono text-xs font-bold uppercase tracking-wider;
-    border: 2px solid;
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-sans text-[10.5px] font-semibold uppercase tracking-wide;
+    border: 1px solid;
   }
 
   /* Label section */
   .nb-label {
-    @apply font-mono text-xs font-bold uppercase tracking-widest;
-    color: var(--text-dim);
+    @apply font-sans text-[11px] font-semibold uppercase tracking-wider;
+    color: rgb(var(--text-dim));
   }
 
   /* Input styled */
   .nb-input {
-    background: var(--bg-input);
-    border: 2px solid rgba(255,255,255,0.08);
+    background: rgb(var(--bg-input));
+    border: 1px solid var(--border);
     border-radius: 6px;
-    color: var(--text-primary);
+    color: rgb(var(--text-primary));
     font-family: 'DM Sans', sans-serif;
     font-size: 13.5px;
     padding: 10px 14px;
@@ -255,15 +264,15 @@ input[type="number"] { width: auto; }
   }
 
   .nb-input:focus {
-    border-color: var(--accent);
-    box-shadow: var(--shadow-neo-sm);
+    border-color: rgb(var(--accent));
+    box-shadow: 0 0 0 3px rgb(var(--accent) / 0.15);
   }
 
   /* Divider */
   .nb-divider {
     @apply w-full;
-    height: 2px;
-    background: rgba(255,255,255,0.06);
+    height: 1px;
+    background: rgb(var(--fg) / 0.08);
   }
 
   /* Dot indicator */
@@ -271,13 +280,32 @@ input[type="number"] { width: auto; }
     @apply w-2 h-2 rounded-full flex-shrink-0;
   }
 
+  /* Barre de progression indéterminée — rayures diagonales défilantes.
+     La couleur de base vient de `currentColor` (pose text-accent / text-purple …). */
+  .gen-stripes {
+    background-color: currentColor;
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgb(var(--bg-base) / 0.35) 0,
+      rgb(var(--bg-base) / 0.35) 8px,
+      transparent 8px,
+      transparent 16px
+    );
+    background-size: 22.63px 100%;
+    animation: gen-stripes-move 0.7s linear infinite;
+  }
+  @keyframes gen-stripes-move {
+    from { background-position: 0 0; }
+    to   { background-position: 22.63px 0; }
+  }
+
   /* Shimmer skeleton */
   .nb-skeleton {
     background: linear-gradient(
       90deg,
-      rgba(255,255,255,0.04) 25%,
-      rgba(255,255,255,0.08) 50%,
-      rgba(255,255,255,0.04) 75%
+      rgb(var(--fg) / 0.04) 25%,
+      rgb(var(--fg) / 0.08) 50%,
+      rgb(var(--fg) / 0.04) 75%
     );
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
