@@ -15,28 +15,28 @@ const IMAGE_TYPES = [
     title: 'Pub statique',
     desc: 'Visuels promo nets et percutants pour pubs et campagnes.',
     icon: Megaphone,
-    href: '/creative-studio?type=image',
+    href: '/creer/image/statics',
   },
   {
     id: 'carousel',
     title: 'Carrousel',
     desc: 'Séquences d\'images cohérentes pour les carrousels social.',
     icon: GalleryHorizontalEnd,
-    href: '/creative-studio?type=moodboard',
+    href: '/creer/image/carousel',
   },
   {
     id: 'product',
     title: 'Shooting produit',
     desc: 'Plans lifestyle stylisés mettant ton produit en valeur.',
     icon: Package,
-    href: '/creative-studio?type=shooting',
+    href: '/creer/image/product-photoshoot',
   },
   {
     id: 'fashion',
     title: 'Shooting mode',
     desc: 'Shootings mode pro avec mannequins portant tes vêtements ou accessoires.',
     icon: Shirt,
-    href: '/creative-studio?type=shooting',
+    href: '/creer/image/fashion-photoshoot',
   },
 ]
 

@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import Sidebar from '@/components/layout/Sidebar'
-import Topbar from '@/components/layout/Topbar'
 import Toaster from '@/components/ui/Toaster'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -33,8 +32,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex min-h-screen">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar />
-        <main className="flex-1 overflow-y-auto px-8 pb-8 pt-2">
+        <main className="flex-1 overflow-y-auto px-8 pb-8 pt-6">
           {children}
         </main>
       </div>

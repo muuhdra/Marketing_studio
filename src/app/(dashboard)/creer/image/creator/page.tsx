@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMediaStore } from '@/lib/stores/mediaStore'
-import { ArrowLeft, Plus, Image as ImageIcon, UserRound, Sparkles, Minus, Layers, X, ChevronDown, Package, Check, Link2 as LinkIcon, Upload, Film } from 'lucide-react'
+import { ArrowLeft, Plus, Image as ImageIcon, UserRound, Sparkles, Minus, Layers, X, ChevronDown, Package, Check, Link2 as LinkIcon, Upload, Film, Search, SlidersHorizontal, RotateCcw } from 'lucide-react'
 import { actionGenerateImage } from '@/lib/actions/ai'
 import { actionUploadTempImage, actionListAvatarsForPicker } from '@/lib/actions/avatar-assets'
 import { actionUploadProductImage, actionCreateProduct, actionListProducts, actionAnalyzeProductUrl, type ProductDTO } from '@/lib/actions/products'
@@ -17,7 +17,6 @@ const RATIOS = [
   { id: '16:9', label: '16:9', size: '1792x1024' as const },
   { id: '9:16', label: '9:16', size: '1024x1792' as const },
 ]
-const UNIT_COST = 0.04   // Nano Banana ~$0.039 / image
 
 export default function CustomImageCreatorPage() {
   const router = useRouter()
@@ -35,6 +34,8 @@ export default function CustomImageCreatorPage() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [avatars, setAvatars]     = useState<{ id: string; name: string; photoUrl: string | null }[]>([])
   const [selAvatars, setSelAvatars] = useState<{ url: string; name: string }[]>([])
+  const [previewAvatarUrl, setPreviewAvatarUrl] = useState<string | null>(null)
+  const [avatarSearch, setAvatarSearch] = useState('')
   const [productModalOpen, setProductModalOpen] = useState(false)
   const [products, setProducts]   = useState<ProductDTO[]>([])
   const [selProduct, setSelProduct] = useState<number | null>(null)
@@ -147,14 +148,21 @@ export default function CustomImageCreatorPage() {
   }
 
   async function openAvatarPicker() {
-    setSelAvatars([]); setPickerOpen(true)
+    setSelAvatars([]); setPreviewAvatarUrl(null); setAvatarSearch(''); setPickerOpen(true)
     try { setAvatars(await actionListAvatarsForPicker()) } catch { /* vide */ }
   }
   function toggleAvatar(url: string, name: string) {
-    setSelAvatars((s) => s.some((x) => x.url === url) ? s.filter((x) => x.url !== url) : [...s, { url, name }])
+    setPreviewAvatarUrl(url)
+    setSelAvatars((s) => s.some((x) => x.url === url) ? [] : [{ url, name }])
   }
   function useSelectedAvatars() {
     if (selAvatars.length) { addRefs(selAvatars.map((a) => ({ url: a.url, label: a.name }))); toast.success(`${selAvatars.length} avatar${selAvatars.length > 1 ? 's' : ''} ajouté${selAvatars.length > 1 ? 's' : ''} ✓`) }
+    setPickerOpen(false)
+  }
+  function useAvatarModel(avatar: { name: string; photoUrl: string }) {
+    addRefs([{ url: avatar.photoUrl, label: avatar.name }])
+    setSelAvatars([{ url: avatar.photoUrl, name: avatar.name }])
+    toast.success(`${avatar.name} ajouté ✓`)
     setPickerOpen(false)
   }
 
@@ -180,7 +188,12 @@ export default function CustomImageCreatorPage() {
     } finally { setGenerating(false) }
   }
 
-  const cost = (UNIT_COST * variations).toFixed(2)
+  const filteredAvatars = avatars.filter((a) => a.name.toLowerCase().includes(avatarSearch.trim().toLowerCase()))
+  const activeAvatar = filteredAvatars.find((a) => a.photoUrl && a.photoUrl === previewAvatarUrl)
+    ?? filteredAvatars.find((a) => a.photoUrl && selAvatars.some((x) => x.url === a.photoUrl))
+    ?? filteredAvatars.find((a) => a.photoUrl)
+    ?? null
+  const selectedAvatarUrl = selAvatars[0]?.url ?? null
 
   return (
     <div className="animate-fade-in -mx-8 -mt-2">
@@ -195,24 +208,24 @@ export default function CustomImageCreatorPage() {
       </div>
 
       {/* Contenu centré */}
-      <div className="max-w-[820px] mx-auto px-6 pt-12 pb-16">
-        <div className="text-center mb-7">
-          <h2 className="font-display font-extrabold text-[28px] text-text-primary">Créer une image</h2>
-          <p className="text-[14px] text-text-muted mt-1.5">Décris ce que tu veux · ajoute du contexte · génère</p>
+      <div className="max-w-[980px] mx-auto px-6 pt-14 pb-16">
+        <div className="text-center mb-10">
+          <h2 className="font-display font-extrabold text-[34px] leading-tight text-zinc-950">Create an Image</h2>
+          <p className="text-[20px] text-zinc-800 mt-3">Describe what you want · add context · generate</p>
         </div>
 
         {/* Composer */}
-        <div className="bg-bg-surface border border-border rounded-neo-xl overflow-hidden shadow-neo-sm">
+        <div className="bg-[#fbfaf9] border border-zinc-200 rounded-[22px] overflow-hidden shadow-[0_1px_2px_rgb(17_17_19/0.04),0_8px_22px_rgb(17_17_19/0.06)]">
           {/* Pièces jointes */}
-          <div className="flex items-center gap-1 px-3 py-2.5 border-b border-border">
-            <button onClick={openProductModal} disabled={busy} className="flex items-center gap-2 px-3 py-1.5 rounded-neo-md text-[13px] font-medium text-text-secondary hover:bg-fg/[0.05] hover:text-text-primary transition-colors disabled:opacity-50">
-              <Plus size={16} /> Ajouter un produit
+          <div className="flex items-center gap-9 px-8 py-6 border-b border-zinc-200">
+            <button onClick={openProductModal} disabled={busy} className="flex items-center gap-3 text-[18px] font-bold text-zinc-800 hover:text-zinc-950 transition-colors disabled:opacity-50">
+              <Plus size={22} strokeWidth={2.1} /> Add Product
             </button>
-            <button onClick={() => { setSelMedia([]); setMediaModalOpen(true); loadProducts() }} disabled={busy} className="flex items-center gap-2 px-3 py-1.5 rounded-neo-md text-[13px] font-medium text-text-secondary hover:bg-fg/[0.05] hover:text-text-primary transition-colors disabled:opacity-50">
-              <ImageIcon size={16} /> Ajouter un média
+            <button onClick={() => { setSelMedia([]); setMediaModalOpen(true); loadProducts() }} disabled={busy} className="flex items-center gap-3 text-[18px] font-bold text-zinc-800 hover:text-zinc-950 transition-colors disabled:opacity-50">
+              <ImageIcon size={23} strokeWidth={2.1} /> Add Media
             </button>
-            <button onClick={openAvatarPicker} disabled={busy} className="flex items-center gap-2 px-3 py-1.5 rounded-neo-md text-[13px] font-medium text-text-secondary hover:bg-fg/[0.05] hover:text-text-primary transition-colors disabled:opacity-50">
-              <UserRound size={16} /> Ajouter un avatar
+            <button onClick={openAvatarPicker} disabled={busy} className="flex items-center gap-3 text-[18px] font-bold text-zinc-800 hover:text-zinc-950 transition-colors disabled:opacity-50">
+              <UserRound size={24} strokeWidth={2.1} /> Add Avatar
             </button>
           </div>
 
@@ -235,49 +248,53 @@ export default function CustomImageCreatorPage() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             rows={5}
-            placeholder="Décris l'image que tu veux créer…"
-            className="w-full bg-transparent border-0 p-4 outline-none resize-none focus:shadow-none text-[14px] leading-relaxed text-text-primary placeholder:text-text-faint min-h-[140px]"
+            placeholder="Describe the image you want to create..."
+            className="w-full bg-transparent border-0 px-8 py-7 outline-none resize-none focus:shadow-none text-[20px] leading-relaxed text-zinc-950 placeholder:text-zinc-400 min-h-[210px]"
           />
 
           {/* Réglages bas */}
-          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-border flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="nb-label">Ratio</span>
-              <div className="flex items-center gap-1 bg-bg-elevated rounded-neo-md p-0.5">
+          <div className="flex items-center justify-between gap-4 px-6 py-3 border-t border-zinc-200 flex-wrap">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-[17px] font-extrabold text-zinc-800 whitespace-nowrap">Aspect Ratio</span>
+              <div className="flex items-center gap-1 bg-zinc-200 rounded-[16px] p-1">
                 {RATIOS.map((r) => (
                   <button key={r.id} onClick={() => setRatio(r)}
-                    className={`px-3 py-1.5 rounded-neo text-[12px] font-semibold transition-colors ${ratio.id === r.id ? 'bg-bg-card text-text-primary shadow-neo-sm' : 'text-text-muted hover:text-text-primary'}`}>
+                    className={`h-11 px-4 rounded-[13px] inline-flex items-center gap-2 text-[17px] font-extrabold transition-colors ${ratio.id === r.id ? 'bg-white text-zinc-950 shadow-sm' : 'text-zinc-700 hover:text-zinc-950'}`}>
+                    <span className={`inline-block border border-current ${r.id === '1:1' ? 'w-4 h-4 rounded-[3px]' : r.id === '16:9' ? 'w-5 h-2.5 rounded-[2px]' : 'w-2.5 h-5 rounded-[2px]'}`} />
                     {r.label}
                   </button>
                 ))}
+                <button className="h-11 px-4 rounded-[13px] inline-flex items-center gap-2 text-[17px] font-extrabold text-zinc-700 hover:text-zinc-950 transition-colors">
+                  More <ChevronDown size={17} className="text-zinc-500" />
+                </button>
               </div>
             </div>
             <button onClick={() => setQuality(quality === 'standard' ? 'hd' : 'standard')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-neo-md text-[12px] font-semibold text-text-secondary hover:bg-fg/[0.05] transition-colors">
-              <Layers size={14} /> {quality === 'standard' ? 'Standard' : 'HD'} <ChevronDown size={13} />
+              className="h-11 flex items-center gap-3 px-4 rounded-[13px] text-[17px] font-extrabold text-zinc-800 hover:bg-zinc-100 transition-colors">
+              <Layers size={23} /> {quality === 'standard' ? 'Standard' : 'HD'} <ChevronDown size={18} className="text-zinc-500" />
             </button>
           </div>
         </div>
 
         {/* Variations */}
-        <div className="flex items-center justify-between mt-5 mb-3">
+        <div className="flex items-center justify-between mt-6 mb-5 px-1">
           <div>
-            <p className="text-[14px] font-bold text-text-primary">Variations</p>
-            <p className="text-[12px] text-text-muted">Combien d&apos;images générer</p>
+            <p className="text-[20px] font-extrabold text-zinc-950">Variations</p>
+            <p className="text-[17px] text-zinc-800 mt-1">How many images to generate</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setVariations((v) => Math.max(1, v - 1))} className="w-9 h-9 rounded-full border border-border flex items-center justify-center text-text-secondary hover:bg-fg/[0.05] transition-colors" aria-label="Moins"><Minus size={16} /></button>
-            <span className="text-[16px] font-bold text-text-primary w-5 text-center">{variations}</span>
-            <button onClick={() => setVariations((v) => Math.min(4, v + 1))} className="w-9 h-9 rounded-full border border-border flex items-center justify-center text-text-secondary hover:bg-fg/[0.05] transition-colors" aria-label="Plus"><Plus size={16} /></button>
+          <div className="flex items-center gap-5">
+            <button onClick={() => setVariations((v) => Math.max(1, v - 1))} className="w-11 h-11 rounded-full border border-zinc-200 flex items-center justify-center text-zinc-400 hover:bg-zinc-50 hover:text-zinc-950 transition-colors" aria-label="Moins"><Minus size={18} /></button>
+            <span className="text-[25px] font-extrabold text-zinc-950 w-6 text-center">{variations}</span>
+            <button onClick={() => setVariations((v) => Math.min(4, v + 1))} className="w-11 h-11 rounded-full border border-zinc-200 flex items-center justify-center text-zinc-950 hover:bg-zinc-50 transition-colors" aria-label="Plus"><Plus size={21} /></button>
           </div>
         </div>
 
         {/* Générer */}
         <button onClick={generate} disabled={generating || busy || !prompt.trim()}
-          className="w-full py-3.5 rounded-neo-lg bg-gradient-accent text-white font-bold text-[15px] flex items-center justify-center gap-2 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-50 disabled:cursor-not-allowed">
+          className="w-full h-16 rounded-[18px] bg-[#ff987f] text-white font-extrabold text-[22px] flex items-center justify-center gap-4 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:cursor-not-allowed shadow-sm">
           {generating
-            ? <><span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Génération…</>
-            : <><Sparkles size={18} /> Générer · ~{cost} $</>}
+            ? <><span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Generating...</>
+            : <><Sparkles size={24} /> Generate <span className="text-white/70">·</span> <span className="inline-flex items-center gap-2"><span className="w-5 h-5 rounded-full bg-white/30 flex items-center justify-center text-[12px]">◆</span>{variations}</span></>}
         </button>
 
         {/* Résultats */}
@@ -563,45 +580,134 @@ export default function CustomImageCreatorPage() {
         </div>
       )}
 
-      {/* Picker d'avatar (multi-sélection) */}
+      {/* Picker d'avatar */}
       {pickerOpen && (
         <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5 animate-fade-in" onClick={() => setPickerOpen(false)}>
-          <div className="w-full max-w-[640px] max-h-[85vh] bg-bg-card border border-border rounded-neo-lg shadow-neo overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <h3 className="font-display font-bold text-[17px] text-text-primary">Choisir un avatar</h3>
-              <button onClick={() => setPickerOpen(false)} className="text-text-muted hover:text-text-primary transition-colors"><X size={18} /></button>
+          <div className="w-full max-w-[1080px] h-[88vh] max-h-[88vh] bg-white text-zinc-950 border border-border rounded-neo-lg shadow-neo overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h3 className="font-display font-bold text-[19px] text-zinc-950">Choisir un avatar</h3>
+              <button onClick={() => setPickerOpen(false)} className="text-zinc-500 hover:text-zinc-950 transition-colors" aria-label="Fermer"><X size={20} /></button>
             </div>
-            <div className="flex-1 overflow-y-auto p-5 min-h-[240px]">
-              {avatars.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center py-12">
-                  <UserRound size={40} className="text-text-faint mb-3" strokeWidth={1.5} />
-                  <p className="text-[13px] text-text-secondary">Aucun avatar disponible.</p>
+
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="min-h-0 flex flex-col border-r border-zinc-200">
+                <div className="px-5 py-4 border-b border-zinc-200 bg-white">
+                  <div className="grid grid-cols-1 md:grid-cols-[minmax(180px,1fr)_132px_112px_108px_48px] gap-3">
+                    <label className="h-12 flex items-center gap-3 rounded-[10px] border border-zinc-200 bg-white px-4 shadow-sm min-w-0">
+                      <Search size={22} className="text-zinc-900" />
+                      <input
+                        value={avatarSearch}
+                        onChange={(e) => setAvatarSearch(e.target.value)}
+                        placeholder="Search..."
+                        className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[17px] font-semibold text-zinc-950 placeholder:text-zinc-700 focus:shadow-none"
+                      />
+                    </label>
+                    <button className="h-12 px-4 rounded-[10px] border border-zinc-200 bg-white shadow-sm inline-flex items-center justify-between gap-4 text-[15px] font-bold text-zinc-950 hover:bg-zinc-50 transition">
+                      All Gender <ChevronDown size={18} className="text-zinc-500" />
+                    </button>
+                    <button className="h-12 px-4 rounded-[10px] border border-zinc-200 bg-white shadow-sm inline-flex items-center justify-between gap-4 text-[15px] font-bold text-zinc-950 hover:bg-zinc-50 transition">
+                      All Age <ChevronDown size={18} className="text-zinc-500" />
+                    </button>
+                    <button className="h-12 px-4 rounded-[10px] border border-zinc-200 bg-white shadow-sm inline-flex items-center justify-between gap-3 text-[15px] font-bold text-zinc-950 hover:bg-zinc-50 transition">
+                      <SlidersHorizontal size={19} /> More <ChevronDown size={18} className="text-zinc-500" />
+                    </button>
+                    <button onClick={() => { setAvatarSearch(''); setSelAvatars([]); setPreviewAvatarUrl(null) }} className="w-12 h-12 rounded-[10px] flex items-center justify-center text-zinc-500 hover:bg-zinc-100 transition" aria-label="Réinitialiser les filtres">
+                      <RotateCcw size={21} />
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                  {avatars.map((a) => {
-                    const sel = a.photoUrl ? selAvatars.some((x) => x.url === a.photoUrl) : false
-                    return (
-                      <button key={a.id} disabled={!a.photoUrl}
-                        onClick={() => { if (a.photoUrl) toggleAvatar(a.photoUrl, a.name) }}
-                        className={`relative rounded-neo-lg overflow-hidden border-2 aspect-[4/5] bg-bg-elevated transition-colors disabled:opacity-40 ${sel ? 'border-accent' : 'border-transparent hover:border-border-strong'}`}>
-                        {a.photoUrl
-                          // eslint-disable-next-line @next/next/no-img-element
-                          ? <img src={a.photoUrl} alt={a.name} className="absolute inset-0 w-full h-full object-cover" />
-                          : <span className="absolute inset-0 flex items-center justify-center text-[10px] text-text-faint">—</span>}
-                        <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-[11px] font-semibold text-white truncate text-left">{a.name}</span>
-                        {sel && <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-accent text-white flex items-center justify-center"><Check size={12} /></span>}
+
+                <div className="flex-1 min-h-0 overflow-y-auto p-5">
+                  {filteredAvatars.length === 0 ? (
+                    <div className="h-full min-h-[380px] flex flex-col items-center justify-center text-center py-12">
+                      <UserRound size={48} className="text-zinc-300 mb-3" strokeWidth={1.5} />
+                      <p className="text-[17px] font-extrabold text-zinc-950">Aucun avatar disponible.</p>
+                      <p className="text-[14px] text-zinc-500 mt-1">Crée un avatar dans Avatar Studio pour le retrouver ici.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {filteredAvatars.map((a, index) => {
+                        const sel = a.photoUrl ? selectedAvatarUrl === a.photoUrl : false
+                        const previewed = a.photoUrl ? activeAvatar?.photoUrl === a.photoUrl : false
+                        return (
+                          <button key={a.id} disabled={!a.photoUrl}
+                            onClick={() => { if (a.photoUrl) toggleAvatar(a.photoUrl, a.name) }}
+                            className={`group relative aspect-[4/5.3] rounded-[12px] overflow-hidden bg-zinc-100 border-2 transition disabled:opacity-40 ${sel ? 'border-accent ring-2 ring-accent/30' : previewed ? 'border-zinc-400' : 'border-zinc-200 hover:border-zinc-300'}`}>
+                            {a.photoUrl
+                              // eslint-disable-next-line @next/next/no-img-element
+                              ? <img src={a.photoUrl} alt={a.name} className="absolute inset-0 w-full h-full object-cover transition duration-200 group-hover:scale-[1.02]" />
+                              : <span className="absolute inset-0 flex items-center justify-center text-[12px] text-zinc-400">—</span>}
+                            <span className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 rounded-[9px] bg-zinc-950/90 px-2 py-1 text-[12px] font-extrabold text-white shadow-sm">
+                              <Layers size={14} /> 1
+                            </span>
+                            <span className="absolute left-2.5 bottom-2.5 max-w-[72%] rounded-full bg-white px-2.5 py-1 text-[11px] font-extrabold uppercase leading-none text-zinc-950 shadow-sm truncate">
+                              {a.name || `Model ${index + 1}`}
+                            </span>
+                            {sel && <span className="absolute inset-0 rounded-[13px] ring-2 ring-inset ring-accent pointer-events-none" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <aside className="min-h-0 flex flex-col bg-white">
+                {activeAvatar?.photoUrl ? (
+                  <>
+                    <div className="flex-1 min-h-0 overflow-y-auto p-5 pb-6">
+                      <div className="relative aspect-[4/4.25] overflow-hidden rounded-[14px] bg-zinc-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={activeAvatar.photoUrl} alt={activeAvatar.name} className="absolute inset-0 w-full h-full object-cover" />
+                      </div>
+                      <div className="pt-5">
+                        <h3 className="font-display text-[22px] font-extrabold leading-tight text-zinc-950">{activeAvatar.name}</h3>
+                        <p className="mt-1 text-[16px] font-medium text-zinc-700">Regular</p>
+
+                        <div className="mt-6 flex items-center gap-2 text-zinc-950">
+                          <Layers size={20} />
+                          <span className="text-[17px] font-extrabold">Variations</span>
+                          <span className="ml-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-[12px] font-extrabold text-accent">1</span>
+                          <span className="text-[15px] text-zinc-800">· pick a look</span>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-3 gap-2.5">
+                          {[activeAvatar.photoUrl, activeAvatar.photoUrl].map((url, index) => (
+                            <button
+                              key={`${url}-${index}`}
+                              onClick={() => toggleAvatar(url, activeAvatar.name)}
+                              className={`relative aspect-square overflow-hidden rounded-[10px] bg-zinc-100 border-2 transition ${selectedAvatarUrl === url && index === 0 ? 'border-accent' : 'border-transparent hover:border-zinc-300'}`}
+                              aria-label={`Variation ${index + 1}`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                              {selectedAvatarUrl === url && index === 0 && (
+                                <span className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-white shadow-sm">
+                                  <Check size={14} />
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="h-[70px] flex items-center justify-between gap-3 border-t border-zinc-200 bg-white px-5">
+                      <p className="min-w-0 text-[16px] font-medium text-zinc-800 truncate">Using <span className="font-extrabold text-zinc-950">{activeAvatar.name}</span></p>
+                      <button onClick={() => useAvatarModel({ name: activeAvatar.name, photoUrl: activeAvatar.photoUrl! })}
+                        className="h-11 flex-shrink-0 rounded-[10px] bg-accent px-4 text-[15px] font-extrabold text-white shadow-neo-solid hover:brightness-105 active:scale-[0.99] transition">
+                        Use this model
                       </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border">
-              <button onClick={() => setPickerOpen(false)} className="px-4 py-2 rounded-neo-md border border-border text-[13px] font-semibold text-text-primary hover:bg-fg/[0.05] transition">Annuler</button>
-              <button onClick={useSelectedAvatars} disabled={selAvatars.length === 0} className="px-5 py-2 rounded-neo-md bg-gradient-accent text-white text-[13px] font-bold hover:brightness-105 transition disabled:opacity-50">
-                Utiliser la sélection{selAvatars.length > 0 ? ` (${selAvatars.length})` : ''}
-              </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center px-8">
+                    <UserRound size={50} className="text-zinc-300 mb-4" strokeWidth={1.5} />
+                    <p className="text-[18px] font-extrabold text-zinc-950">Sélectionne un modèle</p>
+                    <p className="mt-1 text-[14px] text-zinc-500">L’aperçu et les variations apparaîtront ici.</p>
+                  </div>
+                )}
+              </aside>
             </div>
           </div>
         </div>
