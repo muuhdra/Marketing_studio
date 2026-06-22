@@ -225,6 +225,67 @@ export const products = pgTable('products', {
   index('products_user_id_idx').on(t.user_id),
 ])
 
+// ── Brand Assets (bibliothèque média de la marque) ──
+export const brand_folders = pgTable('brand_folders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id').notNull(),
+  name: text('name').notNull(),
+  color: text('color'),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('brand_folders_user_id_idx').on(t.user_id),
+])
+
+export const brand_assets = pgTable('brand_assets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id').notNull(),
+  folder_id: uuid('folder_id'),
+  type: text('type').notNull(),            // 'image' | 'video' | 'audio'
+  name: text('name').notNull(),
+  path: text('path').notNull(),            // chemin dans le bucket assets
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('brand_assets_user_id_idx').on(t.user_id),
+])
+
+// Templates publicitaires de la marque (réutilisés à la création de pubs statiques)
+export const brand_templates = pgTable('brand_templates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id').notNull(),
+  name: text('name').notNull(),
+  prompt: text('prompt'),                  // prompt si généré par IA
+  path: text('path').notNull(),            // chemin image dans le bucket assets
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('brand_templates_user_id_idx').on(t.user_id),
+])
+
+export const shooting_models = pgTable('shooting_models', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id').notNull(),
+  shot_type: text('shot_type').notNull(),               // UPPER BODY | LOWER BODY | FULL BODY
+  background_color: text('background_color').notNull(),  // BEIGE | LIGHT GREY | OFF WHITE | CREAM | ...
+  nationality: text('nationality'),                      // nationalité du mannequin (diversité)
+  prompt: text('prompt'),                                // prompt de génération
+  path: text('path').notNull(),                          // chemin image dans le bucket assets
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('shooting_models_user_id_idx').on(t.user_id),
+])
+
+export const product_models = pgTable('product_models', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id').notNull(),
+  kind: text('kind').notNull(),              // actor | hand
+  category: text('category'),                // verticale (acteurs) ; null pour les mains
+  nationality: text('nationality'),          // nationalité de l'acteur (diversité)
+  prompt: text('prompt'),
+  path: text('path').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('product_models_user_id_idx').on(t.user_id),
+])
+
 export const avatar_outfits = pgTable('avatar_outfits', {
   id: uuid('id').primaryKey().defaultRandom(),
   avatar_id: uuid('avatar_id').notNull().references(() => avatars.id, { onDelete: 'cascade' }),

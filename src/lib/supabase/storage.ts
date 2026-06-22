@@ -36,6 +36,18 @@ export const ASSET_PATHS = {
   // Image de produit (persistante) — userId en 1er dossier (RLS)
   productImage: (userId: string, fileId: string, ext: string = 'png') =>
     `${userId}/products/${fileId}.${ext}`,
+  // Asset de marque (image/vidéo/audio) — userId en 1er dossier (RLS)
+  brandAsset: (userId: string, fileId: string, ext: string) =>
+    `${userId}/brand-assets/${fileId}.${ext}`,
+  // Template publicitaire de la marque (image) — userId en 1er dossier (RLS)
+  brandTemplate: (userId: string, fileId: string, ext: string = 'png') =>
+    `${userId}/brand-templates/${fileId}.${ext}`,
+  // Mannequin « Shooting Mode » généré (image) — userId en 1er dossier (RLS)
+  shootingModel: (userId: string, fileId: string, ext: string = 'png') =>
+    `${userId}/shooting-models/${fileId}.${ext}`,
+  // Acteur / main « Shooting Produit » (image) — userId en 1er dossier (RLS)
+  productModel: (userId: string, fileId: string, ext: string = 'png') =>
+    `${userId}/product-models/${fileId}.${ext}`,
 } as const
 
 // Chemins dans le bucket OUTPUTS (éphémère)

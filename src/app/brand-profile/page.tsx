@@ -2,9 +2,11 @@
 
 import { useState } from 'react'
 import { ArrowRight, Globe2, MessageSquare, Mic, Palette, ShoppingBag, Sparkles, Store, Telescope, UsersRound, Wand2 } from 'lucide-react'
+import { useSettings } from '@/lib/stores/settingsStore'
 
 export default function BrandProfilePage() {
   const [websitePromptOpen, setWebsitePromptOpen] = useState(false)
+  const studioName = useSettings((s) => s.studioName)
 
   return (
     <main className="min-h-screen bg-[#eeeeee] text-[#111111]">
@@ -66,7 +68,7 @@ export default function BrandProfilePage() {
             </div>
 
             <h2 className="mt-10 font-display text-[40px] font-extrabold leading-tight tracking-tight sm:text-[48px]">
-              Welcome to <span className="text-[#ef3d12]">HeyOz</span> 👋
+              Welcome to <span className="text-[#ef3d12]">{studioName}</span> 👋
             </h2>
             <p className="mt-3 text-[20px] font-semibold text-[#353539]">
               Let&apos;s create your brand profile
@@ -125,7 +127,7 @@ export default function BrandProfilePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-4 py-6">
           <div className="w-full max-w-[760px] animate-fade-in rounded-[18px] bg-[#eeeeee] px-8 py-9 text-[#111111] shadow-[0_24px_80px_rgba(0,0,0,0.38)] sm:px-11 sm:py-12">
             <h2 className="font-display text-[30px] font-extrabold leading-tight tracking-tight sm:text-[34px]">
-              Add your website to supercharge HeyOz
+              Add your website to supercharge {studioName}
             </h2>
             <p className="mt-7 max-w-[650px] text-[22px] font-medium leading-relaxed text-[#26262a]">
               Share your site and we&apos;ll set up your whole brand for you, in seconds.

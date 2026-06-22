@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import Sidebar from '@/components/layout/Sidebar'
 import Toaster from '@/components/ui/Toaster'
+import GlobalChat from '@/components/ui/GlobalChat'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
@@ -37,6 +38,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </main>
       </div>
       <Toaster />
+      <GlobalChat />
     </div>
   )
 }

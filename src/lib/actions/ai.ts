@@ -55,7 +55,7 @@ import {
   cloneVoiceElevenLabs,
   isVoiceCloneEnabled,
 } from '@/lib/ai/voice-clone'
-import { reverseEngineerPrompt, describeAvatarFromImage } from '@/lib/ai/vision'
+import { reverseEngineerPrompt, describeAvatarFromImage, describeProductScene, suggestFashionScene } from '@/lib/ai/vision'
 
 // ─── Research Agent : Perplexity ─────────────────────────────────────────────
 
@@ -181,6 +181,18 @@ export async function actionGenerateAvatarPhoto(options: {
 export async function actionDescribeAvatarFromImage(input: { dataUrl: string }): Promise<string> {
   await requireAuth()
   return describeAvatarFromImage(input.dataUrl)
+}
+
+/** Analyse une image produit → { product, background } pour un décor cohérent (Gemini vision) */
+export async function actionDescribeProductScene(input: { imageUrl?: string; imageData?: string }) {
+  await requireAuth()
+  return describeProductScene(input)
+}
+
+/** Suggère une scène de shooting mode à partir du vêtement + mannequin (Gemini vision) */
+export async function actionSuggestFashionScene(input: { clothingUrl?: string; modelUrl?: string; garmentType?: string; modelHint?: string; description?: string }) {
+  await requireAuth()
+  return suggestFashionScene(input)
 }
 
 /** Fiche de référence personnage (planche 3×3 multi-poses) — Nano Banana */

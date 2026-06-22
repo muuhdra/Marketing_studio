@@ -19,7 +19,14 @@ export const useToastStore = create<ToastState>((set) => ({
 
   add: (message, variant = 'info') => {
     const id = Math.random().toString(36).slice(2)
-    set((s) => ({ toasts: [...s.toasts, { id, message, variant }] }))
+    // Garde-fou : on ne stocke JAMAIS un objet (ex. une Error passée par erreur via un `catch (e: any)`)
+    // — sinon React plante au rendu (« Objects are not valid as a React child »).
+    const text = typeof message === 'string'
+      ? message
+      : (message && typeof message === 'object' && 'message' in (message as Record<string, unknown>)
+          ? String((message as { message: unknown }).message)
+          : String(message ?? 'Une erreur est survenue'))
+    set((s) => ({ toasts: [...s.toasts, { id, message: text, variant }] }))
     // Auto-dismiss après 4s
     setTimeout(() => {
       set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))

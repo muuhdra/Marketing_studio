@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMediaStore } from '@/lib/stores/mediaStore'
-import { ArrowLeft, Plus, Image as ImageIcon, UserRound, Sparkles, Minus, Layers, X, ChevronDown, Package, Check, Link2 as LinkIcon, Upload, Film, Search, SlidersHorizontal, RotateCcw } from 'lucide-react'
+import { Plus, Image as ImageIcon, UserRound, Sparkles, Minus, Layers, X, ChevronDown, ChevronLeft, ImagePlus, Package, Check, Link2 as LinkIcon, Upload, Film, Search, SlidersHorizontal, RotateCcw } from 'lucide-react'
+import { PageShell, MainPanel, WizardHeader } from '@/components/features/creer/WizardKit'
 import { actionGenerateImage } from '@/lib/actions/ai'
 import { actionUploadTempImage, actionListAvatarsForPicker } from '@/lib/actions/avatar-assets'
-import { actionUploadProductImage, actionCreateProduct, actionListProducts, actionAnalyzeProductUrl, type ProductDTO } from '@/lib/actions/products'
+import { actionUploadProductImage, actionCreateProduct, actionListProducts, actionAnalyzeProductUrl, actionDeleteProduct, type ProductDTO } from '@/lib/actions/products'
 import { persistOutput } from '@/lib/actions/outputs'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useToast } from '@/lib/stores/toastStore'
@@ -79,6 +80,17 @@ export default function CustomImageCreatorPage() {
   async function loadProducts() {
     try { setProducts(await actionListProducts()) } catch { /* vide */ }
   }
+  async function deleteProduct(id: string) {
+    if (busy) return
+    setBusy(true)
+    try {
+      await actionDeleteProduct(id)
+      setSelProduct(null)
+      await loadProducts()
+      toast.success('Produit supprimé')
+    } catch (e: any) { toast.error(e.message ?? 'Suppression impossible') }
+    finally { setBusy(false) }
+  }
   function openProductModal() { setSelProduct(null); setProductModalOpen(true); loadProducts() }
   function resetProductForm() {
     setPName(''); setPDesc(''); setPCurrency('USD'); setPPrice(''); setPBenefits([]); setPBenefitInput(''); setPImage(null); setPImages([]); setPUrl('')
@@ -147,6 +159,39 @@ export default function CustomImageCreatorPage() {
     setMediaModalOpen(false)
   }
 
+  // ── Fenêtre « Create Asset with AI » (générer une image puis l'ajouter à la bibliothèque) ──
+  const ASPECTS = ['1:1', '16:9', '9:16', '4:5']
+  const [aiOpen, setAiOpen]     = useState(false)
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiAspect, setAiAspect] = useState('1:1')
+  const [aiBusy, setAiBusy]     = useState(false)
+  const [aiResult, setAiResult] = useState<string | null>(null)
+
+  function aspectToSize(a: string): '1024x1024' | '1792x1024' | '1024x1792' {
+    if (a === '16:9') return '1792x1024'
+    if (a === '9:16' || a === '4:5') return '1024x1792'
+    return '1024x1024'
+  }
+  function openAiCreator() { setAiPrompt(''); setAiResult(null); setAiOpen(true) }
+  async function generateAiMedia() {
+    if (aiBusy) return
+    if (!aiPrompt.trim()) { toast.error('Décris l\'image à générer'); return }
+    setAiBusy(true); setAiResult(null)
+    try {
+      const size = aspectToSize(aiAspect)
+      const res = await actionGenerateImage({ prompt: aiPrompt.trim(), model: 'nano-banana', size, quality: 'standard', n: 1 })
+      const url = res[0]?.url
+      if (!url) throw new Error('Aucune image générée')
+      setAiResult(url)
+      setUploadedMedia((m) => m.includes(url) ? m : [url, ...m])
+      setSelMedia((s) => s.includes(url) ? s : [...s, url])
+      setMediaTab('assets')
+      persistOutput({ type: 'image', sourceUrl: url, title: `Image · ${aiAspect}`, engine: 'nano-banana', prompt: aiPrompt.slice(0, 200), format: size }).catch(() => {})
+      toast.success('Image générée ✓')
+    } catch (e: any) { toast.error(e.message ?? 'Échec de la génération') }
+    finally { setAiBusy(false) }
+  }
+
   async function openAvatarPicker() {
     setSelAvatars([]); setPreviewAvatarUrl(null); setAvatarSearch(''); setPickerOpen(true)
     try { setAvatars(await actionListAvatarsForPicker()) } catch { /* vide */ }
@@ -170,8 +215,12 @@ export default function CustomImageCreatorPage() {
     if (!prompt.trim()) { toast.error('Décris l\'image à créer'); return }
     setGenerating(true); setResults([])
     try {
+      // Fidélité : si des références sont attachées (produit/avatar/média), on impose de les respecter.
+      const refNote = refs.length
+        ? ` Use the attached reference image${refs.length > 1 ? 's' : ''} faithfully: keep the same products and people exactly as shown (shape, colors, text, logo, identity, proportions). Do not invent or replace them.`
+        : ''
       const res = await actionGenerateImage({
-        prompt:  prompt.trim(),
+        prompt:  prompt.trim() + refNote,
         model:   'nano-banana',
         size:    ratio.size,
         quality,
@@ -196,36 +245,31 @@ export default function CustomImageCreatorPage() {
   const selectedAvatarUrl = selAvatars[0]?.url ?? null
 
   return (
-    <div className="animate-fade-in -mx-8 -mt-2">
+    <>
+    <PageShell>
+      <MainPanel>
+        <WizardHeader title="Créateur d'image" onBack={() => router.push('/creer/image')} />
 
-      {/* Barre de titre */}
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-border bg-bg-base/80 backdrop-blur-sm sticky top-0 z-10">
-        <button onClick={() => router.push('/creer/image')} className="w-9 h-9 rounded-neo-md flex items-center justify-center text-text-secondary hover:bg-fg/[0.05] transition-colors" aria-label="Retour">
-          <ArrowLeft size={18} />
-        </button>
-        <span className="w-px h-5 bg-border" />
-        <h1 className="font-display font-bold text-[18px] text-text-primary">Créateur d&apos;image</h1>
-      </div>
-
-      {/* Contenu centré */}
-      <div className="max-w-[980px] mx-auto px-6 pt-14 pb-16">
-        <div className="text-center mb-10">
-          <h2 className="font-display font-extrabold text-[34px] leading-tight text-zinc-950">Create an Image</h2>
-          <p className="text-[20px] text-zinc-800 mt-3">Describe what you want · add context · generate</p>
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {/* Contenu centré */}
+          <div className="max-w-[760px] mx-auto px-6 pt-8 pb-12">
+        <div className="text-center mb-7">
+          <h2 className="font-display font-extrabold text-[26px] leading-tight text-zinc-950">Create an Image</h2>
+          <p className="text-[15px] text-zinc-700 mt-2">Describe what you want · add context · generate</p>
         </div>
 
         {/* Composer */}
-        <div className="bg-[#fbfaf9] border border-zinc-200 rounded-[22px] overflow-hidden shadow-[0_1px_2px_rgb(17_17_19/0.04),0_8px_22px_rgb(17_17_19/0.06)]">
+        <div className="bg-[#fbfaf9] border border-zinc-200 rounded-[18px] overflow-hidden shadow-[0_1px_2px_rgb(17_17_19/0.04),0_8px_22px_rgb(17_17_19/0.06)]">
           {/* Pièces jointes */}
-          <div className="flex items-center gap-9 px-8 py-6 border-b border-zinc-200">
-            <button onClick={openProductModal} disabled={busy} className="flex items-center gap-3 text-[18px] font-bold text-zinc-800 hover:text-zinc-950 transition-colors disabled:opacity-50">
-              <Plus size={22} strokeWidth={2.1} /> Add Product
+          <div className="flex items-center gap-6 px-5 py-4 border-b border-zinc-200">
+            <button onClick={openProductModal} disabled={busy} className="flex items-center gap-2 text-[14px] font-bold text-zinc-800 hover:text-zinc-950 transition-colors disabled:opacity-50">
+              <Plus size={17} strokeWidth={2.1} /> Add Product
             </button>
-            <button onClick={() => { setSelMedia([]); setMediaModalOpen(true); loadProducts() }} disabled={busy} className="flex items-center gap-3 text-[18px] font-bold text-zinc-800 hover:text-zinc-950 transition-colors disabled:opacity-50">
-              <ImageIcon size={23} strokeWidth={2.1} /> Add Media
+            <button onClick={() => { setSelMedia([]); setMediaModalOpen(true); loadProducts() }} disabled={busy} className="flex items-center gap-2 text-[14px] font-bold text-zinc-800 hover:text-zinc-950 transition-colors disabled:opacity-50">
+              <ImageIcon size={18} strokeWidth={2.1} /> Add Media
             </button>
-            <button onClick={openAvatarPicker} disabled={busy} className="flex items-center gap-3 text-[18px] font-bold text-zinc-800 hover:text-zinc-950 transition-colors disabled:opacity-50">
-              <UserRound size={24} strokeWidth={2.1} /> Add Avatar
+            <button onClick={openAvatarPicker} disabled={busy} className="flex items-center gap-2 text-[14px] font-bold text-zinc-800 hover:text-zinc-950 transition-colors disabled:opacity-50">
+              <UserRound size={18} strokeWidth={2.1} /> Add Avatar
             </button>
           </div>
 
@@ -247,54 +291,51 @@ export default function CustomImageCreatorPage() {
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            rows={5}
+            rows={4}
             placeholder="Describe the image you want to create..."
-            className="w-full bg-transparent border-0 px-8 py-7 outline-none resize-none focus:shadow-none text-[20px] leading-relaxed text-zinc-950 placeholder:text-zinc-400 min-h-[210px]"
+            className="w-full bg-transparent border-0 px-5 py-4 outline-none resize-none focus:shadow-none text-[15px] leading-relaxed text-zinc-950 placeholder:text-zinc-400 min-h-[150px]"
           />
 
           {/* Réglages bas */}
-          <div className="flex items-center justify-between gap-4 px-6 py-3 border-t border-zinc-200 flex-wrap">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="text-[17px] font-extrabold text-zinc-800 whitespace-nowrap">Aspect Ratio</span>
-              <div className="flex items-center gap-1 bg-zinc-200 rounded-[16px] p-1">
+          <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-t border-zinc-200 flex-wrap">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-[13px] font-extrabold text-zinc-800 whitespace-nowrap">Aspect Ratio</span>
+              <div className="flex items-center gap-1 bg-zinc-200 rounded-[12px] p-0.5">
                 {RATIOS.map((r) => (
                   <button key={r.id} onClick={() => setRatio(r)}
-                    className={`h-11 px-4 rounded-[13px] inline-flex items-center gap-2 text-[17px] font-extrabold transition-colors ${ratio.id === r.id ? 'bg-white text-zinc-950 shadow-sm' : 'text-zinc-700 hover:text-zinc-950'}`}>
-                    <span className={`inline-block border border-current ${r.id === '1:1' ? 'w-4 h-4 rounded-[3px]' : r.id === '16:9' ? 'w-5 h-2.5 rounded-[2px]' : 'w-2.5 h-5 rounded-[2px]'}`} />
+                    className={`h-9 px-3 rounded-[10px] inline-flex items-center gap-1.5 text-[13px] font-extrabold transition-colors ${ratio.id === r.id ? 'bg-white text-zinc-950 shadow-sm' : 'text-zinc-700 hover:text-zinc-950'}`}>
+                    <span className={`inline-block border border-current ${r.id === '1:1' ? 'w-3 h-3 rounded-[3px]' : r.id === '16:9' ? 'w-4 h-2 rounded-[2px]' : 'w-2 h-4 rounded-[2px]'}`} />
                     {r.label}
                   </button>
                 ))}
-                <button className="h-11 px-4 rounded-[13px] inline-flex items-center gap-2 text-[17px] font-extrabold text-zinc-700 hover:text-zinc-950 transition-colors">
-                  More <ChevronDown size={17} className="text-zinc-500" />
-                </button>
               </div>
             </div>
             <button onClick={() => setQuality(quality === 'standard' ? 'hd' : 'standard')}
-              className="h-11 flex items-center gap-3 px-4 rounded-[13px] text-[17px] font-extrabold text-zinc-800 hover:bg-zinc-100 transition-colors">
-              <Layers size={23} /> {quality === 'standard' ? 'Standard' : 'HD'} <ChevronDown size={18} className="text-zinc-500" />
+              className="h-9 flex items-center gap-2 px-3 rounded-[10px] text-[13px] font-extrabold text-zinc-800 hover:bg-zinc-100 transition-colors">
+              <Layers size={17} /> {quality === 'standard' ? 'Standard' : 'HD'} <ChevronDown size={15} className="text-zinc-500" />
             </button>
           </div>
         </div>
 
         {/* Variations */}
-        <div className="flex items-center justify-between mt-6 mb-5 px-1">
+        <div className="flex items-center justify-between mt-5 mb-4 px-1">
           <div>
-            <p className="text-[20px] font-extrabold text-zinc-950">Variations</p>
-            <p className="text-[17px] text-zinc-800 mt-1">How many images to generate</p>
+            <p className="text-[15px] font-extrabold text-zinc-950">Variations</p>
+            <p className="text-[13px] text-zinc-700 mt-0.5">How many images to generate</p>
           </div>
-          <div className="flex items-center gap-5">
-            <button onClick={() => setVariations((v) => Math.max(1, v - 1))} className="w-11 h-11 rounded-full border border-zinc-200 flex items-center justify-center text-zinc-400 hover:bg-zinc-50 hover:text-zinc-950 transition-colors" aria-label="Moins"><Minus size={18} /></button>
-            <span className="text-[25px] font-extrabold text-zinc-950 w-6 text-center">{variations}</span>
-            <button onClick={() => setVariations((v) => Math.min(4, v + 1))} className="w-11 h-11 rounded-full border border-zinc-200 flex items-center justify-center text-zinc-950 hover:bg-zinc-50 transition-colors" aria-label="Plus"><Plus size={21} /></button>
+          <div className="flex items-center gap-4">
+            <button onClick={() => setVariations((v) => Math.max(1, v - 1))} className="w-9 h-9 rounded-full border border-zinc-200 flex items-center justify-center text-zinc-400 hover:bg-zinc-50 hover:text-zinc-950 transition-colors" aria-label="Moins"><Minus size={16} /></button>
+            <span className="text-[20px] font-extrabold text-zinc-950 w-6 text-center">{variations}</span>
+            <button onClick={() => setVariations((v) => Math.min(4, v + 1))} className="w-9 h-9 rounded-full border border-zinc-200 flex items-center justify-center text-zinc-950 hover:bg-zinc-50 transition-colors" aria-label="Plus"><Plus size={18} /></button>
           </div>
         </div>
 
         {/* Générer */}
         <button onClick={generate} disabled={generating || busy || !prompt.trim()}
-          className="w-full h-16 rounded-[18px] bg-[#ff987f] text-white font-extrabold text-[22px] flex items-center justify-center gap-4 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:cursor-not-allowed shadow-sm">
+          className="w-full h-12 rounded-[14px] bg-[#ff987f] text-white font-extrabold text-[16px] flex items-center justify-center gap-3 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:cursor-not-allowed shadow-sm">
           {generating
-            ? <><span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Generating...</>
-            : <><Sparkles size={24} /> Generate <span className="text-white/70">·</span> <span className="inline-flex items-center gap-2"><span className="w-5 h-5 rounded-full bg-white/30 flex items-center justify-center text-[12px]">◆</span>{variations}</span></>}
+            ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Generating...</>
+            : <><Sparkles size={19} /> Generate <span className="text-white/70">·</span> <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-white/30 flex items-center justify-center text-[11px]">◆</span>{variations}</span></>}
         </button>
 
         {/* Résultats */}
@@ -308,7 +349,10 @@ export default function CustomImageCreatorPage() {
             ))}
           </div>
         )}
-      </div>
+          </div>
+        </div>
+      </MainPanel>
+    </PageShell>
 
       {/* Lightbox */}
       {lightbox && (
@@ -382,7 +426,7 @@ export default function CustomImageCreatorPage() {
 
                   <div className="flex items-center gap-3"><span className="flex-1 h-px bg-border" /><span className="text-[11px] text-text-dim font-semibold">OU</span><span className="flex-1 h-px bg-border" /></div>
 
-                  <button onClick={() => setMediaModalOpen(false)} className="flex items-center justify-center gap-2 py-2.5 rounded-neo-md border border-border text-[13px] font-semibold text-text-primary hover:bg-fg/[0.05] transition">
+                  <button onClick={openAiCreator} className="flex items-center justify-center gap-2 py-2.5 rounded-neo-md border border-border text-[13px] font-semibold text-text-primary hover:bg-fg/[0.05] transition">
                     <Sparkles size={15} className="text-accent" /> Créer avec l&apos;IA
                   </button>
 
@@ -424,6 +468,69 @@ export default function CustomImageCreatorPage() {
         )
       })()}
 
+      {/* Fenêtre — Create Asset with AI */}
+      {aiOpen && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/85 px-5 py-7 animate-fade-in">
+          <button type="button" aria-label="Fermer" onClick={() => setAiOpen(false)} className="absolute inset-0 cursor-default" />
+          <div className="relative z-10 h-[min(82vh,720px)] w-full max-w-[1060px] overflow-hidden rounded-[12px] border border-[#cfcfcf] bg-[#eeeeee] text-[#17181b] shadow-neo">
+            <button type="button" aria-label="Fermer" onClick={() => setAiOpen(false)} className="absolute right-6 top-5 z-20 text-[#202124] transition hover:text-[#e33508]"><X size={22} strokeWidth={2.25} /></button>
+
+            <header className="flex h-[74px] items-center gap-3 border-b border-[#d2d2d2] px-7">
+              <button type="button" aria-label="Retour" onClick={() => setAiOpen(false)} className="grid h-8 w-8 place-items-center rounded-full text-[#15161a] transition hover:bg-[#dedede]"><ChevronLeft size={20} strokeWidth={2.4} /></button>
+              <Sparkles size={21} strokeWidth={2.25} className="text-[#15161a]" />
+              <h2 className="font-display text-[21px] font-extrabold leading-tight tracking-tight">Create Asset with AI</h2>
+            </header>
+
+            <div className="grid h-[calc(100%-74px)] min-h-0 gap-5 overflow-y-auto px-7 py-7 lg:grid-cols-[1fr_390px]">
+              <section className="flex min-h-[520px] flex-col">
+                <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-[#303136]">Image Preview</p>
+                <div className="mt-3 flex min-h-[430px] flex-1 items-center justify-center overflow-hidden rounded-[9px] border border-[#c7c7c7] bg-[#e4e4e4] px-5 text-center">
+                  {aiBusy ? (
+                    <div className="flex flex-col items-center gap-4 text-[#3c3d41]">
+                      <span className="h-9 w-9 rounded-full border-2 border-[#e33508] border-t-transparent animate-spin" />
+                      <p className="text-[15px] font-semibold">Génération en cours…</p>
+                    </div>
+                  ) : aiResult ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={aiResult} alt="Image générée" className="max-h-full max-w-full object-contain rounded-[6px]" />
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <ImagePlus size={54} strokeWidth={2.35} className="text-[#77787d]" />
+                      <p className="mt-5 text-[15px] font-medium text-[#222327]">Describe your image and click &quot;Create with AI&quot;</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <aside className="flex min-h-[520px] flex-col">
+                <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-[#303136]">Describe the image you want to create</p>
+                <div className="mt-3 flex min-h-[180px] flex-col rounded-[9px] border border-[#c7c7c7] bg-[#e4e4e4] p-4">
+                  <textarea
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="e.g., A professional product photo of a sleek coffee mug on a marble countertop, soft morning light, minimalist style"
+                    className="min-h-[96px] flex-1 resize-none bg-transparent text-[15px] font-medium leading-relaxed text-[#1d1e22] outline-none placeholder:text-[#7d838d]"
+                  />
+                  <button type="button" onClick={() => setAiAspect((a) => ASPECTS[(ASPECTS.indexOf(a) + 1) % ASPECTS.length])} className="mt-auto flex w-fit items-center gap-2 pt-6 text-[14px] font-extrabold text-[#34353a] transition hover:text-[#e33508]">
+                    <SlidersHorizontal size={16} strokeWidth={2.35} />
+                    Aspect Ratio: {aiAspect}
+                  </button>
+                </div>
+                <button type="button" onClick={generateAiMedia} disabled={aiBusy} className="mt-3 flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#d27a62] px-4 text-[14px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105 disabled:opacity-60">
+                  <Sparkles size={17} strokeWidth={2.4} />
+                  {aiBusy ? 'Generating…' : 'Create with AI'}
+                </button>
+                {aiResult && !aiBusy && (
+                  <button type="button" onClick={() => setAiOpen(false)} className="mt-2 flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#c7c7c7] bg-[#e4e4e4] px-4 text-[14px] font-extrabold text-[#17181b] transition hover:border-[#bdbdbd]">
+                    <Check size={16} /> Ajouté à la bibliothèque · Retour
+                  </button>
+                )}
+              </aside>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modale — Ajouter un produit */}
       {productModalOpen && (
         <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5 animate-fade-in" onClick={() => setProductModalOpen(false)}>
@@ -451,7 +558,8 @@ export default function CustomImageCreatorPage() {
                 <div className="grid grid-cols-3 gap-3">
                   {products.map((p, i) => (
                     <button key={p.id} onClick={() => setSelProduct(i)}
-                      className={`relative rounded-neo-lg overflow-hidden border-2 aspect-square bg-bg-elevated transition-colors ${selProduct === i ? 'border-accent' : 'border-transparent hover:border-border-strong'}`}>
+                      className={`group relative rounded-neo-lg overflow-hidden border-2 aspect-square bg-bg-elevated transition-colors ${selProduct === i ? 'border-accent' : 'border-transparent hover:border-border-strong'}`}>
+                      <span role="button" tabIndex={-1} aria-label="Supprimer le produit" title="Supprimer le produit" onClick={(event) => { event.stopPropagation(); deleteProduct(p.id) }} className="absolute left-1.5 top-1.5 z-10 grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-bg-card/95 text-text-secondary shadow-neo-sm ring-1 ring-border backdrop-blur opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-coral hover:text-white hover:ring-coral hover:scale-110 active:scale-95"><X size={14} strokeWidth={2.5} /></span>
                       {p.imageUrl
                         // eslint-disable-next-line @next/next/no-img-element
                         ? <img src={p.imageUrl} alt={p.name} className="absolute inset-0 w-full h-full object-cover" />
@@ -583,67 +691,63 @@ export default function CustomImageCreatorPage() {
       {/* Picker d'avatar */}
       {pickerOpen && (
         <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5 animate-fade-in" onClick={() => setPickerOpen(false)}>
-          <div className="w-full max-w-[1080px] h-[88vh] max-h-[88vh] bg-white text-zinc-950 border border-border rounded-neo-lg shadow-neo overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="font-display font-bold text-[19px] text-zinc-950">Choisir un avatar</h3>
-              <button onClick={() => setPickerOpen(false)} className="text-zinc-500 hover:text-zinc-950 transition-colors" aria-label="Fermer"><X size={20} /></button>
+          <div className="w-full max-w-[940px] h-[82vh] max-h-[82vh] bg-white text-zinc-950 border border-border rounded-neo-lg shadow-neo overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-200">
+              <h3 className="font-display font-bold text-[16px] text-zinc-950">Choisir un avatar</h3>
+              <button onClick={() => setPickerOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950 transition-colors" aria-label="Fermer"><X size={18} /></button>
             </div>
 
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="min-h-0 flex flex-col border-r border-zinc-200">
-                <div className="px-5 py-4 border-b border-zinc-200 bg-white">
-                  <div className="grid grid-cols-1 md:grid-cols-[minmax(180px,1fr)_132px_112px_108px_48px] gap-3">
-                    <label className="h-12 flex items-center gap-3 rounded-[10px] border border-zinc-200 bg-white px-4 shadow-sm min-w-0">
-                      <Search size={22} className="text-zinc-900" />
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px]">
+              <div className="min-h-0 flex flex-col">
+                <div className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <label className="h-10 flex flex-1 items-center gap-2.5 rounded-[10px] border border-zinc-200 bg-white px-3 shadow-sm min-w-0">
+                      <Search size={17} className="text-zinc-700" />
                       <input
                         value={avatarSearch}
                         onChange={(e) => setAvatarSearch(e.target.value)}
-                        placeholder="Search..."
-                        className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[17px] font-semibold text-zinc-950 placeholder:text-zinc-700 focus:shadow-none"
+                        placeholder="Rechercher un avatar…"
+                        className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[14px] font-semibold text-zinc-950 placeholder:text-zinc-500 focus:shadow-none"
                       />
                     </label>
-                    <button className="h-12 px-4 rounded-[10px] border border-zinc-200 bg-white shadow-sm inline-flex items-center justify-between gap-4 text-[15px] font-bold text-zinc-950 hover:bg-zinc-50 transition">
-                      All Gender <ChevronDown size={18} className="text-zinc-500" />
-                    </button>
-                    <button className="h-12 px-4 rounded-[10px] border border-zinc-200 bg-white shadow-sm inline-flex items-center justify-between gap-4 text-[15px] font-bold text-zinc-950 hover:bg-zinc-50 transition">
-                      All Age <ChevronDown size={18} className="text-zinc-500" />
-                    </button>
-                    <button className="h-12 px-4 rounded-[10px] border border-zinc-200 bg-white shadow-sm inline-flex items-center justify-between gap-3 text-[15px] font-bold text-zinc-950 hover:bg-zinc-50 transition">
-                      <SlidersHorizontal size={19} /> More <ChevronDown size={18} className="text-zinc-500" />
-                    </button>
-                    <button onClick={() => { setAvatarSearch(''); setSelAvatars([]); setPreviewAvatarUrl(null) }} className="w-12 h-12 rounded-[10px] flex items-center justify-center text-zinc-500 hover:bg-zinc-100 transition" aria-label="Réinitialiser les filtres">
-                      <RotateCcw size={21} />
-                    </button>
+                    <span className="flex-shrink-0 text-[12px] font-semibold text-zinc-500">{filteredAvatars.length} avatar{filteredAvatars.length > 1 ? 's' : ''}</span>
+                    {(avatarSearch || selAvatars.length > 0) && (
+                      <button onClick={() => { setAvatarSearch(''); setSelAvatars([]); setPreviewAvatarUrl(null) }} className="w-10 h-10 flex-shrink-0 rounded-[10px] border border-zinc-200 flex items-center justify-center text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950 transition" aria-label="Réinitialiser">
+                        <RotateCcw size={17} />
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex-1 min-h-0 overflow-y-auto p-5">
+                <div className="flex-1 min-h-0 overflow-y-auto p-4">
                   {filteredAvatars.length === 0 ? (
-                    <div className="h-full min-h-[380px] flex flex-col items-center justify-center text-center py-12">
-                      <UserRound size={48} className="text-zinc-300 mb-3" strokeWidth={1.5} />
-                      <p className="text-[17px] font-extrabold text-zinc-950">Aucun avatar disponible.</p>
-                      <p className="text-[14px] text-zinc-500 mt-1">Crée un avatar dans Avatar Studio pour le retrouver ici.</p>
+                    <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center py-10">
+                      <UserRound size={40} className="text-zinc-300 mb-3" strokeWidth={1.5} />
+                      <p className="text-[15px] font-extrabold text-zinc-950">Aucun avatar disponible.</p>
+                      <p className="text-[13px] text-zinc-500 mt-1">Crée un avatar dans Avatar Studio pour le retrouver ici.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-3 lg:grid-cols-4 gap-2.5">
                       {filteredAvatars.map((a, index) => {
                         const sel = a.photoUrl ? selectedAvatarUrl === a.photoUrl : false
                         const previewed = a.photoUrl ? activeAvatar?.photoUrl === a.photoUrl : false
                         return (
                           <button key={a.id} disabled={!a.photoUrl}
                             onClick={() => { if (a.photoUrl) toggleAvatar(a.photoUrl, a.name) }}
-                            className={`group relative aspect-[4/5.3] rounded-[12px] overflow-hidden bg-zinc-100 border-2 transition disabled:opacity-40 ${sel ? 'border-accent ring-2 ring-accent/30' : previewed ? 'border-zinc-400' : 'border-zinc-200 hover:border-zinc-300'}`}>
+                            className={`group relative aspect-[4/5] rounded-[10px] overflow-hidden bg-zinc-100 border-2 transition disabled:opacity-40 ${sel ? 'border-accent ring-2 ring-accent/30' : previewed ? 'border-zinc-400' : 'border-zinc-200 hover:border-zinc-300'}`}>
                             {a.photoUrl
                               // eslint-disable-next-line @next/next/no-img-element
                               ? <img src={a.photoUrl} alt={a.name} className="absolute inset-0 w-full h-full object-cover transition duration-200 group-hover:scale-[1.02]" />
                               : <span className="absolute inset-0 flex items-center justify-center text-[12px] text-zinc-400">—</span>}
-                            <span className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 rounded-[9px] bg-zinc-950/90 px-2 py-1 text-[12px] font-extrabold text-white shadow-sm">
-                              <Layers size={14} /> 1
-                            </span>
-                            <span className="absolute left-2.5 bottom-2.5 max-w-[72%] rounded-full bg-white px-2.5 py-1 text-[11px] font-extrabold uppercase leading-none text-zinc-950 shadow-sm truncate">
+                            {sel && (
+                              <span className="absolute top-2 right-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent text-white shadow-sm">
+                                <Check size={12} strokeWidth={3} />
+                              </span>
+                            )}
+                            <span className="absolute left-2 bottom-2 max-w-[78%] rounded-full bg-white px-2 py-0.5 text-[10px] font-extrabold uppercase leading-none text-zinc-950 shadow-sm truncate">
                               {a.name || `Model ${index + 1}`}
                             </span>
-                            {sel && <span className="absolute inset-0 rounded-[13px] ring-2 ring-inset ring-accent pointer-events-none" />}
+                            {sel && <span className="absolute inset-0 rounded-[10px] ring-2 ring-inset ring-accent pointer-events-none" />}
                           </button>
                         )
                       })}
@@ -652,59 +756,32 @@ export default function CustomImageCreatorPage() {
                 </div>
               </div>
 
-              <aside className="min-h-0 flex flex-col bg-white">
+              <aside className="min-h-0 flex flex-col bg-zinc-50/70">
                 {activeAvatar?.photoUrl ? (
                   <>
-                    <div className="flex-1 min-h-0 overflow-y-auto p-5 pb-6">
-                      <div className="relative aspect-[4/4.25] overflow-hidden rounded-[14px] bg-zinc-100">
+                    <div className="flex-1 min-h-0 overflow-y-auto p-4 pb-5">
+                      <div className="relative aspect-[4/4.25] overflow-hidden rounded-[12px] bg-zinc-100">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={activeAvatar.photoUrl} alt={activeAvatar.name} className="absolute inset-0 w-full h-full object-cover" />
                       </div>
-                      <div className="pt-5">
-                        <h3 className="font-display text-[22px] font-extrabold leading-tight text-zinc-950">{activeAvatar.name}</h3>
-                        <p className="mt-1 text-[16px] font-medium text-zinc-700">Regular</p>
-
-                        <div className="mt-6 flex items-center gap-2 text-zinc-950">
-                          <Layers size={20} />
-                          <span className="text-[17px] font-extrabold">Variations</span>
-                          <span className="ml-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-[12px] font-extrabold text-accent">1</span>
-                          <span className="text-[15px] text-zinc-800">· pick a look</span>
-                        </div>
-
-                        <div className="mt-3 grid grid-cols-3 gap-2.5">
-                          {[activeAvatar.photoUrl, activeAvatar.photoUrl].map((url, index) => (
-                            <button
-                              key={`${url}-${index}`}
-                              onClick={() => toggleAvatar(url, activeAvatar.name)}
-                              className={`relative aspect-square overflow-hidden rounded-[10px] bg-zinc-100 border-2 transition ${selectedAvatarUrl === url && index === 0 ? 'border-accent' : 'border-transparent hover:border-zinc-300'}`}
-                              aria-label={`Variation ${index + 1}`}
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                              {selectedAvatarUrl === url && index === 0 && (
-                                <span className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-white shadow-sm">
-                                  <Check size={14} />
-                                </span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
+                      <div className="pt-3.5">
+                        <h3 className="font-display text-[18px] font-extrabold leading-tight text-zinc-950">{activeAvatar.name}</h3>
+                        <p className="mt-1 text-[13px] leading-relaxed text-zinc-600">Référence pour guider le visage et le style de la génération.</p>
                       </div>
                     </div>
 
-                    <div className="h-[70px] flex items-center justify-between gap-3 border-t border-zinc-200 bg-white px-5">
-                      <p className="min-w-0 text-[16px] font-medium text-zinc-800 truncate">Using <span className="font-extrabold text-zinc-950">{activeAvatar.name}</span></p>
+                    <div className="h-[60px] flex items-center justify-between gap-3 border-t border-zinc-200/70 px-4">
+                      <p className="min-w-0 text-[14px] font-medium text-zinc-800 truncate">Using <span className="font-extrabold text-zinc-950">{activeAvatar.name}</span></p>
                       <button onClick={() => useAvatarModel({ name: activeAvatar.name, photoUrl: activeAvatar.photoUrl! })}
-                        className="h-11 flex-shrink-0 rounded-[10px] bg-accent px-4 text-[15px] font-extrabold text-white shadow-neo-solid hover:brightness-105 active:scale-[0.99] transition">
+                        className="h-10 flex-shrink-0 rounded-[10px] bg-accent px-4 text-[14px] font-extrabold text-white shadow-neo-solid hover:brightness-105 active:scale-[0.99] transition">
                         Use this model
                       </button>
                     </div>
                   </>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-center px-8">
-                    <UserRound size={50} className="text-zinc-300 mb-4" strokeWidth={1.5} />
-                    <p className="text-[18px] font-extrabold text-zinc-950">Sélectionne un modèle</p>
-                    <p className="mt-1 text-[14px] text-zinc-500">L’aperçu et les variations apparaîtront ici.</p>
+                    <UserRound size={42} className="text-zinc-300 mb-3" strokeWidth={1.5} />
+                    <p className="text-[15px] font-extrabold text-zinc-950">Sélectionne un avatar</p>
                   </div>
                 )}
               </aside>
@@ -712,6 +789,6 @@ export default function CustomImageCreatorPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

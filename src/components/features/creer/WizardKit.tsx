@@ -46,6 +46,26 @@ export function AnimatedStep({ phase, children }: { phase: AnimationPhase; child
   )
 }
 
+// Transition « pile glissante » — calquée sur le flux « + Create Actor » (Characters).
+// Toutes les étapes sont montées simultanément ; le conteneur se translate verticalement
+// de `translateY(-index * 100%)` pour faire défiler une étape à la fois.
+export function StepSlider({ index, children, slideClassName = 'flex items-center justify-center px-8 py-10' }: { index: number; children: ReactNode[]; slideClassName?: string }) {
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      <div
+        className="flex h-full w-full flex-col transition-transform duration-500 ease-in-out will-change-transform"
+        style={{ transform: `translateY(-${index * 100}%)` }}
+      >
+        {children.map((node, i) => (
+          <div key={i} className={`h-full w-full shrink-0 overflow-y-auto ${slideClassName}`}>
+            {node}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function ContinueButton({ disabled, onClick, children = 'Continuer' }: { disabled?: boolean; onClick: () => void; children?: ReactNode }) {
   return (
     <button
@@ -55,6 +75,37 @@ export function ContinueButton({ disabled, onClick, children = 'Continuer' }: { 
     >
       {children} <ChevronDown size={16} />
     </button>
+  )
+}
+
+// Bouton « Retour » partagé — à utiliser sur toutes les étapes sauf la première.
+export function BackButton({ onClick, children = 'Retour' }: { onClick: () => void; children?: ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="h-9 rounded-[8px] bg-fg/[0.08] px-4 text-[14px] font-extrabold text-text-primary inline-flex items-center gap-2 hover:bg-fg/[0.12] transition"
+    >
+      <ChevronDown size={16} className="rotate-90" /> {children}
+    </button>
+  )
+}
+
+// Wrapper de page : annule le padding du <main> du dashboard, occupe toute la zone visible,
+// FIXE (pas de scroll de page). Source de vérité — utilisé par toutes les pages à section principale.
+export function PageShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="page animate-fade-in -mx-8 -mt-6 -mb-8 h-screen overflow-hidden px-2 py-1.5">
+      {children}
+    </div>
+  )
+}
+
+// Panneau principal arrondi unifié (header + contenu à l'intérieur). Le contenu interne scrolle, pas la page.
+export function MainPanel({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <section className={`flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-border bg-bg-card shadow-neo-sm ${className}`}>
+      {children}
+    </section>
   )
 }
 

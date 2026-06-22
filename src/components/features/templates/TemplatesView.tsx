@@ -1,226 +1,219 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import Button from '@/components/ui/Button'
-import { Input, Textarea } from '@/components/ui/Input'
-import { useToast } from '@/lib/stores/toastStore'
-import { createTemplate, listTemplates, updateTemplate, deleteTemplate, analyzeTemplate, type TemplateDTO } from '@/lib/actions/templates'
-import { captureVideoFrames } from '@/lib/media/videoFrames'
+import { useState, useRef, useEffect } from 'react'
+import { ChevronLeft, ChevronDown, Check, Video, Image as ImageIcon, LayoutGrid, User } from 'lucide-react'
+import Link from 'next/link'
+import { VIDEO_TEMPLATES, IMAGE_TEMPLATES, TEMPLATE_CATEGORIES as CATEGORIES } from '@/lib/templates/library'
 
-const CATEGORIES = ['ugc', 'commercial', 'shooting', 'visuel', 'autre'] as const
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function TemplatesView() {
-  const toast = useToast()
-  const [templates, setTemplates] = useState<TemplateDTO[]>([])
-  const [loading, setLoading]     = useState(true)
+  const [mode, setMode]       = useState<'video' | 'image'>('video')
+  const [imgTab, setImgTab]   = useState<'library' | 'mine'>('library')
+  const [catOpen, setCatOpen] = useState(false)
+  const [selectedCats, setSelectedCats] = useState<string[]>([])
+  const catRef = useRef<HTMLDivElement>(null)
 
-  // ── Formulaire d'ajout ──
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [fileName, setFileName]       = useState<string | null>(null)
-  const [category, setCategory]       = useState<string>('ugc')
-  const [label, setLabel]             = useState('')
-  const [description, setDescription] = useState('')
-  const [prompt, setPrompt]           = useState('')
-  const [uploading, setUploading]     = useState(false)
-  const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set())
-
-  // ── Édition inline ──
-  const [editId, setEditId]       = useState<string | null>(null)
-  const [editLabel, setEditLabel] = useState('')
-  const [editPrompt, setEditPrompt] = useState('')
-  const [editCategory, setEditCategory] = useState('ugc')
-  const [saving, setSaving]       = useState(false)
-
-  async function load() {
-    setLoading(true)
-    try { setTemplates(await listTemplates()) } catch (e: any) { toast.error(e.message ?? 'Chargement impossible') }
-    finally { setLoading(false) }
-  }
-  useEffect(() => { load() }, [])
-
-  async function handleUpload() {
-    const file = fileRef.current?.files?.[0]
-    if (!file)        { toast.error('Sélectionne un fichier (vidéo ou image)'); return }
-    if (!label.trim()) { toast.error('Donne un libellé'); return }
-    setUploading(true)
-    const needAnalyze = !prompt.trim()
-    // Pour une vidéo sans prompt : capturer plusieurs frames (décomposition Gemini)
-    // depuis le fichier local, avant upload (blob → pas de CORS).
-    let frames: string[] = []
-    if (needAnalyze && file.type.startsWith('video/')) {
-      frames = await captureVideoFrames(file, 6)
-    }
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('category', category)
-      fd.append('label', label.trim())
-      fd.append('description', description.trim())
-      fd.append('prompt', prompt.trim())
-      const created = await createTemplate(fd)
-      const hint = `${created.category} · ${created.label}`
-      setTemplates((t) => [created, ...t])
-      setLabel(''); setDescription(''); setPrompt(''); setFileName(null)
-      if (fileRef.current) fileRef.current.value = ''
-
-      if (needAnalyze) {
-        // Reverse-engineering automatique du prompt (en arrière-plan).
-        setAnalyzingIds((s) => new Set(s).add(created.id))
-        analyzeTemplate({
-          id: created.id,
-          imageUrl: created.kind === 'image' ? created.url : undefined,
-          frames:   created.kind === 'video' && frames.length > 0 ? frames : undefined,
-          hint,
-        })
-          .then((generated) => {
-            if (generated) {
-              setTemplates((ts) => ts.map((x) => x.id === created.id ? { ...x, prompt: generated } : x))
-              toast.success('Prompt généré par analyse IA ✓')
-            }
-          })
-          .catch(() => toast.error('Analyse IA échouée — tu peux ajouter le prompt manuellement'))
-          .finally(() => setAnalyzingIds((s) => { const n = new Set(s); n.delete(created.id); return n }))
-      } else {
-        toast.success('Template ajouté ✓')
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (catRef.current && !catRef.current.contains(e.target as Node)) {
+        setCatOpen(false)
       }
-    } catch (e: any) {
-      toast.error(e.message ?? 'Échec de l\'upload')
-    } finally {
-      setUploading(false)
     }
-  }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
-  function startEdit(t: TemplateDTO) {
-    setEditId(t.id); setEditLabel(t.label); setEditPrompt(t.prompt ?? ''); setEditCategory(t.category)
-  }
-
-  async function saveEdit() {
-    if (!editId) return
-    setSaving(true)
-    try {
-      await updateTemplate(editId, { label: editLabel.trim(), prompt: editPrompt.trim() || null, category: editCategory })
-      setTemplates((ts) => ts.map((t) => t.id === editId ? { ...t, label: editLabel.trim(), prompt: editPrompt.trim() || null, category: editCategory } : t))
-      setEditId(null)
-      toast.success('Template mis à jour ✓')
-    } catch (e: any) {
-      toast.error(e.message ?? 'Échec de la mise à jour')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function remove(t: TemplateDTO) {
-    if (!confirm(`Supprimer le template « ${t.label} » ?`)) return
-    try {
-      await deleteTemplate(t.id)
-      setTemplates((ts) => ts.filter((x) => x.id !== t.id))
-      toast.success('Template supprimé')
-    } catch (e: any) {
-      toast.error(e.message ?? 'Échec de la suppression')
-    }
+  function toggleCat(cat: string) {
+    setSelectedCats((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+    )
   }
 
   return (
-    <div className="animate-fade-in max-w-[1000px]">
+    <section className="flex h-[calc(100vh-24px)] flex-col overflow-hidden rounded-[18px] border border-[#d7d7d7] bg-[#f8f8f8] text-[#111114] shadow-[0_1px_3px_rgba(0,0,0,0.10)]">
 
-      {/* Header */}
-      <div className="mb-7">
-        <p className="nb-label mb-2">Bibliothèque</p>
-        <h1 className="font-display font-bold text-[28px] tracking-tight text-text-primary">Templates de contenu</h1>
-        <p className="text-[13px] text-text-muted mt-1">Vidéos & images de référence + le prompt qui les a générés. Réutilisés comme point de départ dans les campagnes.</p>
-      </div>
+      {/* ── Header ── */}
+      <header className="flex h-[60px] shrink-0 items-center justify-between border-b border-[#e5e5e5] bg-[#fbfbfb] px-5 sm:px-6">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/dashboard"
+            className="grid h-8 w-8 place-items-center rounded-full text-[#111] transition-colors hover:bg-black/5"
+          >
+            <ChevronLeft size={20} strokeWidth={2.5} />
+          </Link>
+          <h1 className="text-[20px] font-extrabold tracking-tight text-[#111]">Browse templates</h1>
+        </div>
 
-      {/* ── Ajout ── */}
-      <section className="bg-bg-card border border-border rounded-neo-lg p-5 mb-6">
-        <h2 className="font-display font-bold text-[14px] text-text-primary mb-4">Ajouter un template</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-3">
-            <div>
-              <label className="nb-label block mb-1.5">Fichier · vidéo ou image</label>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="video/*,image/*"
-                onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
-                className="font-sans text-[11px] text-text-secondary file:mr-3 file:rounded-neo file:border file:border-border file:bg-bg-surface file:px-3 file:py-1.5 file:font-sans file:text-[11px] file:text-text-primary"
-              />
-              <p className="font-sans text-[9px] text-text-dim mt-1">{fileName ?? 'Max 100 MB'}</p>
-            </div>
-            <div>
-              <label className="nb-label block mb-1.5">Catégorie</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="nb-input text-[13px] py-2 max-w-[220px]">
-                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <Input label="Libellé" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="ex. UGC Unboxing" />
-          </div>
-          <div className="flex flex-col gap-3">
-            <Textarea label="Description (optionnel)" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Courte description du type de contenu" />
-            <Textarea label="Prompt source (optionnel)" rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Le prompt qui a généré ce contenu — à ajouter si tu veux" />
-          </div>
-        </div>
-        <div className="mt-4">
-          <Button onClick={handleUpload} loading={uploading}>Ajouter le template</Button>
-        </div>
-      </section>
+        <div className="flex items-center gap-4">
+          {/* Category dropdown */}
+          <div className="relative" ref={catRef}>
+            <button
+              onClick={() => setCatOpen((o) => !o)}
+              className="flex items-center gap-2 rounded-[10px] border border-[#d5d5d5] bg-[#f5f5f5] px-4 py-2 transition-colors hover:bg-[#eaeaea]"
+            >
+              <span className="text-[11px] font-extrabold uppercase tracking-wide text-[#888]">Categories</span>
+              <span className="text-[14px] font-extrabold text-[#111]">
+                {selectedCats.length === 0 ? 'All categories' : selectedCats.length === 1 ? selectedCats[0] : `${selectedCats.length} selected`}
+              </span>
+              <ChevronDown size={15} strokeWidth={2.5} className={`text-[#555] transition-transform ${catOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-      {/* ── Liste ── */}
-      {loading ? (
-        <div className="grid grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-[220px] rounded-neo-lg border border-border bg-bg-card animate-pulse" />)}
-        </div>
-      ) : templates.length === 0 ? (
-        <div className="py-16 text-center border border-dashed border-border rounded-neo-lg">
-          <p className="font-sans text-[12px] text-text-dim">Aucun template. Ajoute ton premier ci-dessus.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-4">
-          {templates.map((t) => (
-            <div key={t.id} className="bg-bg-card border border-border rounded-neo-lg overflow-hidden flex flex-col">
-              <div className="h-[150px] bg-bg-elevated border-b border-border relative flex items-center justify-center overflow-hidden">
-                {t.kind === 'video' ? (
-                  <video src={t.url} autoPlay muted loop playsInline className="w-full h-full object-cover" />
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={t.url} alt={t.label} className="w-full h-full object-cover" />
-                )}
-                <span className="absolute top-2 left-2 font-sans text-[8px] font-bold uppercase bg-bg-base/90 border border-border rounded px-1.5 py-0.5 text-text-dim">{t.kind}</span>
-                <span className="absolute top-2 right-2 font-sans text-[8px] font-bold uppercase bg-bg-base/90 border border-accent/40 rounded px-1.5 py-0.5 text-accent">{t.category}</span>
+            {catOpen && (
+              <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-[260px] overflow-hidden rounded-[14px] border border-[#e0e0e0] bg-[#f8f8f8] shadow-[0_8px_32px_rgba(0,0,0,0.14)]">
+                {/* All categories row */}
+                <button
+                  onClick={() => setSelectedCats([])}
+                  className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[#efefef]"
+                >
+                  {selectedCats.length === 0
+                    ? <Check size={17} strokeWidth={3} className="text-[#ff4a1c]" />
+                    : <span className="h-[17px] w-[17px]" />}
+                  <span className={`text-[15px] font-extrabold ${selectedCats.length === 0 ? 'text-[#ff4a1c]' : 'text-[#111]'}`}>
+                    All categories
+                  </span>
+                </button>
+
+                <div className="mx-4 border-t border-[#e5e5e5]" />
+
+                {/* Category list with checkboxes */}
+                {CATEGORIES.map((cat) => {
+                  const checked = selectedCats.includes(cat)
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => toggleCat(cat)}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[#efefef]"
+                    >
+                      <span className={`grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[4px] border-2 transition-colors ${
+                        checked ? 'border-[#ff4a1c] bg-[#ff4a1c]' : 'border-[#bbb] bg-white'
+                      }`}>
+                        {checked && <Check size={11} strokeWidth={3.5} className="text-white" />}
+                      </span>
+                      <span className="text-[14px] font-semibold text-[#111]">{cat}</span>
+                    </button>
+                  )
+                })}
               </div>
+            )}
+          </div>
 
-              {editId === t.id ? (
-                <div className="p-3 flex flex-col gap-2">
-                  <Input label="Libellé" value={editLabel} onChange={(e) => setEditLabel(e.target.value)} />
-                  <div>
-                    <label className="nb-label block mb-1">Catégorie</label>
-                    <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="nb-input text-[12px] py-1.5">
-                      {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <Textarea label="Prompt" rows={3} value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)} />
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={saveEdit} loading={saving}>Enregistrer</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setEditId(null)}>Annuler</Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-3 flex flex-col gap-1.5 flex-1">
-                  <p className="font-sans text-[12px] font-bold text-text-primary truncate">{t.label}</p>
-                  {t.prompt
-                    ? <p className="font-sans text-[10px] text-text-dim leading-relaxed line-clamp-3">{t.prompt}</p>
-                    : analyzingIds.has(t.id)
-                      ? <p className="font-sans text-[10px] text-accent italic animate-pulse">Analyse IA du prompt en cours…</p>
-                      : <p className="font-sans text-[10px] text-text-faint italic">Aucun prompt (optionnel)</p>}
-                  <div className="flex items-center gap-2 mt-auto pt-2">
-                    <Button size="sm" variant="secondary" onClick={() => startEdit(t)}>Éditer</Button>
-                    <Button size="sm" variant="danger" onClick={() => remove(t)}>Supprimer</Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+          {/* Video / Image toggle */}
+          <div className="flex h-8 items-center rounded-[8px] bg-[#e8e8e8] p-0.5">
+            <button
+              onClick={() => setMode('video')}
+              className={`flex h-full items-center gap-1.5 rounded-[6px] px-3 text-[13px] font-extrabold shadow-sm transition-colors ${
+                mode === 'video' ? 'bg-[#ff4a1c] text-white' : 'text-[#555] hover:text-[#111]'
+              }`}
+            >
+              <Video size={14} strokeWidth={2.5} />
+              Video
+            </button>
+            <button
+              onClick={() => setMode('image')}
+              className={`flex h-full items-center gap-1.5 rounded-[6px] px-3 text-[13px] font-extrabold shadow-sm transition-colors ${
+                mode === 'image' ? 'bg-[#ff4a1c] text-white' : 'text-[#555] hover:text-[#111]'
+              }`}
+            >
+              <ImageIcon size={14} strokeWidth={2.5} />
+              Image
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Sub-tabs (Image mode only) ── */}
+      {mode === 'image' && (
+        <div className="flex shrink-0 items-center gap-1 border-b border-[#e5e5e5] bg-[#f8f8f8] px-5 py-2.5 sm:px-6">
+          <button
+            onClick={() => setImgTab('library')}
+            className={`flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[13px] font-extrabold transition-colors ${
+              imgTab === 'library'
+                ? 'bg-[#e8e8e8] text-[#111]'
+                : 'text-[#666] hover:bg-[#efefef] hover:text-[#111]'
+            }`}
+          >
+            <LayoutGrid size={14} strokeWidth={2.5} />
+            Library
+          </button>
+          <button
+            onClick={() => setImgTab('mine')}
+            className={`flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[13px] font-extrabold transition-colors ${
+              imgTab === 'mine'
+                ? 'bg-[#e8e8e8] text-[#111]'
+                : 'text-[#666] hover:bg-[#efefef] hover:text-[#111]'
+            }`}
+          >
+            <User size={14} strokeWidth={2.5} />
+            My templates
+          </button>
         </div>
       )}
-    </div>
+
+      {/* ── Main Content ── */}
+      <main className="flex-1 overflow-y-auto p-5 sm:p-6 lg:p-8">
+
+        {/* VIDEO — masonry portrait */}
+        {mode === 'video' && (
+          <div className="columns-2 gap-3 sm:columns-3 md:columns-4 lg:columns-5">
+            {VIDEO_TEMPLATES.map((t) => (
+              <div
+                key={t.id}
+                className="group relative mb-3 w-full cursor-pointer overflow-hidden rounded-[14px] break-inside-avoid"
+              >
+                <div className={`relative w-full ${t.aspect}`}>
+                  <img
+                    src={t.image}
+                    alt={t.title}
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                  <div className="absolute bottom-3 left-3 right-3">
+                    <h3 className="text-[13px] font-extrabold leading-snug text-white drop-shadow-sm">{t.title}</h3>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* IMAGE — uniform 5-col grid */}
+        {mode === 'image' && (
+          <>
+            {imgTab === 'library' ? (
+              <div className="columns-2 gap-3 sm:columns-3 md:columns-4 lg:columns-5">
+                {IMAGE_TEMPLATES.map((t) => (
+                  <div
+                    key={t.id}
+                    className="group relative mb-3 w-full cursor-pointer overflow-hidden rounded-[14px] break-inside-avoid"
+                  >
+                    <div className={`relative w-full ${t.aspect}`}>
+                      <img
+                        src={t.image}
+                        alt={t.title}
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                      <div className="absolute bottom-2.5 left-2.5 right-2.5">
+                        <h3 className="text-[12px] font-extrabold leading-snug text-white drop-shadow-sm">{t.title}</h3>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* My Templates empty state */
+              <div className="flex h-full min-h-[300px] flex-col items-center justify-center gap-3 text-center">
+                <div className="grid h-14 w-14 place-items-center rounded-full bg-[#e8e8e8]">
+                  <ImageIcon size={28} strokeWidth={2} className="text-[#999]" />
+                </div>
+                <p className="text-[16px] font-extrabold text-[#111]">No templates yet</p>
+                <p className="text-[14px] font-medium text-[#666]">Your saved image templates will appear here</p>
+              </div>
+            )}
+          </>
+        )}
+      </main>
+    </section>
   )
 }

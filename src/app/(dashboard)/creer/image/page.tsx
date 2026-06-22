@@ -42,7 +42,7 @@ const IMAGE_TYPES = [
 
 export default function CreerImagePage() {
   return (
-    <div className="animate-fade-in max-w-[920px] mx-auto py-2">
+    <div className="animate-fade-in max-w-[780px] mx-auto py-2">
       <h1 className="font-display font-extrabold text-[30px] tracking-tight text-text-primary mb-7">
         Que veux-tu créer&nbsp;?
       </h1>
@@ -52,7 +52,7 @@ export default function CreerImagePage() {
           <Link
             key={id}
             href={href}
-            className="group relative rounded-neo-xl overflow-hidden border border-border bg-bg-card shadow-neo hover:shadow-neo-lg hover:-translate-y-0.5 transition-all min-h-[320px]"
+            className="group relative rounded-neo-xl overflow-hidden border border-border bg-bg-card shadow-neo hover:shadow-neo-lg hover:-translate-y-0.5 transition-all min-h-[240px]"
           >
             {/* Collage (placeholder — 3 vignettes décalées) */}
             <div className="absolute inset-x-0 top-0 h-[58%] flex items-center justify-center gap-3 px-7">
@@ -60,9 +60,9 @@ export default function CreerImagePage() {
                 <span
                   key={i}
                   className="rounded-neo-md bg-bg-elevated border border-border flex items-center justify-center text-text-faint overflow-hidden"
-                  style={{ width: 92, height: 116, marginTop: i === 1 ? 0 : 22 + i * 4 }}
+                  style={{ width: 82, height: 106, marginTop: i === 1 ? 0 : 22 + i * 4 }}
                 >
-                  <Icon size={26} />
+                  <Icon size={22} />
                 </span>
               ))}
             </div>
@@ -71,10 +71,10 @@ export default function CreerImagePage() {
             <div className="absolute inset-0 bg-gradient-to-t from-accent from-[40%] via-accent/70 to-transparent" />
 
             {/* Texte + flèche */}
-            <div className="absolute inset-x-0 bottom-0 p-6">
-              <ArrowUpRight size={24} className="absolute right-6 bottom-7 text-white/90 group-hover:scale-110 transition-transform" />
-              <h3 className="font-display font-extrabold text-[22px] text-white leading-tight pr-8">{title}</h3>
-              <p className="text-[13px] text-white/85 mt-1.5 pr-8 leading-relaxed">{desc}</p>
+            <div className="absolute inset-x-0 bottom-0 p-5">
+              <ArrowUpRight size={20} className="absolute right-5 bottom-6 text-white/90 group-hover:scale-110 transition-transform" />
+              <h3 className="font-display font-extrabold text-[19px] text-white leading-tight pr-8">{title}</h3>
+              <p className="text-[13px] text-white/85 mt-1 pr-8 leading-relaxed">{desc}</p>
             </div>
           </Link>
         ))}

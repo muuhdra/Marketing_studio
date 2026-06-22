@@ -2,41 +2,24 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Box, Check, Gem, Hand, Image as ImageIcon, PlusCircle, Sparkles, Upload, UserCircle, UserRound, Wand2 } from 'lucide-react'
-import { actionListProducts, type ProductDTO } from '@/lib/actions/products'
+import { Box, Check, Download, Gem, Hand, Image as ImageIcon, Maximize2, PlusCircle, Sparkles, Upload, UserCircle, UserRound, Wand2, X } from 'lucide-react'
+import { actionListProducts, actionUploadProductImage, actionCreateProduct, actionDeleteProduct, type ProductDTO } from '@/lib/actions/products'
 import { actionListAvatarsForPicker, actionUploadTempImage } from '@/lib/actions/avatar-assets'
-import { actionGenerateImage } from '@/lib/actions/ai'
+import { actionListProductModels, actionGenerateProductModel, actionUploadProductModel, type ProductModelDTO } from '@/lib/actions/product-models'
+import { MODEL_NATIONALITIES, MODEL_BODY_TYPES, MODEL_SKIN_TONES, nationalityFlag } from '@/lib/fashion/model-traits'
+import { actionGenerateImage, actionDescribeProductScene } from '@/lib/actions/ai'
 import { persistOutput } from '@/lib/actions/outputs'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useToast } from '@/lib/stores/toastStore'
-import { AnimatedStep, ContinueButton, DevStepNav, WizardHeader, ratioStyle, ratioToSize, type AnimationPhase } from '@/components/features/creer/WizardKit'
+import { BackButton, ContinueButton, DevStepNav, MainPanel, PageShell, WizardHeader, ratioStyle, ratioToSize, StepSlider } from '@/components/features/creer/WizardKit'
 
-const DIMENSIONS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']
+// Nano Banana ne produit que 3 tailles → on n'expose que les 3 formats réels.
+const DIMENSIONS: { ratio: string; label: string }[] = [
+  { ratio: '9:16', label: 'Portrait' },
+  { ratio: '1:1', label: 'Carré' },
+  { ratio: '16:9', label: 'Paysage' },
+]
 const ACTOR_CATEGORIES = ['BEAUTÉ', 'MODE', 'ALIMENTAIRE', 'GADGETS', 'COMPLÉMENTS', 'JOUETS']
-
-const FALLBACK_ACTORS = [
-  { id: 'actor-1', name: 'Mina', category: 'BEAUTÉ', photoUrl: 'https://images.unsplash.com/photo-1596815064285-45ed8a9c0463?auto=format&fit=crop&w=600&q=80' },
-  { id: 'actor-2', name: 'Rose', category: 'BEAUTÉ', photoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&q=80' },
-  { id: 'actor-3', name: 'Hana', category: 'BEAUTÉ', photoUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=600&q=80' },
-  { id: 'actor-4', name: 'Sora', category: 'BEAUTÉ', photoUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=600&q=80' },
-  { id: 'actor-5', name: 'Nari', category: 'BEAUTÉ', photoUrl: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=600&q=80' },
-  { id: 'actor-6', name: 'Yuna', category: 'BEAUTÉ', photoUrl: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=600&q=80' },
-  { id: 'actor-7', name: 'Lina', category: 'BEAUTÉ', photoUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&q=80' },
-  { id: 'actor-8', name: 'Mika', category: 'BEAUTÉ', photoUrl: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=600&q=80' },
-]
-
-const FALLBACK_HANDS = [
-  { id: 'hand-1', name: 'Open Palm', photoUrl: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&w=600&q=80' },
-  { id: 'hand-2', name: 'Pinch Grip', photoUrl: 'https://images.unsplash.com/photo-1505238680356-667803448bb6?auto=format&fit=crop&w=600&q=80' },
-  { id: 'hand-3', name: 'Soft Hold', photoUrl: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=600&q=80' },
-  { id: 'hand-4', name: 'Side Reach', photoUrl: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=600&q=80' },
-  { id: 'hand-5', name: 'Palm Up', photoUrl: 'https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?auto=format&fit=crop&w=600&q=80' },
-  { id: 'hand-6', name: 'Natural Reach', photoUrl: 'https://images.unsplash.com/photo-1583744946564-b52d01e7f922?auto=format&fit=crop&w=600&q=80' },
-  { id: 'hand-7', name: 'Close Grip', photoUrl: 'https://images.unsplash.com/photo-1526045612212-70caf35c14df?auto=format&fit=crop&w=600&q=80' },
-  { id: 'hand-8', name: 'Studio Hand', photoUrl: 'https://images.unsplash.com/photo-1616394584738-fc6e612e71b9?auto=format&fit=crop&w=600&q=80' },
-  { id: 'hand-9', name: 'Clean Shadow', photoUrl: 'https://images.unsplash.com/photo-1507038732509-8b1a5fdf1ddc?auto=format&fit=crop&w=600&q=80' },
-  { id: 'hand-10', name: 'Product Ready', photoUrl: 'https://images.unsplash.com/photo-1522338242992-e1a54906a8da?auto=format&fit=crop&w=600&q=80' },
-]
 
 const PHOTOSHOOT_TYPES = [
   { id: 'showcase', title: 'Vitrine produit', desc: 'Crée des shootings produit professionnels', icon: Box, points: ['Choisis un produit', 'Importe des images', 'Obtiens un shooting pro'] },
@@ -46,6 +29,15 @@ const PHOTOSHOOT_TYPES = [
 const HOLDING_STYLES = [
   { id: 'actor', title: 'Tenu par un acteur', desc: 'Plan d’un avatar tenant ton produit (buste ou corps entier)', icon: UserCircle, points: ['Choisis parmi des avatars variés', 'Positionne le produit librement', 'Idéal pour les gros produits'] },
   { id: 'hand', title: 'Tenu par une main', desc: 'Gros plan d’une main tenant ton produit naturellement', icon: Hand, points: ['Choisis un gros plan de main', 'Positionne le produit précisément', 'Idéal pour les petits produits'] },
+]
+
+const PLACEMENTS = [
+  { id: 'auto', label: 'Auto', pos: 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2', prompt: 'naturally positioned by the pose, wherever it best showcases the product' },
+  { id: 'center', label: 'Centre', pos: 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2', prompt: 'centered in the frame' },
+  { id: 'left', label: 'Gauche', pos: 'left-[24%] top-1/2 -translate-x-1/2 -translate-y-1/2', prompt: 'on the left side of the frame' },
+  { id: 'right', label: 'Droite', pos: 'left-[76%] top-1/2 -translate-x-1/2 -translate-y-1/2', prompt: 'on the right side of the frame' },
+  { id: 'top', label: 'Haut', pos: 'left-1/2 top-[28%] -translate-x-1/2 -translate-y-1/2', prompt: 'raised up high' },
+  { id: 'bottom', label: 'Bas', pos: 'left-1/2 top-[72%] -translate-x-1/2 -translate-y-1/2', prompt: 'held low in the frame' },
 ]
 
 type StepId = 'type' | 'product' | 'productImage' | 'aspect' | 'holdingStyle' | 'actor' | 'hand' | 'position'
@@ -65,13 +57,17 @@ export default function ProductPhotoshootPage() {
   const toast = useToast()
   const actorProductInputRef = useRef<HTMLInputElement | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
-  const [phase, setPhase] = useState<AnimationPhase>('idle')
   const [generating, setGenerating] = useState(false)
   const [generatedUrl, setGeneratedUrl] = useState('')
   const [selectedType, setSelectedType] = useState<string | null>(null)
   const [selectedHoldingStyle, setSelectedHoldingStyle] = useState('')
   const [actorSource, setActorSource] = useState<'heyoz' | 'mine'>('heyoz')
   const [actorCategory, setActorCategory] = useState(ACTOR_CATEGORIES[0])
+  const [actorGender, setActorGender] = useState('All')
+  const [actorNationality, setActorNationality] = useState('All')
+  const [actorBodyType, setActorBodyType] = useState('All')
+  const [handGender, setHandGender] = useState('All')
+  const [handSkin, setHandSkin] = useState('All')
   const [avatars, setAvatars] = useState<{ id: string; name: string; photoUrl: string | null }[]>([])
   const [selectedAvatarUrl, setSelectedAvatarUrl] = useState('')
   const [selectedHandUrl, setSelectedHandUrl] = useState('')
@@ -81,11 +77,98 @@ export default function ProductPhotoshootPage() {
   const [selectedProductImageUrl, setSelectedProductImageUrl] = useState('')
   const [selectedAspectRatio, setSelectedAspectRatio] = useState('9:16')
   const [previewSubtitle, setPreviewSubtitle] = useState('Ton image sélectionnée apparaîtra ici')
+  const [productModels, setProductModels] = useState<ProductModelDTO[]>([])
+  const [busy, setBusy] = useState(false)
+  const [generatingModel, setGeneratingModel] = useState(false)
+  const [extraProductImages, setExtraProductImages] = useState<{ id: string; name: string; url: string }[]>([])
+  const [productPlacement, setProductPlacement] = useState('auto')
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   useEffect(() => {
     actionListProducts().then(setProducts).catch(() => setProducts([]))
     actionListAvatarsForPicker().then(setAvatars).catch(() => setAvatars([]))
+    actionListProductModels().then(setProductModels).catch(() => setProductModels([]))
   }, [])
+
+  // Sélecteur de fichier image.
+  function pickImage(): Promise<File | null> {
+    return new Promise((resolve) => {
+      const input = document.createElement('input')
+      input.type = 'file'; input.accept = 'image/*'
+      input.onchange = () => resolve(input.files?.[0] ?? null)
+      input.click()
+    })
+  }
+  async function reloadProductModels() {
+    try { setProductModels(await actionListProductModels()) } catch { /* vide */ }
+  }
+  // Génère un acteur (catégorie courante) ou une main, persisté, puis le sélectionne.
+  async function generateProductModel(kind: 'actor' | 'hand') {
+    if (generatingModel) return
+    setGeneratingModel(true)
+    try {
+      const dto = await actionGenerateProductModel({
+        kind,
+        category: kind === 'actor' ? actorCategory : null,
+        ...(kind === 'actor'
+          ? { gender: actorGender, nationality: actorNationality, bodyType: actorBodyType }
+          : { gender: handGender, skinTone: handSkin }),
+      })
+      await reloadProductModels()
+      if (dto.url) { if (kind === 'actor') setSelectedAvatarUrl(dto.url); else setSelectedHandUrl(dto.url) }
+      toast.success(kind === 'actor' ? 'Acteur généré ✓' : 'Main générée ✓')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Échec de la génération') }
+    finally { setGeneratingModel(false) }
+  }
+  // Importe un acteur/main custom (persisté).
+  async function uploadProductModel(kind: 'actor' | 'hand') {
+    const file = await pickImage()
+    if (!file) return
+    setBusy(true)
+    try {
+      const fd = new FormData(); fd.append('file', file); fd.append('kind', kind)
+      if (kind === 'actor') fd.append('category', actorCategory)
+      const dto = await actionUploadProductModel(fd)
+      await reloadProductModels()
+      // L'import atterrit dans le catalogue Système (product_models) → on bascule la source pour le voir.
+      if (dto.url) { if (kind === 'actor') { setSelectedAvatarUrl(dto.url); setActorSource('heyoz') } else setSelectedHandUrl(dto.url) }
+      toast.success('Importé ✓')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Erreur upload') }
+    finally { setBusy(false) }
+  }
+  // « Ajouter un produit » : importe une image, crée le produit et le sélectionne.
+  async function addNewProduct() {
+    const file = await pickImage()
+    if (!file) return
+    setBusy(true)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const { path } = await actionUploadProductImage(fd)
+      const name = file.name.replace(/\.[^.]+$/, '') || 'Nouveau produit'
+      await actionCreateProduct({ name, description: null, currency: 'USD', price: null, benefits: [], imagePath: path, additionalPaths: [], sourceUrl: null })
+      const list = await actionListProducts()
+      setProducts(list)
+      const created = list.find((product) => product.name === name)
+      if (created) toggleProduct(created.id)
+      toast.success('Produit créé ✓')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Erreur création') }
+    finally { setBusy(false) }
+  }
+  // « Ajouter depuis la bibliothèque » (étape image produit) : importe une image et la sélectionne.
+  async function uploadProductLibraryImage() {
+    const file = await pickImage()
+    if (!file) return
+    setBusy(true)
+    try {
+      const { url } = await actionUploadTempImage(await fileToDataUrl(file))
+      if (!url) throw new Error('Upload échoué')
+      setExtraProductImages((list) => [{ id: `img-${Date.now()}`, name: file.name, url }, ...list])
+      setSelectedProductImageUrl(url)
+      setPreviewSubtitle('Ton image sélectionnée apparaîtra ici')
+      toast.success('Image ajoutée ✓')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Erreur upload') }
+    finally { setBusy(false) }
+  }
 
   const steps = buildSteps(selectedType, selectedHoldingStyle)
   const stepId = steps[Math.min(currentStep, steps.length - 1)]
@@ -93,15 +176,34 @@ export default function ProductPhotoshootPage() {
   const selectedTypeMeta = PHOTOSHOOT_TYPES.find((type) => type.id === selectedType)
   const SelectedIcon = selectedTypeMeta?.icon
   const selectedProducts = products.filter((product) => selectedProductIds.includes(product.id))
-  const productImageOptions = selectedProducts
-    .map((product) => ({ id: product.id, name: product.name, url: product.imageUrl }))
-    .filter((image): image is { id: string; name: string; url: string } => Boolean(image.url))
+  const productImageOptions = [
+    ...selectedProducts
+      .map((product) => ({ id: product.id, name: product.name, url: product.imageUrl }))
+      .filter((image): image is { id: string; name: string; url: string } => Boolean(image.url)),
+    ...extraProductImages,
+  ]
   const previewProduct = productImageOptions.find((image) => image.url === selectedProductImageUrl)
+  // Sur l'étape « Image produit », si une seule image est disponible, la pré-sélectionner (évite un clic).
+  const singleProductImageUrl = productImageOptions.length === 1 ? productImageOptions[0].url : null
+  useEffect(() => {
+    if (stepId === 'productImage' && !selectedProductImageUrl && singleProductImageUrl) {
+      setSelectedProductImageUrl(singleProductImageUrl)
+    }
+  }, [stepId, selectedProductImageUrl, singleProductImageUrl])
+  // Acteurs : Mes acteurs (avatars) ou catalogue généré (product_models kind=actor) filtré par catégorie.
   const actorOptions = actorSource === 'mine'
-    ? avatars.map((avatar) => ({ id: avatar.id, name: avatar.name, category: 'MES ACTEURS', photoUrl: avatar.photoUrl })).filter((avatar): avatar is { id: string; name: string; category: string; photoUrl: string } => Boolean(avatar.photoUrl))
-    : FALLBACK_ACTORS.filter((actor) => actor.category === actorCategory)
+    ? avatars.filter((avatar) => avatar.photoUrl).map((avatar) => ({ id: avatar.id, name: avatar.name, photoUrl: avatar.photoUrl as string }))
+    : productModels
+        .filter((model) => model.kind === 'actor' && model.category === actorCategory && model.url)
+        .map((model) => ({
+          id: model.id,
+          name: `${model.nationality ?? actorCategory} ${nationalityFlag(model.nationality)}`.trim(),
+          photoUrl: model.url as string,
+        }))
+  // Mains : catalogue généré (product_models kind=hand).
+  const handOptions = productModels.filter((model) => model.kind === 'hand' && model.url).map((model) => ({ id: model.id, name: 'Main', photoUrl: model.url as string }))
   const selectedAvatar = actorOptions.find((avatar) => avatar.photoUrl === selectedAvatarUrl)
-  const selectedHand = FALLBACK_HANDS.find((hand) => hand.photoUrl === selectedHandUrl)
+  const selectedHand = handOptions.find((hand) => hand.photoUrl === selectedHandUrl)
   const previewEmptyText = selectedProductIds.length > 0 || selectedType === 'showcase'
     ? 'Choisis une image produit pour l’aperçu'
     : selectedHoldingStyle === 'actor'
@@ -118,23 +220,19 @@ export default function ProductPhotoshootPage() {
     return true
   }
 
-  // Transition « scroll » entre étapes (exit → contenu → enter).
+  // Passage d'une étape à l'autre — la pile glissante (StepSlider) gère l'animation.
   function transitionTo(nextIndex: number, setup?: () => void) {
-    if (phase !== 'idle') return
-    setPhase('exit')
-    window.setTimeout(() => {
-      setup?.()
-      setCurrentStep(nextIndex)
-      setPhase('enter')
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => setPhase('idle'))
-      })
-    }, 210)
+    setup?.()
+    setCurrentStep(nextIndex)
   }
 
   function goNext() {
     if (!canContinue(stepId)) return
     transitionTo(Math.min(currentStep + 1, steps.length - 1))
+  }
+
+  function goBack() {
+    transitionTo(Math.max(currentStep - 1, 0))
   }
 
   function chooseType(id: string) {
@@ -167,7 +265,6 @@ export default function ProductPhotoshootPage() {
     if (idx < 0) return
     setSelectedType(type)
     setSelectedHoldingStyle(style)
-    setPhase('idle')
     setCurrentStep(idx)
   }
 
@@ -177,6 +274,7 @@ export default function ProductPhotoshootPage() {
       const dataUrl = await fileToDataUrl(file)
       const { url } = await actionUploadTempImage(dataUrl)
       setActorProductImageUrl(url)
+      toast.success('Image produit ajoutée ✓')
     } catch {
       toast.error('Échec de l\'upload de l\'image')
     }
@@ -186,18 +284,33 @@ export default function ProductPhotoshootPage() {
   async function generate() {
     if (generating) return
     const size = ratioToSize(selectedAspectRatio)
-    let refs: string[] = []
-    let promptText = ''
-    if (selectedType === 'showcase') {
-      refs = [selectedProductImageUrl].filter(Boolean)
-      promptText = 'Professional studio product photoshoot of the product, clean styled background, soft commercial lighting, marketing-ready, high quality.'
-    } else {
-      refs = [selectedHoldingStyle === 'hand' ? selectedHandUrl : selectedAvatarUrl, actorProductImageUrl].filter(Boolean)
-      promptText = `Realistic photo of ${selectedHoldingStyle === 'hand' ? 'a hand' : 'a model'} naturally holding the product, professional photoshoot, cohesive lighting and styling.`
-    }
+    const productImg = selectedType === 'showcase' ? selectedProductImageUrl : actorProductImageUrl
     setGenerating(true)
-    setPreviewSubtitle('Génération en cours…')
     try {
+      // Analyse vision du produit → décor cohérent avec le produit (au lieu d'un fond générique/fake).
+      setPreviewSubtitle('Analyse du produit…')
+      const scene = productImg ? await actionDescribeProductScene({ imageUrl: productImg }).catch(() => null) : null
+      const product = scene?.product ?? 'the product'
+      const background = scene?.background ?? 'a styled environment that matches the product'
+      const holding = scene?.holding ?? 'naturally holding the product toward the camera'
+      const styling = scene?.styling ?? 'styled to suit the product'
+      let refs: string[] = []
+      let promptText = ''
+      // Fidélité produit : on ANCRE sur l'image de référence, sans réinventer le produit.
+      const fidelity = 'CRITICAL: reproduce the EXACT product shown in the reference image — identical shape, colors, text, logo, label and proportions. Do not redesign, replace or invent a different product. Keep it perfectly recognizable.'
+      if (selectedType === 'showcase') {
+        refs = [selectedProductImageUrl].filter(Boolean)
+        promptText = `Professional lifestyle product photograph of the product shown in the reference image${product && product !== 'the product' ? ` (${product})` : ''}. ${fidelity} Place it naturally in this setting: ${background}. Soft commercial lighting matched to the scene, marketing-ready, photorealistic, high quality, no text, no watermark.`
+      } else {
+        // L'image produit en PREMIER (référence dominante), puis l'acteur/main.
+        refs = [actorProductImageUrl, selectedHoldingStyle === 'hand' ? selectedHandUrl : selectedAvatarUrl].filter(Boolean)
+        const placement = PLACEMENTS.find((p) => p.id === productPlacement)
+        const holder = selectedHoldingStyle === 'hand'
+          ? 'the same hand from the hand reference image'
+          : 'the same person (face, identity and features) from the model reference image'
+        promptText = `Realistic lifestyle advertising photo: ${holder} naturally holding the EXACT product from the product reference image. ${fidelity} ${holding}. Product ${placement?.prompt ?? 'centered in the frame'}, the product is the clear hero — prominently presented toward the camera, fully visible, unobstructed, sharp focus, fingers not covering it.${selectedHoldingStyle === 'hand' ? '' : ` Model styled as ${styling}.`} Setting: ${background}. Cohesive natural lighting, photorealistic, high quality, no text, no watermark.`
+      }
+      setPreviewSubtitle('Génération en cours…')
       const res = await actionGenerateImage({ prompt: promptText, model: 'nano-banana', size, n: 1, ...(refs.length ? { imageUrl: refs } : {}) })
       const url = res.find((image) => image.url)?.url
       if (url) {
@@ -218,31 +331,47 @@ export default function ProductPhotoshootPage() {
   }
 
   function toggleProduct(productId: string) {
-    setSelectedProductIds((current) => {
-      if (current.includes(productId)) return current.filter((id) => id !== productId)
-      if (current.length >= 5) return current
-      return [...current, productId]
-    })
+    if (!selectedProductIds.includes(productId) && selectedProductIds.length >= 5) {
+      toast.error('Maximum 5 produits')
+      return
+    }
+    setSelectedProductIds((current) => current.includes(productId)
+      ? current.filter((id) => id !== productId)
+      : [...current, productId])
     setSelectedProductImageUrl('')
     setPreviewSubtitle('Ton image sélectionnée apparaîtra ici')
   }
 
-  function renderCurrentStep() {
-    if (stepId === 'type') {
+  async function deleteProduct(id: string) {
+    if (busy) return
+    setBusy(true)
+    try {
+      await actionDeleteProduct(id)
+      setSelectedProductIds((ids) => ids.filter((x) => x !== id))
+      setSelectedProductImageUrl('')
+      setProducts(await actionListProducts())
+      toast.success('Produit supprimé')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Suppression impossible') }
+    finally { setBusy(false) }
+  }
+
+  function renderStep(id: StepId) {
+    if (id === 'type') {
       return (
         <div className="w-full max-w-[768px]">
-          <h3 className="font-display text-[18px] font-extrabold text-text-primary text-center mb-6">Choisis ton type de shooting</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <h3 className="font-display text-[16px] font-extrabold text-text-primary text-center mb-4">Choisis ton type de shooting</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {PHOTOSHOOT_TYPES.map(({ id, title, desc, icon: Icon, points }) => {
               const isSelected = selectedType === id
               return (
-                <button key={id} onClick={() => chooseType(id)} className={`group text-left rounded-[16px] border-2 bg-bg-surface p-8 transition-all hover:border-accent/60 hover:shadow-neo ${isSelected ? 'border-accent shadow-neo' : 'border-border'}`}>
-                  <span className="w-16 h-16 rounded-full bg-accent/10 text-accent flex items-center justify-center"><Icon size={32} strokeWidth={2} /></span>
-                  <h4 className="mt-4 font-display text-[20px] font-bold leading-7 text-text-primary">{title}</h4>
-                  <p className="mt-2 text-[14px] leading-5 text-text-secondary">{desc}</p>
-                  <ul className="mt-4 space-y-2">
+                <button key={id} onClick={() => chooseType(id)} className={`group relative text-left rounded-[16px] border-2 bg-bg-surface p-6 transition-all hover:border-accent/60 hover:shadow-neo ${isSelected ? 'border-accent shadow-neo' : 'border-border'}`}>
+                  {isSelected && <span className="absolute right-4 top-4 grid h-6 w-6 place-items-center rounded-full bg-accent text-white shadow-sm"><Check size={14} strokeWidth={3} /></span>}
+                  <span className="w-12 h-12 rounded-full bg-accent/10 text-accent flex items-center justify-center"><Icon size={26} strokeWidth={2} /></span>
+                  <h4 className="mt-3 font-display text-[17px] font-bold leading-6 text-text-primary">{title}</h4>
+                  <p className="mt-1.5 text-[13px] leading-5 text-text-secondary">{desc}</p>
+                  <ul className="mt-3 space-y-1.5">
                     {points.map((point) => (
-                      <li key={point} className="flex items-center gap-2 text-[14px] text-text-secondary"><span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />{point}</li>
+                      <li key={point} className="flex items-center gap-2 text-[13px] text-text-secondary"><span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />{point}</li>
                     ))}
                   </ul>
                 </button>
@@ -253,175 +382,288 @@ export default function ProductPhotoshootPage() {
       )
     }
 
-    if (stepId === 'holdingStyle') {
+    if (id === 'holdingStyle') {
       return (
         <div className="w-full max-w-[768px]">
-          <h3 className="font-display text-[18px] font-extrabold text-text-primary text-center mb-6">Choisis le style de prise en main</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <h3 className="font-display text-[16px] font-extrabold text-text-primary text-center mb-4">Choisis le style de prise en main</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {HOLDING_STYLES.map(({ id, title, desc, icon: Icon, points }) => {
               const isSelected = selectedHoldingStyle === id
               return (
-                <button key={id} onClick={() => chooseStyle(id)} className={`group text-left rounded-[16px] border-2 bg-bg-surface p-8 transition-all hover:border-accent/60 hover:shadow-neo ${isSelected ? 'border-accent shadow-neo' : 'border-border'}`}>
-                  <span className="w-16 h-16 rounded-full bg-accent/10 text-accent flex items-center justify-center"><Icon size={32} strokeWidth={2} /></span>
-                  <h4 className="mt-4 font-display text-[20px] font-bold leading-7 text-text-primary">{title}</h4>
-                  <p className="mt-2 text-[14px] leading-5 text-text-secondary">{desc}</p>
-                  <ul className="mt-4 space-y-2">
+                <button key={id} onClick={() => chooseStyle(id)} className={`group relative text-left rounded-[16px] border-2 bg-bg-surface p-6 transition-all hover:border-accent/60 hover:shadow-neo ${isSelected ? 'border-accent shadow-neo' : 'border-border'}`}>
+                  {isSelected && <span className="absolute right-4 top-4 grid h-6 w-6 place-items-center rounded-full bg-accent text-white shadow-sm"><Check size={14} strokeWidth={3} /></span>}
+                  <span className="w-12 h-12 rounded-full bg-accent/10 text-accent flex items-center justify-center"><Icon size={26} strokeWidth={2} /></span>
+                  <h4 className="mt-3 font-display text-[17px] font-bold leading-6 text-text-primary">{title}</h4>
+                  <p className="mt-1.5 text-[13px] leading-5 text-text-secondary">{desc}</p>
+                  <ul className="mt-3 space-y-1.5">
                     {points.map((point) => (
-                      <li key={point} className="flex items-center gap-2 text-[14px] text-text-secondary"><span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />{point}</li>
+                      <li key={point} className="flex items-center gap-2 text-[13px] text-text-secondary"><span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />{point}</li>
                     ))}
                   </ul>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )
-    }
-
-    if (stepId === 'hand') {
-      return (
-        <div className="w-full max-w-[760px]">
-          <div className="mb-6 flex items-center justify-between gap-4">
-            <h3 className="font-display text-[18px] font-extrabold text-text-primary">Choisis une main pour tenir ton produit</h3>
-            <button className="h-9 rounded-[10px] border border-border bg-bg-card px-4 text-[13px] font-extrabold text-text-primary flex items-center gap-2 hover:border-accent/70 transition-colors shrink-0"><Upload size={16} /> Importer</button>
-          </div>
-          <div className="flex flex-wrap justify-center gap-3">
-            {FALLBACK_HANDS.map((hand) => {
-              const isSelected = selectedHandUrl === hand.photoUrl
-              return (
-                <button key={hand.id} onClick={() => { setSelectedHandUrl(hand.photoUrl); setPreviewSubtitle('Ton image sélectionnée apparaîtra ici') }} className={`relative w-[112px] aspect-[3/5] rounded-[12px] border bg-bg-card overflow-hidden transition-all hover:border-accent/70 ${isSelected ? 'border-2 border-accent shadow-neo' : 'border-border'}`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={hand.photoUrl} alt={hand.name} className="absolute inset-0 w-full h-full object-cover" />
-                  {isSelected && <span className="absolute top-2 right-2 w-6 h-6 rounded-full bg-accent text-white flex items-center justify-center"><Check size={15} /></span>}
                 </button>
               )
             })}
           </div>
           <div className="mt-6 flex justify-center">
+            <BackButton onClick={goBack} />
+          </div>
+        </div>
+      )
+    }
+
+    if (id === 'hand') {
+      return (
+        <div className="w-full max-w-[720px]">
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <h3 className="font-display text-[15px] font-extrabold text-text-primary">Choisis une main pour tenir ton produit</h3>
+            <button onClick={() => uploadProductModel('hand')} disabled={busy} className="h-7 rounded-[8px] border border-border bg-bg-card px-2.5 text-[11px] font-extrabold text-text-primary flex items-center gap-1.5 hover:border-accent/70 transition-colors shrink-0 disabled:opacity-55"><Upload size={13} /> Importer</button>
+          </div>
+          <div className="mb-2.5 grid grid-cols-2 gap-2 max-w-[420px]">
+            <div>
+              <p className="text-[8px] font-extrabold uppercase tracking-wider text-text-muted mb-0.5">Sexe</p>
+              <div className="flex gap-1">
+                {[{ v: 'All', l: 'Tous' }, { v: 'Female', l: 'Femme' }, { v: 'Male', l: 'Homme' }].map(({ v, l }) => (
+                  <button key={v} onClick={() => setHandGender(v)} className={`h-6 flex-1 rounded-[7px] text-[10px] font-bold transition ${handGender === v ? 'bg-accent text-white' : 'bg-fg/[0.06] text-text-primary hover:bg-accent/10'}`}>{l}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[8px] font-extrabold uppercase tracking-wider text-text-muted mb-0.5">Carnation</p>
+              <select value={handSkin} onChange={(e) => setHandSkin(e.target.value)} className="h-6 w-full rounded-[7px] border border-border bg-bg-card px-2 py-0 text-[10px] font-bold text-text-primary outline-none focus:border-accent capitalize">
+                <option value="All">Toutes</option>
+                {MODEL_SKIN_TONES.map((s) => <option key={s} value={s} className="capitalize">{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2.5">
+            <button onClick={() => generateProductModel('hand')} disabled={generatingModel} className="w-[100px] aspect-[3/5] rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center gap-2 px-2 hover:border-accent/70 hover:bg-accent/5 transition-colors disabled:opacity-55 disabled:cursor-not-allowed">
+              {generatingModel
+                ? <span className="h-6 w-6 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                : <><span className="w-8 h-8 rounded-full bg-accent/10 text-accent flex items-center justify-center"><Sparkles size={16} /></span><span className="text-[10px] font-extrabold text-text-primary leading-tight">Générer une main</span></>}
+            </button>
+            {handOptions.map((hand) => {
+              const isSelected = selectedHandUrl === hand.photoUrl
+              return (
+                <button key={hand.id} onClick={() => { setSelectedHandUrl(hand.photoUrl); setPreviewSubtitle('Ton image sélectionnée apparaîtra ici') }} className={`relative w-[100px] aspect-[3/5] rounded-[12px] border bg-bg-card overflow-hidden transition-all hover:border-accent/70 ${isSelected ? 'border-2 border-accent shadow-neo' : 'border-border'}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={hand.photoUrl} alt={hand.name} className="absolute inset-0 w-full h-full object-cover" />
+                  {isSelected && <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-accent text-white flex items-center justify-center"><Check size={13} /></span>}
+                </button>
+              )
+            })}
+          </div>
+          <div className="mt-5 flex justify-center gap-3">
+            {currentStep > 0 && <BackButton onClick={goBack} />}
             <ContinueButton disabled={!selectedHandUrl} onClick={goNext} />
           </div>
         </div>
       )
     }
 
-    if (stepId === 'actor') {
+    if (id === 'actor') {
       return (
-        <div className="w-full max-w-[760px]">
-          <div className="mb-6 flex items-center justify-between gap-4">
-            <h3 className="font-display text-[18px] font-extrabold text-text-primary">Choisis un avatar pour tenir ton produit</h3>
-            <button className="h-9 rounded-[10px] border border-border bg-bg-card px-4 text-[13px] font-extrabold text-text-primary flex items-center gap-2 hover:border-accent/70 transition-colors shrink-0"><Upload size={16} /> Importer</button>
+        <div className="w-full max-w-[720px]">
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <h3 className="font-display text-[15px] font-extrabold text-text-primary">Choisis un avatar pour tenir ton produit</h3>
+            <button onClick={() => uploadProductModel('actor')} disabled={busy} className="h-7 rounded-[8px] border border-border bg-bg-card px-2.5 text-[11px] font-extrabold text-text-primary flex items-center gap-1.5 hover:border-accent/70 transition-colors shrink-0 disabled:opacity-55"><Upload size={13} /> Importer</button>
           </div>
-          <div className="rounded-[10px] bg-fg/[0.08] p-1 grid grid-cols-2 mb-5">
-            <button onClick={() => setActorSource('heyoz')} className={`h-8 rounded-[8px] text-[13px] font-bold transition ${actorSource === 'heyoz' ? 'bg-bg-card shadow-neo-sm text-text-primary' : 'text-text-primary/80'}`}>Acteurs HeyOz</button>
-            <button onClick={() => setActorSource('mine')} className={`h-8 rounded-[8px] text-[13px] font-bold transition ${actorSource === 'mine' ? 'bg-bg-card shadow-neo-sm text-text-primary' : 'text-text-primary/80'}`}>Mes acteurs</button>
+          <div className="rounded-[8px] bg-fg/[0.08] p-0.5 grid grid-cols-2 mb-2.5">
+            <button onClick={() => setActorSource('heyoz')} className={`h-6 rounded-[6px] text-[11px] font-bold transition ${actorSource === 'heyoz' ? 'bg-bg-card shadow-neo-sm text-text-primary' : 'text-text-primary/80'}`}>Acteurs Système</button>
+            <button onClick={() => setActorSource('mine')} className={`h-6 rounded-[6px] text-[11px] font-bold transition ${actorSource === 'mine' ? 'bg-bg-card shadow-neo-sm text-text-primary' : 'text-text-primary/80'}`}>Mes acteurs</button>
           </div>
-          {actorSource === 'heyoz' && (
-            <div className="mb-5 flex flex-wrap gap-2">
+          {actorSource === 'heyoz' && (<>
+            <div className="mb-2.5 flex flex-wrap gap-1.5">
               {ACTOR_CATEGORIES.map((category) => (
-                <button key={category} onClick={() => setActorCategory(category)} className={`h-8 rounded-full px-4 text-[13px] font-bold transition ${actorCategory === category ? 'bg-accent text-white' : 'bg-fg/[0.06] text-text-primary hover:bg-accent/10'}`}>{category}</button>
+                <button key={category} onClick={() => setActorCategory(category)} className={`h-6 rounded-full px-2.5 text-[11px] font-bold transition ${actorCategory === category ? 'bg-accent text-white' : 'bg-fg/[0.06] text-text-primary hover:bg-accent/10'}`}>{category}</button>
               ))}
             </div>
-          )}
-          <div className="flex flex-wrap justify-center gap-3">
+            <div className="mb-2.5 grid grid-cols-3 gap-2">
+              <div>
+                <p className="text-[8px] font-extrabold uppercase tracking-wider text-text-muted mb-0.5">Sexe</p>
+                <div className="flex gap-1">
+                  {[{ v: 'All', l: 'Tous' }, { v: 'Female', l: 'Femme' }, { v: 'Male', l: 'Homme' }].map(({ v, l }) => (
+                    <button key={v} onClick={() => setActorGender(v)} className={`h-6 flex-1 rounded-[7px] text-[10px] font-bold transition ${actorGender === v ? 'bg-accent text-white' : 'bg-fg/[0.06] text-text-primary hover:bg-accent/10'}`}>{l}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-[8px] font-extrabold uppercase tracking-wider text-text-muted mb-0.5">Nationalité</p>
+                <select value={actorNationality} onChange={(e) => setActorNationality(e.target.value)} className="h-6 w-full rounded-[7px] border border-border bg-bg-card px-2 py-0 text-[10px] font-bold text-text-primary outline-none focus:border-accent">
+                  <option value="All">Toutes</option>
+                  {MODEL_NATIONALITIES.map((n) => <option key={n.name} value={n.name}>{n.flag} {n.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <p className="text-[8px] font-extrabold uppercase tracking-wider text-text-muted mb-0.5">Morphologie</p>
+                <select value={actorBodyType} onChange={(e) => setActorBodyType(e.target.value)} className="h-6 w-full rounded-[7px] border border-border bg-bg-card px-2 py-0 text-[10px] font-bold text-text-primary outline-none focus:border-accent">
+                  <option value="All">Toutes</option>
+                  {MODEL_BODY_TYPES.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+            </div>
+          </>)}
+          <div className="flex flex-wrap justify-center gap-2.5">
+            {actorSource === 'heyoz' && (
+              <button onClick={() => generateProductModel('actor')} disabled={generatingModel} className="w-[100px] aspect-[3/5] rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center gap-2 px-2 hover:border-accent/70 hover:bg-accent/5 transition-colors disabled:opacity-55 disabled:cursor-not-allowed">
+                {generatingModel
+                  ? <span className="h-6 w-6 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                  : <><span className="w-8 h-8 rounded-full bg-accent/10 text-accent flex items-center justify-center"><Sparkles size={16} /></span><span className="text-[10px] font-extrabold text-text-primary leading-tight">Générer un acteur</span><span className="text-[8px] font-bold uppercase tracking-wide text-text-muted">{actorCategory}</span></>}
+              </button>
+            )}
             {actorOptions.map((actor) => {
               const isSelected = selectedAvatarUrl === actor.photoUrl
               return (
-                <button key={actor.id} onClick={() => { setSelectedAvatarUrl(actor.photoUrl); setPreviewSubtitle('Ton image sélectionnée apparaîtra ici') }} className={`relative w-[112px] aspect-[3/5] rounded-[12px] border bg-bg-card overflow-hidden transition-all hover:border-accent/70 ${isSelected ? 'border-2 border-accent shadow-neo' : 'border-border'}`}>
+                <button key={actor.id} onClick={() => { setSelectedAvatarUrl(actor.photoUrl); setPreviewSubtitle('Ton image sélectionnée apparaîtra ici') }} className={`relative w-[100px] aspect-[3/5] rounded-[12px] border bg-bg-card overflow-hidden transition-all hover:border-accent/70 ${isSelected ? 'border-2 border-accent shadow-neo' : 'border-border'}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={actor.photoUrl} alt={actor.name} className="absolute inset-0 w-full h-full object-cover" />
-                  {isSelected && <span className="absolute top-2 right-2 w-6 h-6 rounded-full bg-accent text-white flex items-center justify-center"><Check size={15} /></span>}
+                  <span className="absolute inset-x-1.5 bottom-1.5 truncate rounded-full bg-white/85 px-2 py-0.5 text-[9px] font-extrabold text-zinc-950 shadow-neo-sm">{actor.name}</span>
+                  {isSelected && <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-accent text-white flex items-center justify-center"><Check size={13} /></span>}
                 </button>
               )
             })}
+            {actorSource === 'mine' && actorOptions.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <UserRound size={36} className="text-text-muted mb-2" strokeWidth={1.8} />
+                <p className="text-[13px] font-extrabold text-text-primary">Aucun acteur</p>
+                <p className="mt-1 text-[12px] text-text-secondary">Crée un avatar dans Characters, ou importe-en un.</p>
+              </div>
+            )}
           </div>
-          <div className="mt-6 flex justify-center">
+          <div className="mt-5 flex justify-center gap-3">
+            {currentStep > 0 && <BackButton onClick={goBack} />}
             <ContinueButton disabled={!selectedAvatarUrl} onClick={goNext} />
           </div>
         </div>
       )
     }
 
-    if (stepId === 'position') {
+    if (id === 'position') {
       return (
         <div className="w-full max-w-[760px]">
-          <h3 className="font-display text-[18px] font-extrabold text-text-primary text-center mb-6">Positionne ton produit sur {selectedHoldingStyle === 'hand' ? 'la main' : 'l’avatar'}</h3>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <h3 className="font-display text-[16px] font-extrabold text-text-primary text-center mb-4">Positionne ton produit sur {selectedHoldingStyle === 'hand' ? 'la main' : 'l’avatar'}</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div>
-              <p className="text-[12px] font-extrabold uppercase tracking-wider text-text-muted mb-2">Image produit *</p>
-              <button onClick={() => actorProductInputRef.current?.click()} className="h-[240px] w-full rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center px-6 hover:border-accent/70 hover:bg-accent/5 transition-colors overflow-hidden">
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-text-muted mb-1.5">Image produit *</p>
+              <button onClick={() => actorProductInputRef.current?.click()} className="h-[180px] w-full rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center px-6 hover:border-accent/70 hover:bg-accent/5 transition-colors overflow-hidden">
                 {actorProductImageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={actorProductImageUrl} alt="Produit importé" className="max-h-full max-w-full object-contain" />
                 ) : (
                   <>
-                    <ImageIcon size={28} className="mb-4 text-text-secondary" />
-                    <span className="flex items-center gap-2 text-[13px] font-extrabold text-text-primary"><Sparkles size={16} /> Clique pour importer ton image</span>
+                    <ImageIcon size={26} className="mb-3 text-text-secondary" />
+                    <span className="flex items-center gap-2 text-[12px] font-extrabold text-text-primary"><Sparkles size={15} /> Clique pour importer ton image</span>
                   </>
                 )}
               </button>
               <input ref={actorProductInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => handleActorProductUpload(event.target.files?.[0])} />
-              <div className="mt-4 rounded-[12px] bg-bg-surface border border-border p-4 flex items-center justify-center gap-3">
-                <div className="w-[120px] h-[150px] rounded-[10px] bg-gradient-to-b from-orange-100 to-orange-200 border border-border flex flex-col justify-end p-3 relative">
-                  <span className="absolute top-2 right-2 w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center"><Check size={14} /></span>
-                  <span className="text-[10px] text-text-primary font-medium">✓ Fond propre</span>
-                  <span className="text-[10px] text-text-primary font-medium">✓ Un seul produit</span>
-                  <span className="text-[10px] text-text-primary font-medium">✓ Produit entier</span>
-                </div>
-                <div className="space-y-2">
-                  {['Incomplet', 'Avec mannequin', 'Plusieurs articles'].map((label) => (
-                    <div key={label} className="relative w-[92px] h-[52px] rounded-[8px] bg-gradient-to-br from-fg/[0.10] to-orange-100 border border-border overflow-hidden flex items-end justify-center pb-1.5">
-                      <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[11px] leading-none flex items-center justify-center">×</span>
-                      <span className="text-[9px] font-bold text-white drop-shadow">{label}</span>
-                    </div>
-                  ))}
+
+              {/* Conseils — À faire / À éviter (propre, sans fausses vignettes) */}
+              <div className="mt-4 rounded-[12px] border border-border bg-bg-surface p-4">
+                <p className="mb-3 text-[11px] font-extrabold uppercase tracking-wider text-text-muted">Conseils pour ton image</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="mb-2 flex items-center gap-1.5 text-[11px] font-extrabold text-green-600"><span className="grid h-4 w-4 place-items-center rounded-full bg-green-600 text-white"><Check size={11} strokeWidth={3} /></span> À faire</p>
+                    <ul className="space-y-1.5 text-[12px] font-medium text-text-secondary">
+                      {['Fond propre', 'Un seul produit', 'Produit entier'].map((tip) => <li key={tip}>{tip}</li>)}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="mb-2 flex items-center gap-1.5 text-[11px] font-extrabold text-red-600"><span className="grid h-4 w-4 place-items-center rounded-full bg-red-600 text-white text-[10px] leading-none">×</span> À éviter</p>
+                    <ul className="space-y-1.5 text-[12px] font-medium text-text-secondary">
+                      {['Image incomplète', 'Avec mannequin', 'Plusieurs articles'].map((tip) => <li key={tip}>{tip}</li>)}
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div>
-              <p className="text-[12px] font-extrabold uppercase tracking-wider text-text-muted mb-2">{selectedHoldingStyle === 'hand' ? 'Main avec produit' : 'Avatar avec produit'}</p>
-              <div className="relative h-[400px] rounded-[12px] border border-border bg-bg-surface overflow-hidden">
-                {selectedHoldingStyle === 'hand' && selectedHand?.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={selectedHand.photoUrl} alt={selectedHand.name} className="absolute inset-0 w-full h-full object-cover" />
-                ) : selectedAvatar?.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={selectedAvatar.photoUrl} alt={selectedAvatar.name} className="absolute inset-0 w-full h-full object-cover" />
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[11px] font-extrabold uppercase tracking-wider text-text-muted">{selectedHoldingStyle === 'hand' ? 'Main avec produit' : 'Avatar avec produit'}</p>
+                {actorProductImageUrl && <span className="inline-flex items-center gap-1 rounded-full bg-green-600/10 px-2 py-0.5 text-[10px] font-extrabold text-green-600"><span className="h-1.5 w-1.5 rounded-full bg-green-600" /> Prêt</span>}
+              </div>
+
+              {/* Placement du produit — déplace l'aperçu ET guide la génération */}
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wide text-text-muted self-center mr-0.5">Position</span>
+                {PLACEMENTS.map((placement) => (
+                  <button key={placement.id} onClick={() => setProductPlacement(placement.id)} className={`h-6 rounded-full px-2.5 text-[10px] font-bold transition ${productPlacement === placement.id ? 'bg-accent text-white' : 'bg-fg/[0.06] text-text-primary hover:bg-accent/10'}`}>{placement.label}</button>
+                ))}
+              </div>
+
+              <div className="relative h-[300px] rounded-[12px] border border-border bg-bg-surface overflow-hidden">
+                {generatedUrl ? (
+                  <>
+                    <button onClick={() => setLightboxOpen(true)} className="group absolute inset-0 z-10 flex items-center justify-center bg-bg-card">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={generatedUrl} alt="Rendu généré" className="max-h-full max-w-full object-contain transition group-hover:brightness-95" />
+                      <span className="absolute inset-0 flex items-center justify-center opacity-0 transition group-hover:opacity-100"><span className="rounded-full bg-black/55 p-2 text-white"><Maximize2 size={18} /></span></span>
+                    </button>
+                    <a href={generatedUrl} download target="_blank" rel="noreferrer" className="absolute right-2 top-2 z-20 grid h-8 w-8 place-items-center rounded-full bg-bg-surface/90 text-text-primary shadow-sm backdrop-blur transition hover:bg-bg-surface hover:text-accent" aria-label="Télécharger"><Download size={15} /></a>
+                  </>
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-text-muted"><UserRound size={48} /></div>
+                  <>
+                    {selectedHoldingStyle === 'hand' && selectedHand?.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={selectedHand.photoUrl} alt={selectedHand.name} className="absolute inset-0 w-full h-full object-cover" />
+                    ) : selectedAvatar?.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={selectedAvatar.photoUrl} alt={selectedAvatar.name} className="absolute inset-0 w-full h-full object-cover" />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-text-muted"><UserRound size={44} /></div>
+                    )}
+
+                    {actorProductImageUrl ? (
+                      <>
+                        {/* léger voile uniquement pour faire ressortir le produit */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
+                        <div className={`absolute ${PLACEMENTS.find((p) => p.id === productPlacement)?.pos} w-24 h-24 rounded-[14px] bg-white/95 border-2 border-white shadow-neo flex items-center justify-center p-2 ring-2 ring-accent/60 transition-all duration-300`}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={actorProductImageUrl} alt="Placement produit" className="max-h-full max-w-full object-contain" />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="absolute inset-0 bg-black/45" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 text-white">
+                          <Sparkles size={30} className="mb-3" />
+                          <p className="text-[15px] font-extrabold">Importe une image produit pour commencer</p>
+                          <p className="mt-1.5 text-[12px] font-medium text-white/75">Choisis sa position et génère</p>
+                        </div>
+                      </>
+                    )}
+                  </>
                 )}
-                <div className="absolute inset-0 bg-black/45" />
-                {actorProductImageUrl && (
-                  <div className="absolute left-1/2 top-[54%] -translate-x-1/2 w-24 h-24 rounded-[12px] bg-white/90 border border-white shadow-neo flex items-center justify-center p-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={actorProductImageUrl} alt="Placement produit" className="max-h-full max-w-full object-contain" />
+                {generating && (
+                  <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-bg-surface/85 text-text-secondary">
+                    <span className="h-9 w-9 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                    <p className="text-[13px] font-semibold text-text-primary">Génération en cours…</p>
                   </div>
                 )}
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 text-white">
-                  <Sparkles size={32} className="mb-4" />
-                  <p className="text-[16px] font-extrabold">{actorProductImageUrl ? 'Prêt à générer' : 'Importe une image produit pour commencer'}</p>
-                  <p className="mt-2 text-[13px] font-medium text-white/75">Positionne-le sur {selectedHoldingStyle === 'hand' ? 'la main' : 'l’avatar'} et génère</p>
-                </div>
               </div>
-              <button onClick={generate} disabled={!actorProductImageUrl || generating} className="mt-4 h-11 w-full rounded-[10px] bg-accent px-8 text-[14px] font-extrabold text-white flex items-center justify-center gap-3 shadow-neo-solid hover:brightness-105 transition disabled:opacity-55 disabled:cursor-not-allowed">
-                {generating ? 'Génération…' : <><Sparkles size={17} /> Générer l’image <Gem size={16} fill="currentColor" /> 2</>}
+              <button onClick={generate} disabled={!actorProductImageUrl || generating} className="mt-4 h-10 w-full rounded-[10px] bg-accent px-6 text-[13px] font-extrabold text-white flex items-center justify-center gap-2.5 shadow-neo-solid hover:brightness-105 transition disabled:opacity-55 disabled:cursor-not-allowed">
+                {generating ? 'Génération…' : <><Sparkles size={16} /> Générer l’image <Gem size={14} fill="currentColor" /> 2</>}
               </button>
             </div>
+          </div>
+          <div className="mt-5 flex justify-center">
+            <BackButton onClick={goBack} />
           </div>
         </div>
       )
     }
 
-    if (stepId === 'product') {
+    if (id === 'product') {
       return (
         <div className="w-full max-w-[768px]">
-          <h3 className="font-display text-[18px] font-extrabold text-text-primary text-center">Que met-on en avant aujourd’hui&nbsp;?</h3>
-          <p className="mt-6 text-right text-[12px] font-medium text-text-primary">{selectedProductIds.length} / 5 sélectionnés</p>
+          <h3 className="font-display text-[16px] font-extrabold text-text-primary text-center">Que met-on en avant aujourd’hui&nbsp;?</h3>
+          <p className="mt-6 text-right text-[12px] font-medium text-text-primary">{selectedProductIds.length} / 5 sélectionné{selectedProductIds.length > 1 ? 's' : ''} · {products.length} produit{products.length > 1 ? 's' : ''}</p>
           <div className="mt-2 flex flex-wrap justify-center gap-4">
-            {products.slice(0, 5).map((product) => {
+            {products.map((product) => {
               const isSelected = selectedProductIds.includes(product.id)
               return (
-                <button key={product.id} onClick={() => toggleProduct(product.id)} className={`relative text-left w-[176px] h-[164px] rounded-[14px] border bg-bg-card p-3 transition-all hover:border-accent/70 overflow-hidden ${isSelected ? 'border-accent ring-2 ring-accent/20 shadow-neo' : 'border-border'}`}>
+                <button key={product.id} onClick={() => toggleProduct(product.id)} className={`group relative text-left w-[176px] h-[164px] rounded-[14px] border bg-bg-card p-3 transition-all hover:border-accent/70 overflow-hidden ${isSelected ? 'border-accent ring-2 ring-accent/20 shadow-neo' : 'border-border'}`}>
+                  <span role="button" tabIndex={-1} aria-label="Supprimer le produit" title="Supprimer le produit" onClick={(event) => { event.stopPropagation(); deleteProduct(product.id) }} className="absolute right-2 top-2 z-10 grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-bg-card/95 text-text-secondary shadow-neo-sm ring-1 ring-border backdrop-blur opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-coral hover:text-white hover:ring-coral hover:scale-110 active:scale-95"><X size={14} strokeWidth={2.5} /></span>
                   <div className="absolute left-1/2 top-2 w-[88px] h-[88px] -translate-x-1/2 overflow-hidden rounded-[10px] bg-bg-surface">
                     {product.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -433,30 +675,31 @@ export default function ProductPhotoshootPage() {
                 </button>
               )
             })}
-            <button className="w-[176px] min-h-[164px] rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center gap-3 px-5 hover:border-accent/70 hover:bg-accent/5 transition-colors">
+            <button onClick={addNewProduct} disabled={busy} className="w-[176px] min-h-[164px] rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center gap-3 px-5 hover:border-accent/70 hover:bg-accent/5 transition-colors disabled:opacity-55 disabled:cursor-not-allowed">
               <span className="w-9 h-9 rounded-full bg-fg/[0.10] flex items-center justify-center text-text-primary"><PlusCircle size={18} /></span>
-              <span><span className="block text-[14px] font-semibold text-text-primary">Ajouter un produit</span><span className="block text-[12px] text-text-secondary">Créer un nouveau produit</span></span>
+              <span><span className="block text-[14px] font-semibold text-text-primary">Ajouter un produit</span><span className="block text-[12px] text-text-secondary">Importer une image produit</span></span>
             </button>
           </div>
-          <div className="mt-6 flex justify-center">
+          <div className="mt-6 flex justify-center gap-3">
+            {currentStep > 0 && <BackButton onClick={goBack} />}
             <ContinueButton disabled={selectedProductIds.length === 0} onClick={goNext} />
           </div>
         </div>
       )
     }
 
-    if (stepId === 'productImage') {
+    if (id === 'productImage') {
       return (
         <div className="w-full max-w-[672px]">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center">
             <span />
-            <h3 className="font-display text-[18px] font-extrabold text-text-primary text-center">Choisis l’image produit</h3>
+            <h3 className="font-display text-[16px] font-extrabold text-text-primary text-center">Choisis l’image produit</h3>
             <p className="justify-self-end text-[12px] font-medium text-text-primary">{selectedProductImageUrl ? 1 : 0} / 1 sélectionné</p>
           </div>
           <div className="mt-6 flex flex-wrap justify-center gap-4">
-            <button className="w-[150px] min-h-[150px] rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center gap-4 px-5 hover:border-accent/70 hover:bg-accent/5 transition-colors">
+            <button onClick={uploadProductLibraryImage} disabled={busy} className="w-[150px] min-h-[150px] rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center gap-4 px-5 hover:border-accent/70 hover:bg-accent/5 transition-colors disabled:opacity-55 disabled:cursor-not-allowed">
               <span className="w-10 h-10 rounded-full bg-fg/[0.10] flex items-center justify-center text-text-primary"><PlusCircle size={20} /></span>
-              <span className="text-[14px] font-semibold text-text-primary">Ajouter depuis la bibliothèque</span>
+              <span className="text-[14px] font-semibold text-text-primary">Importer une image</span>
             </button>
             {productImageOptions.map((image) => {
               const isSelected = selectedProductImageUrl === image.url
@@ -469,7 +712,8 @@ export default function ProductPhotoshootPage() {
               )
             })}
           </div>
-          <div className="mt-6 flex justify-center">
+          <div className="mt-6 flex justify-center gap-3">
+            {currentStep > 0 && <BackButton onClick={goBack} />}
             <ContinueButton disabled={!selectedProductImageUrl} onClick={goNext} />
           </div>
         </div>
@@ -479,87 +723,133 @@ export default function ProductPhotoshootPage() {
     // aspect
     return (
       <div className="w-full max-w-[672px]">
-        <h3 className="font-display text-[18px] font-extrabold text-text-primary text-center mb-6">Choisis le ratio &amp; génère</h3>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-          {DIMENSIONS.map((dimension) => {
-            const isSelected = selectedAspectRatio === dimension
+        <h3 className="font-display text-[16px] font-extrabold text-text-primary text-center mb-4">Choisis le ratio &amp; génère</h3>
+        <div className="mx-auto grid max-w-[420px] grid-cols-3 gap-3">
+          {DIMENSIONS.map(({ ratio, label }) => {
+            const isSelected = selectedAspectRatio === ratio
             return (
-              <button key={dimension} onClick={() => setSelectedAspectRatio(dimension)} className={`h-[88px] rounded-[10px] border bg-bg-card flex flex-col items-center justify-center gap-1.5 px-2 py-2 transition-all hover:border-accent/70 ${isSelected ? 'border-2 border-accent bg-accent/5 text-accent' : 'border-border text-text-primary'}`}>
-                <span className="relative w-8 h-8 flex items-center justify-center">
+              <button key={ratio} onClick={() => setSelectedAspectRatio(ratio)} className={`h-[100px] rounded-[12px] border bg-bg-card flex flex-col items-center justify-center gap-2 px-2 py-3 transition-all hover:border-accent/70 ${isSelected ? 'border-2 border-accent bg-accent/5 text-accent' : 'border-border text-text-primary'}`}>
+                <span className="relative w-9 h-9 flex items-center justify-center">
                   <span className="absolute inset-0 border border-dashed border-accent/20" />
-                  <span className={`${isSelected ? 'bg-accent border-accent' : 'bg-bg-card border-border-strong'} border-2`} style={ratioStyle(dimension)} />
+                  <span className={`${isSelected ? 'bg-accent border-accent' : 'bg-bg-card border-border-strong'} border-2`} style={ratioStyle(ratio)} />
                 </span>
-                <span className="text-[12px] font-extrabold">{dimension}</span>
+                <span className="text-[13px] font-extrabold leading-none">{label}</span>
+                <span className="text-[11px] font-semibold text-text-secondary leading-none">{ratio}</span>
               </button>
             )
           })}
         </div>
-        <button onClick={generate} disabled={generating} className="mt-6 h-11 w-full rounded-[10px] bg-accent px-8 text-[14px] font-extrabold text-white flex items-center justify-center gap-3 shadow-neo-solid hover:brightness-105 transition disabled:opacity-55 disabled:cursor-not-allowed">
-          {generating ? 'Génération…' : <><Sparkles size={17} /> Générer <Gem size={16} fill="currentColor" /> 2</>}
-        </button>
+        <div className="mt-5 flex justify-center gap-3">
+          <BackButton onClick={goBack} />
+          <button onClick={generate} disabled={generating} className="h-10 rounded-[10px] bg-accent px-6 text-[13px] font-extrabold text-white flex items-center justify-center gap-2.5 shadow-neo-solid hover:brightness-105 transition disabled:opacity-55 disabled:cursor-not-allowed">
+            {generating ? 'Génération…' : <><Sparkles size={16} /> Générer <Gem size={14} fill="currentColor" /> 2</>}
+          </button>
+        </div>
+        {(generating || generatedUrl) && (
+          <div className="relative mx-auto mt-5 flex h-[300px] max-w-[420px] items-center justify-center overflow-hidden rounded-[12px] border border-border bg-bg-card">
+            {generating ? (
+              <div className="flex flex-col items-center gap-3 text-text-secondary">
+                <span className="h-9 w-9 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                <p className="text-[13px] font-semibold text-text-primary">Génération en cours…</p>
+              </div>
+            ) : (
+              <>
+                <button onClick={() => setLightboxOpen(true)} className="group flex h-full w-full items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={generatedUrl} alt="Rendu généré" className="max-h-full max-w-full object-contain transition group-hover:brightness-95" />
+                </button>
+                <a href={generatedUrl} download target="_blank" rel="noreferrer" className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-bg-surface/90 text-text-primary shadow-sm backdrop-blur transition hover:bg-bg-surface hover:text-accent" aria-label="Télécharger"><Download size={15} /></a>
+              </>
+            )}
+          </div>
+        )}
       </div>
     )
   }
 
+  // Panneau d'aperçu réservé aux étapes de sélection acteur / main.
+  const showPreview = stepId === 'actor' || stepId === 'hand'
+
   return (
-    <div className="page animate-fade-in -mx-8 -mt-2 h-[calc(100vh-8px)] px-4 pt-2 pb-3">
-      <section className="flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-border bg-bg-card shadow-neo-sm">
+    <PageShell>
+      <MainPanel>
         <WizardHeader title="Shooting produit" onBack={() => router.push('/creer/image')} />
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[1fr_440px]">
-          <main className="min-w-0 overflow-y-auto flex items-center justify-center px-8 py-10">
-            <AnimatedStep key={stepId} phase={phase}>
-              {renderCurrentStep()}
-            </AnimatedStep>
+        <div className={`grid min-h-0 flex-1 grid-cols-1 ${showPreview ? 'lg:grid-cols-[minmax(0,1fr)_340px]' : ''}`}>
+          <main className="min-w-0 min-h-0">
+            <StepSlider index={Math.min(currentStep, steps.length - 1)}>
+              {steps.map((id) => renderStep(id))}
+            </StepSlider>
           </main>
 
-          <aside className="hidden xl:flex h-full min-h-0 flex-col overflow-y-auto border-l border-border bg-bg-surface px-6 py-6">
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="font-display text-[18px] font-extrabold text-text-primary">Aperçu</h2>
-                <p className="mt-2 text-[13px] font-medium text-text-secondary">{previewSubtitle}</p>
+          {showPreview && (
+          <aside className="min-h-0 flex flex-col overflow-hidden border-t border-border bg-bg-surface px-4 py-4 lg:border-l lg:border-t-0 lg:px-5 lg:py-5">
+            <div className="flex shrink-0 items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-[17px] font-extrabold tracking-[-0.02em] text-text-primary">Aperçu</h2>
+                <p className="mt-1 truncate text-[12px] font-medium text-text-secondary">{previewSubtitle}</p>
               </div>
-              <button className="h-9 rounded-[10px] bg-accent px-4 text-[13px] font-extrabold text-white flex items-center gap-2 shadow-neo-solid hover:brightness-105 transition shrink-0"><Wand2 size={16} /> Éditer avec l’IA</button>
+              <button onClick={generate} disabled={generating} className="h-8 rounded-[10px] bg-accent px-3 text-[12px] font-extrabold text-white flex items-center gap-1.5 shadow-neo-solid hover:brightness-105 transition shrink-0 disabled:opacity-55 disabled:cursor-not-allowed"><Wand2 size={14} /> {generatedUrl ? 'Re-générer' : 'Éditer avec l’IA'}</button>
             </div>
 
-            <div className="flex-1 min-h-[340px] rounded-[14px] border border-border bg-bg-card flex flex-col items-center justify-center text-center px-8 overflow-hidden">
-              {generatedUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={generatedUrl} alt="Rendu généré" className="max-h-full max-w-full object-contain" />
+            <div className="relative mt-4 flex flex-1 flex-col items-center justify-center overflow-hidden rounded-[13px] border border-border bg-bg-card px-5 text-center [background-image:radial-gradient(circle_at_50%_28%,rgba(255,92,40,0.07),transparent_70%)]">
+              {/* trame discrète */}
+              <div className="pointer-events-none absolute inset-0 opacity-[0.5] [background-image:radial-gradient(rgba(0,0,0,0.05)_1px,transparent_1px)] [background-size:14px_14px]" />
+              {/* chip statut + ratio */}
+              <span className="absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-bg-surface/90 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-text-secondary shadow-sm backdrop-blur">
+                <span className={`h-1.5 w-1.5 rounded-full ${generatedUrl ? 'bg-green-600' : generating ? 'bg-accent animate-pulse' : 'bg-text-muted'}`} />
+                {generatedUrl ? 'Rendu' : generating ? 'En cours' : 'Aperçu'} · {selectedAspectRatio}
+              </span>
+
+              {generating ? (
+                <div className="relative z-10 flex flex-col items-center gap-3 text-text-secondary">
+                  <span className="h-9 w-9 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                  <p className="text-[13px] font-semibold text-text-primary">Génération en cours…</p>
+                </div>
+              ) : generatedUrl ? (
+                <>
+                  <button onClick={() => setLightboxOpen(true)} className="group relative z-10 flex h-full w-full items-center justify-center py-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={generatedUrl} alt="Rendu généré" className="max-h-full max-w-full rounded-[8px] object-contain shadow-neo-sm transition group-hover:brightness-95" />
+                    <span className="absolute inset-0 flex items-center justify-center opacity-0 transition group-hover:opacity-100"><span className="rounded-full bg-black/55 p-2 text-white"><Maximize2 size={18} /></span></span>
+                  </button>
+                  <a href={generatedUrl} download target="_blank" rel="noreferrer" className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-bg-surface/90 text-text-primary shadow-sm backdrop-blur transition hover:bg-bg-surface hover:text-accent" aria-label="Télécharger"><Download size={15} /></a>
+                </>
               ) : selectedHand?.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={selectedHand.photoUrl} alt={selectedHand.name} className="max-h-full max-w-full object-contain" />
+                <img src={selectedHand.photoUrl} alt={selectedHand.name} className="relative z-10 max-h-full max-w-full object-contain" />
               ) : selectedAvatar?.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={selectedAvatar.photoUrl} alt={selectedAvatar.name} className="max-h-full max-w-full object-contain" />
+                <img src={selectedAvatar.photoUrl} alt={selectedAvatar.name} className="relative z-10 max-h-full max-w-full object-contain" />
               ) : previewProduct?.url && selectedProductImageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewProduct.url} alt={previewProduct.name} className="max-h-full max-w-full object-contain" />
+                <img src={previewProduct.url} alt={previewProduct.name} className="relative z-10 max-h-full max-w-full object-contain" />
               ) : selectedTypeMeta && selectedType === 'holding' && selectedHoldingStyle ? (
-                <>
-                  <span className="w-16 h-16 rounded-full bg-accent/10 text-accent flex items-center justify-center mb-4">{SelectedIcon && <SelectedIcon size={34} strokeWidth={2.2} />}</span>
+                <div className="relative z-10">
+                  <span className="mx-auto w-14 h-14 rounded-full bg-accent/10 text-accent flex items-center justify-center mb-3">{SelectedIcon && <SelectedIcon size={28} strokeWidth={2.2} />}</span>
                   <p className="text-[14px] font-extrabold text-text-primary">{selectedTypeMeta.title}</p>
-                  <p className="mt-2 max-w-[300px] text-[13px] font-medium text-text-secondary">{selectedTypeMeta.desc}</p>
-                </>
+                  <p className="mt-1.5 max-w-[260px] text-[12px] font-medium text-text-secondary">{selectedTypeMeta.desc}</p>
+                </div>
               ) : (
-                <>
-                  <UserRound size={48} className="mb-4 text-text-muted" strokeWidth={2} />
+                <div className="relative z-10">
+                  <UserRound size={42} className="mx-auto mb-3 text-text-muted" strokeWidth={2} />
                   <p className="text-[13px] font-bold text-text-primary">{previewEmptyText}</p>
-                </>
+                </div>
               )}
             </div>
 
-            <div className="mt-5 rounded-[14px] border border-border bg-bg-card p-4">
-              <h3 className="text-[13px] font-extrabold text-text-primary">Astuces</h3>
-              <ul className="mt-3 space-y-1 text-[13px] font-medium leading-relaxed text-text-secondary">
+            <div className="mt-4 shrink-0 rounded-[14px] border border-border bg-bg-card p-3.5">
+              <h3 className="flex items-center gap-1.5 text-[12px] font-extrabold text-text-primary"><Sparkles size={13} className="text-accent" /> Astuces</h3>
+              <ul className="mt-2 space-y-1 text-[12px] font-medium leading-relaxed text-text-secondary">
                 <li>• Utilise l’édition IA pour la lumière, le fond ou le style</li>
                 <li>• Importe tes propres images pour plus de contrôle</li>
                 <li>• Prévisualise avant de générer le rendu final</li>
               </ul>
             </div>
           </aside>
+          )}
         </div>
-      </section>
+      </MainPanel>
 
       <DevStepNav
         steps={[
@@ -575,6 +865,15 @@ export default function ProductPhotoshootPage() {
         active={stepId}
         onJump={goToStep}
       />
-    </div>
+
+      {lightboxOpen && generatedUrl && (
+        <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/85 p-6 animate-fade-in" onClick={() => setLightboxOpen(false)}>
+          <button onClick={() => setLightboxOpen(false)} className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full border border-white/30 text-white hover:bg-white/10" aria-label="Fermer"><X size={18} /></button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={generatedUrl} alt="Rendu généré" onClick={(event) => event.stopPropagation()} className="max-h-[88vh] max-w-[92vw] rounded-[10px] object-contain" />
+          <a href={generatedUrl} download target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="absolute bottom-5 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-[13px] font-extrabold text-zinc-950 shadow-neo hover:brightness-95"><Download size={15} /> Télécharger</a>
+        </div>
+      )}
+    </PageShell>
   )
 }

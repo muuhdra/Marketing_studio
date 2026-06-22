@@ -51,10 +51,14 @@ export async function generateImage(params: GenerateImageParams): Promise<ImageR
     ? (Array.isArray(params.imageUrl) ? params.imageUrl : [params.imageUrl]).filter(Boolean)
     : []
   if (refImages.length > 0) {
+    // Contrat AIML Nano Banana édition : champ `image_urls` (PLURIEL, tableau, max 5) + aspect_ratio.
+    // ⚠️ `image_url` (singulier) est ignoré → le modèle régénère sans la référence.
+    const sizeToAspect = (s?: string) => s === '1792x1024' ? '16:9' : s === '1024x1792' ? '9:16' : '1:1'
     const body: Record<string, unknown> = {
-      model:     modelId,
-      prompt:    params.prompt,
-      image_url: refImages,
+      model:      modelId,
+      prompt:     params.prompt,
+      image_urls: refImages.slice(0, 5),
+      aspect_ratio: sizeToAspect(params.size),
     }
     if (params.n) body.num_images = params.n
     const res = await aimlFetch<{ data?: { url?: string; revised_prompt?: string }[] }>(
