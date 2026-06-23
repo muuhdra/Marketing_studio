@@ -69,7 +69,7 @@ export default function StrategieView() {
     // Récupéré par le sélecteur de type après reset() → injecté dans l'ADN de la campagne
     sessionStorage.setItem('pending-campaign-dna', adn)
     toast.success('Stratégie transférée — choisissez le type de campagne')
-    router.push('/campagne/nouveau')
+    router.push('/campaigns')
   }
 
   const [selected, setSelected]       = useState<string | null>(null)

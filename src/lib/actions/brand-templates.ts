@@ -6,7 +6,7 @@
  */
 
 import { randomUUID } from 'crypto'
-import { and, eq, desc } from 'drizzle-orm'
+import { and, eq, desc, inArray } from 'drizzle-orm'
 import { requireAuth } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
@@ -29,12 +29,12 @@ function aspectToSize(aspect: string): ImageSize {
   return '1024x1024'
 }
 
-export interface BrandTemplateDTO { id: string; name: string; url: string | null; prompt: string | null }
+export interface BrandTemplateDTO { id: string; name: string; url: string | null; prompt: string | null; active: boolean }
 
-async function toDTO(row: { id: string; name: string; path: string; prompt: string | null }): Promise<BrandTemplateDTO> {
+async function toDTO(row: { id: string; name: string; path: string; prompt: string | null; active?: boolean }): Promise<BrandTemplateDTO> {
   const supabase = await createClient()
   const { data } = await supabase.storage.from(BUCKETS.ASSETS).createSignedUrl(row.path, 60 * 60)
-  return { id: row.id, name: row.name, url: data?.signedUrl ?? null, prompt: row.prompt }
+  return { id: row.id, name: row.name, url: data?.signedUrl ?? null, prompt: row.prompt, active: row.active ?? true }
 }
 
 export async function actionListBrandTemplates(): Promise<BrandTemplateDTO[]> {
@@ -88,4 +88,17 @@ export async function actionDeleteBrandTemplate(id: string): Promise<void> {
   const supabase = await createClient()
   await supabase.storage.from(BUCKETS.ASSETS).remove([row.path]).catch(() => {})
   await db.delete(brand_templates).where(and(eq(brand_templates.id, id), eq(brand_templates.user_id, user.id)))
+}
+
+/**
+ * Définit l'ensemble des templates « actifs » de la marque : ceux dont l'id est dans `activeIds`
+ * passent à active=true, tous les autres (de l'utilisateur) à active=false.
+ */
+export async function actionSetActiveBrandTemplates(activeIds: string[]): Promise<void> {
+  const user = await requireAuth()
+  // Tout désactiver, puis activer la sélection (2 updates simples, sûrs avec RLS user).
+  await db.update(brand_templates).set({ active: false }).where(eq(brand_templates.user_id, user.id))
+  if (activeIds.length > 0) {
+    await db.update(brand_templates).set({ active: true }).where(and(eq(brand_templates.user_id, user.id), inArray(brand_templates.id, activeIds)))
+  }
 }

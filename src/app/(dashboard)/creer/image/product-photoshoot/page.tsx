@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Box, Check, Download, Gem, Hand, Image as ImageIcon, Maximize2, PlusCircle, Sparkles, Upload, UserCircle, UserRound, Wand2, X } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Box, Check, Download, Gem, Hand, Image as ImageIcon, Images, Maximize2, PlusCircle, Sparkles, Upload, UserCircle, UserRound, Wand2, X } from 'lucide-react'
 import { actionListProducts, actionUploadProductImage, actionCreateProduct, actionDeleteProduct, type ProductDTO } from '@/lib/actions/products'
 import { actionListAvatarsForPicker, actionUploadTempImage } from '@/lib/actions/avatar-assets'
 import { actionListProductModels, actionGenerateProductModel, actionUploadProductModel, type ProductModelDTO } from '@/lib/actions/product-models'
@@ -11,6 +11,8 @@ import { actionGenerateImage, actionDescribeProductScene } from '@/lib/actions/a
 import { persistOutput } from '@/lib/actions/outputs'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useToast } from '@/lib/stores/toastStore'
+import { useBrand } from '@/lib/stores/brandStore'
+import { AssetPickerModal } from '@/components/features/creer/AssetPicker'
 import { BackButton, ContinueButton, DevStepNav, MainPanel, PageShell, WizardHeader, ratioStyle, ratioToSize, StepSlider } from '@/components/features/creer/WizardKit'
 
 // Nano Banana ne produit que 3 tailles → on n'expose que les 3 formats réels.
@@ -54,7 +56,9 @@ function buildSteps(type: string | null, style: string): StepId[] {
 
 export default function ProductPhotoshootPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const toast = useToast()
+  const brand = useBrand()
   const actorProductInputRef = useRef<HTMLInputElement | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [generating, setGenerating] = useState(false)
@@ -81,6 +85,13 @@ export default function ProductPhotoshootPage() {
   const [busy, setBusy] = useState(false)
   const [generatingModel, setGeneratingModel] = useState(false)
   const [extraProductImages, setExtraProductImages] = useState<{ id: string; name: string; url: string }[]>([])
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false)
+
+  function pickProductAsset(url: string) {
+    setExtraProductImages((list) => list.some((x) => x.url === url) ? list : [{ id: `asset-${url}`, name: 'Asset', url }, ...list])
+    setSelectedProductImageUrl(url)
+    setActorProductImageUrl(url)
+  }
   const [productPlacement, setProductPlacement] = useState('auto')
   const [lightboxOpen, setLightboxOpen] = useState(false)
 
@@ -89,6 +100,14 @@ export default function ProductPhotoshootPage() {
     actionListAvatarsForPicker().then(setAvatars).catch(() => setAvatars([]))
     actionListProductModels().then(setProductModels).catch(() => setProductModels([]))
   }, [])
+
+  // Handoff depuis Production (?from=production&product=…) → pré-sélectionne le produit.
+  useEffect(() => {
+    if (!['production','template'].includes(searchParams.get('from') ?? '')) return
+    const product = searchParams.get('product')
+    if (product) setSelectedProductIds([product])
+    toast.info('Pré-rempli')
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sélecteur de fichier image.
   function pickImage(): Promise<File | null> {
@@ -310,6 +329,13 @@ export default function ProductPhotoshootPage() {
           : 'the same person (face, identity and features) from the model reference image'
         promptText = `Realistic lifestyle advertising photo: ${holder} naturally holding the EXACT product from the product reference image. ${fidelity} ${holding}. Product ${placement?.prompt ?? 'centered in the frame'}, the product is the clear hero — prominently presented toward the camera, fully visible, unobstructed, sharp focus, fingers not covering it.${selectedHoldingStyle === 'hand' ? '' : ` Model styled as ${styling}.`} Setting: ${background}. Cohesive natural lighting, photorealistic, high quality, no text, no watermark.`
       }
+      const brandCtx = [
+        brand.name ? `Brand: ${brand.name}` : '',
+        brand.communicationTone ? `tone ${brand.communicationTone}` : '',
+        brand.targetAudience ? `audience: ${brand.targetAudience}` : '',
+        brand.preferredWords.length ? `emphasize: ${brand.preferredWords.slice(0, 6).join(', ')}` : '',
+      ].filter(Boolean).join(' · ')
+      if (brandCtx) promptText += ` On-brand context — ${brandCtx}.`
       setPreviewSubtitle('Génération en cours…')
       const res = await actionGenerateImage({ prompt: promptText, model: 'nano-banana', size, n: 1, ...(refs.length ? { imageUrl: refs } : {}) })
       const url = res.find((image) => image.url)?.url
@@ -701,6 +727,10 @@ export default function ProductPhotoshootPage() {
               <span className="w-10 h-10 rounded-full bg-fg/[0.10] flex items-center justify-center text-text-primary"><PlusCircle size={20} /></span>
               <span className="text-[14px] font-semibold text-text-primary">Importer une image</span>
             </button>
+            <button onClick={() => setAssetPickerOpen(true)} className="w-[150px] min-h-[150px] rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center gap-4 px-5 hover:border-accent/70 hover:bg-accent/5 transition-colors">
+              <span className="w-10 h-10 rounded-full bg-fg/[0.10] flex items-center justify-center text-text-primary"><Images size={20} /></span>
+              <span className="text-[14px] font-semibold text-text-primary">Depuis mes Assets</span>
+            </button>
             {productImageOptions.map((image) => {
               const isSelected = selectedProductImageUrl === image.url
               return (
@@ -850,6 +880,8 @@ export default function ProductPhotoshootPage() {
           )}
         </div>
       </MainPanel>
+
+      <AssetPickerModal open={assetPickerOpen} onClose={() => setAssetPickerOpen(false)} onPick={(url) => pickProductAsset(url)} types={['image']} selectedUrls={[selectedProductImageUrl]} closeOnPick title="Mes Assets (images)" />
 
       <DevStepNav
         steps={[

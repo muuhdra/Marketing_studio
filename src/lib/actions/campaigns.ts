@@ -84,7 +84,7 @@ export async function createCampaign(data: {
     })
     .returning()
 
-  revalidatePath('/campagnes')
+  revalidatePath('/campaigns')
   return campaign
 }
 
@@ -198,8 +198,8 @@ export async function updateCampaign(
     throw new Error('Campagne introuvable ou accès refusé')
   }
 
-  revalidatePath('/campagnes')
-  revalidatePath(`/campagne/${id}`)
+  revalidatePath('/campaigns')
+  revalidatePath('/campaigns')
   return updated
 }
 
@@ -220,5 +220,5 @@ export async function deleteCampaign(id: string) {
 
   await db.delete(campaigns).where(eq(campaigns.id, id))
 
-  revalidatePath('/campagnes')
+  revalidatePath('/campaigns')
 }

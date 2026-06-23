@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import type { CompetitorInsight } from '@/lib/ai/research'
 
 // Profil de marque (section « Brand › Profile ») — persisté en localStorage.
 export interface BrandProfile {
@@ -19,6 +20,11 @@ export interface BrandProfile {
   targetAudience: string
   audienceDesires: string[]
   audienceProblems: string[]
+  dnaFileName: string   // nom du document ADN importé
+  dnaText: string       // texte extrait (formats texte) → injectable dans les prompts
+  activeSystemTemplateIds: string[]  // templates Images du système sélectionnés par la marque
+  competitors: CompetitorInsight[]   // concurrents e-commerce découverts (classés par réussite)
+  trackedCompetitors: string[]       // noms des concurrents suivis (max 3)
 }
 
 export type BrandListKey =
@@ -49,6 +55,11 @@ const DEFAULTS: BrandProfile = {
   targetAudience: 'Style-conscious adults aged 25-40 who value quality and sustainability over fast fashion',
   audienceDesires: ['Effortless everyday style', 'Products that last', 'Guilt-free purchases'],
   audienceProblems: ['Finding affordable quality clothing', 'Overwhelmed by too many choices', 'Concerned about sustainability'],
+  dnaFileName: '',
+  dnaText: '',
+  activeSystemTemplateIds: [],
+  competitors: [],
+  trackedCompetitors: [],
 }
 
 export const useBrand = create<BrandState>()(

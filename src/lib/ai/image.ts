@@ -160,11 +160,16 @@ export async function generateAvatarPhoto(options: {
   setting?:   string
   traits?:    string           // descripteurs morphologiques (peau, cheveux, yeux, physique…)
   descriptionPrompt?: string   // prompt dérivé d'une photo (reverse-engineering) → base de génération
+  imageUrl?:  string           // photo de référence (flux clone) → image-to-image, fidélité au visage
 }): Promise<ImageResult> {
+  const hasRef = !!options.imageUrl?.trim()
   // Portrait type "photo d'identité" : tête + épaules, fond studio neutre, de face.
-  const core = options.descriptionPrompt?.trim()
-    ? `${options.descriptionPrompt.trim()} Framed as an ID-style headshot, head and shoulders, facing the camera.`
-    : 'Professional ID-style headshot portrait of a person, head and shoulders, facing the camera.'
+  // Avec une photo de référence : on verrouille le visage/l'identité de la personne fournie.
+  const core = hasRef
+    ? 'Professional ID-style headshot portrait of the EXACT SAME person shown in the reference image — keep their face, identity, bone structure, skin tone and hair perfectly faithful. Head and shoulders, facing the camera.'
+    : options.descriptionPrompt?.trim()
+      ? `${options.descriptionPrompt.trim()} Framed as an ID-style headshot, head and shoulders, facing the camera.`
+      : 'Professional ID-style headshot portrait of a person, head and shoulders, facing the camera.'
 
   const prompt = [
     core,
@@ -172,6 +177,7 @@ export async function generateAvatarPhoto(options: {
     options.ethnicity ? `Ethnicity: ${options.ethnicity}.` : '',
     options.age       ? `Age approximately ${options.age} years old.` : '',
     options.style     ? `Style: ${options.style}.` : '',
+    options.setting?.trim() ? `Scene: ${options.setting.trim()}.` : '',
     'Neutral seamless studio background, even soft lighting, sharp focus.',
     'Photorealistic, authentic look, no text, no watermarks. Digital marketing avatar, professional quality.',
   ].filter(Boolean).join(' ')
@@ -181,6 +187,7 @@ export async function generateAvatarPhoto(options: {
     model:   'nano-banana',
     size:    '1024x1792',
     quality: 'hd',
+    ...(hasRef ? { imageUrl: options.imageUrl } : {}),
   })
 
   return results[0]

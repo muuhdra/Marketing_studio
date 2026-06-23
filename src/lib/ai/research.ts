@@ -249,6 +249,154 @@ JSON : {
   }
 }
 
+// ─── Découverte de concurrents (veille) — Perplexity Sonar ───────────────────
+
+export interface CompetitorInsight {
+  name:        string
+  description: string
+  positioning: string
+  adAngles:    string[]   // angles / stratégies publicitaires observés
+  website?:    string
+  scale?:      string     // ampleur e-commerce : « Grand » | « Moyen » | « Émergent »
+}
+
+/**
+ * Trouve (recherche web réelle) les concurrents d'une marque et analyse leur stratégie
+ * publicitaire. Si `query` est fourni, analyse cette marque précise au lieu de découvrir.
+ */
+export async function discoverCompetitors(input: {
+  brandName?:   string
+  category?:    string
+  description?: string
+  audience?:    string
+  query?:       string
+}): Promise<{ competitors: CompetitorInsight[]; sources: string[] }> {
+  const client = createAimlClient()
+  const today  = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+
+  const task = input.query?.trim()
+    ? `Analyse la marque e-commerce concurrente « ${input.query.trim()} » : positionnement, cible, ses promos/offres et ses angles/stratégies publicitaires (carrousels, créatives, UGC). Renvoie 1 entrée.`
+    : `Trouve 6 à 8 véritables marques E-COMMERCE / DTC (vente en ligne directe, type Shopify) concurrentes de « ${input.brandName || 'cette marque'} »${input.category ? ` (secteur : ${input.category})` : ''}.
+${input.description ? `Description de la marque : ${input.description}` : ''}
+${input.audience ? `Audience : ${input.audience}` : ''}
+Pour chacune, analyse son positionnement, ses promos/offres et ses angles publicitaires (carrousels, créatives, UGC).`
+
+  const response = await client.chat.completions.create({
+    model:    MODELS.research.sonar,
+    messages: [
+      { role: 'system', content: `Tu es un analyste en veille concurrentielle e-commerce (DTC). Nous sommes le ${today}. Base-toi sur des informations réelles et récentes (recherche web).
+RÈGLES STRICTES :
+- UNIQUEMENT des marques E-COMMERCE / DTC (boutiques en ligne, souvent Shopify), pas des places de marché.
+- EXCLURE absolument les grandes marques legacy / déjà très établies (ex. Nike, Adidas, Marni, Coca-Cola, Nestlé, Louis Vuitton, Zara, H&M…) — on veut des concurrents réalistes pour une marque e-commerce.
+- Privilégier les concurrents SÉRIEUX qui RÉUSSISSENT (forte traction, bonnes pubs).
+- CLASSER du plus grand / établi au plus petit / émergent (ordre = importance e-commerce).
+Réponds en JSON valide uniquement, en français.` },
+      { role: 'user', content: `${task}
+
+JSON exact (déjà classé du plus grand au plus petit) : {
+  "competitors": [
+    {
+      "name": "Nom de la marque e-commerce",
+      "scale": "Grand" | "Moyen" | "Émergent",
+      "description": "ce qu'elle vend (1 phrase)",
+      "positioning": "positionnement / proposition de valeur (1 phrase)",
+      "adAngles": ["angle/créa pub 1", "angle 2", "angle 3"],
+      "website": "domaine.com"
+    }
+  ],
+  "sources": ["url1", "url2"]
+}` },
+    ],
+    temperature: 0.3,
+    max_tokens:  1600,
+  })
+
+  const raw       = response.choices[0]?.message?.content ?? '{}'
+  const jsonMatch = raw.match(/\{[\s\S]*\}/)
+  const parsed    = jsonMatch ? JSON.parse(jsonMatch[0]) : {}
+  return {
+    competitors: Array.isArray(parsed.competitors) ? parsed.competitors : [],
+    sources:     Array.isArray(parsed.sources) ? parsed.sources : [],
+  }
+}
+
+// ─── Analyse profonde d'un concurrent + playbook adapté à NOTRE marque ───────
+
+export interface CompetitorStrategy {
+  strengths:       string[]   // ce qu'ils font bien / mieux que nous
+  winningAngles:   string[]   // angles / messages publicitaires qui performent
+  contentFormats:  string[]   // formats de contenu qui marchent
+  offers:          string[]   // offres / promos / leviers d'acquisition
+  channels:        string[]   // canaux principaux
+  weaknesses:      string[]   // failles exploitables
+  recommendations: string[]   // playbook adapté à NOTRE marque (équilibré avec notre ADN)
+  sources:         string[]
+}
+
+/**
+ * Espionne en profondeur la stratégie d'un concurrent (recherche web réelle) puis génère
+ * un plan d'action ÉQUILIBRÉ pour notre marque : s'inspirer de ce qui marche, exploiter
+ * leurs failles, sans copier bêtement — adapté à notre ADN / ton / audience / produit.
+ */
+export async function analyzeCompetitorStrategy(input: {
+  competitor:   string
+  brandName?:   string
+  description?: string
+  tone?:        string
+  audience?:    string
+  product?:     string
+  dna?:         string
+}): Promise<CompetitorStrategy> {
+  const client = createAimlClient()
+  const today  = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+
+  const response = await client.chat.completions.create({
+    model:    MODELS.research.sonar,
+    messages: [
+      { role: 'system', content: `Tu es un stratège e-commerce / DTC senior spécialisé en intelligence concurrentielle (acquisition payante, CRO, créatives social ads). Nous sommes le ${today}. Base-toi sur des informations réelles et récentes (recherche web). Réponds en JSON valide uniquement, en français, sans blabla.` },
+      { role: 'user', content: `Analyse en profondeur la stratégie E-COMMERCE de la marque « ${input.competitor} » : ce qu'ils font MIEUX, leurs PROMOS/offres (bundles, réductions, livraison, garanties), leurs CRÉATIVES qui performent (carrousels, UGC, avant/après, vidéos), leurs angles/messages, leurs canaux d'acquisition (Meta/TikTok ads, email, influence), et leurs failles exploitables.
+
+Puis, en tenant compte de NOTRE marque ci-dessous, produis un PLAYBOOK d'actions concrètes : comment s'inspirer de ce qui marche chez eux, exploiter leurs failles, et l'OPTIMISER/ADAPTER à notre identité (sans copier bêtement — trouver le bon équilibre).
+
+NOTRE MARQUE :
+Nom : ${input.brandName || '—'}
+Description : ${input.description || '—'}
+Ton : ${input.tone || '—'}
+Audience : ${input.audience || '—'}
+Produit phare : ${input.product || '—'}
+${input.dna ? `ADN (extrait) : ${input.dna.slice(0, 800)}` : ''}
+
+JSON exact : {
+  "strengths": ["force/atout 1", "force 2", "force 3"],
+  "winningAngles": ["angle qui marche 1", "angle 2"],
+  "contentFormats": ["format 1", "format 2"],
+  "offers": ["offre/levier 1", "levier 2"],
+  "channels": ["canal 1", "canal 2"],
+  "weaknesses": ["faille exploitable 1", "faille 2"],
+  "recommendations": ["action concrète adaptée à notre marque 1", "action 2", "action 3", "action 4"],
+  "sources": ["url1", "url2"]
+}` },
+    ],
+    temperature: 0.4,
+    max_tokens:  1500,
+  })
+
+  const raw       = response.choices[0]?.message?.content ?? '{}'
+  const jsonMatch = raw.match(/\{[\s\S]*\}/)
+  const p         = jsonMatch ? JSON.parse(jsonMatch[0]) : {}
+  const arr = (x: unknown) => (Array.isArray(x) ? x as string[] : [])
+  return {
+    strengths:       arr(p.strengths),
+    winningAngles:   arr(p.winningAngles),
+    contentFormats:  arr(p.contentFormats),
+    offers:          arr(p.offers),
+    channels:        arr(p.channels),
+    weaknesses:      arr(p.weaknesses),
+    recommendations: arr(p.recommendations),
+    sources:         arr(p.sources),
+  }
+}
+
 // ─── Formateur de contexte pour injection dans les prompts ───────────────────
 
 /**

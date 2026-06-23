@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft,
   Check,
@@ -15,6 +15,7 @@ import {
   Info,
   Megaphone,
   PlusCircle,
+  Images,
   Rocket,
   SearchX,
   Settings,
@@ -31,8 +32,10 @@ import { actionListProducts, actionUploadProductImage, actionCreateProduct, acti
 import { actionListBrandTemplates, actionUploadBrandTemplate, type BrandTemplateDTO } from '@/lib/actions/brand-templates'
 import { listTemplates, type TemplateDTO } from '@/lib/actions/templates'
 import { TEMPLATE_CATEGORIES } from '@/lib/templates/library'
+import { useBrand } from '@/lib/stores/brandStore'
 import { actionGenerateImage, actionDescribeProductScene } from '@/lib/actions/ai'
 import { actionUploadTempImage } from '@/lib/actions/avatar-assets'
+import { actionListBrandAssets, type BrandAssetDTO } from '@/lib/actions/brand-assets'
 import { persistOutput } from '@/lib/actions/outputs'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useToast } from '@/lib/stores/toastStore'
@@ -111,6 +114,7 @@ export default function StaticsCreatorPage() {
 
 function StepFlow() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const toast = useToast()
   const [products, setProducts] = useState<ProductDTO[]>([])
   const [selectedFlow, setSelectedFlow] = useState<Flow | null>(null)
@@ -123,6 +127,8 @@ function StepFlow() {
   const [selectedDimension, setSelectedDimension] = useState('9:16')
   const [selectedGoalIds, setSelectedGoalIds] = useState<string[]>(['stop-scroll'])
   const [visualDirection, setVisualDirection] = useState('')
+  // Structure d'inspiration issue d'un template sélectionné (Templates → « Utiliser »).
+  const [templateStructure, setTemplateStructure] = useState('')
   const [ctaText, setCtaText] = useState('')
   const [variationsToGenerate, setVariationsToGenerate] = useState(1)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -138,14 +144,34 @@ function StepFlow() {
   const [busy, setBusy] = useState(false)
   const [customTemplates, setCustomTemplates] = useState<TemplateCard[]>([])
   const [extraImages, setExtraImages] = useState<{ id: string; name: string; url: string }[]>([])
+  const [brandAssets, setBrandAssets] = useState<BrandAssetDTO[]>([])
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false)
   const [brandTemplates, setBrandTemplates] = useState<BrandTemplateDTO[]>([])
   const [systemTemplates, setSystemTemplates] = useState<TemplateDTO[]>([])
+  const brand = useBrand()
+  const activeSysIds = brand.activeSystemTemplateIds
 
   useEffect(() => {
     actionListProducts().then(setProducts).catch(() => setProducts([]))
     actionListBrandTemplates().then(setBrandTemplates).catch(() => setBrandTemplates([]))
     listTemplates().then((list) => setSystemTemplates(list.filter((t) => t.kind === 'image'))).catch(() => setSystemTemplates([]))
+    actionListBrandAssets().then((a) => setBrandAssets(a.filter((x) => x.type === 'image' && x.url))).catch(() => setBrandAssets([]))
   }, [])
+
+  // Handoff depuis Production (?from=production&prompt=…&product=…) ou Templates
+  // (?from=template&templatePrompt=… → structure d'inspiration adaptée au produit).
+  useEffect(() => {
+    if (!['production','template'].includes(searchParams.get('from') ?? '')) return
+    const prompt = searchParams.get('prompt')
+    const product = searchParams.get('product')
+    const tpl = searchParams.get('templatePrompt')
+    if (tpl) setTemplateStructure(tpl)
+    if (prompt) setVisualDirection(prompt)
+    if (product) setSelectedProductIds([product])
+    setSelectedFlow('scratch')   // flux direct (sans template) : on entre dans le wizard
+    setCurrentStep(1)            // étape « products » du flux scratch
+    toast.info(tpl ? 'Template appliqué — sa structure inspirera la création autour de ton produit' : 'Pré-rempli')
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Popover descriptif (i) des goals : ferme au clic en dehors (le (i) et le popover stoppent la propagation).
   useEffect(() => {
@@ -241,8 +267,14 @@ function StepFlow() {
     ...extraImages,
   ]
 
+  // Curation : on propose les templates « actifs » sélectionnés dans Brand → Templates.
+  // Fallback : si la marque n'a rien curé, on montre tout le catalogue (pas d'écran vide).
+  // Système (catalogue volumineux) → on ne montre que les templates sélectionnés (sinon tout).
+  const curatedSystem = activeSysIds.length ? systemTemplates.filter((t) => activeSysIds.includes(t.id)) : systemTemplates
+  // Brand (peu nombreux, tous à l'utilisateur) → on montre tout mais les actifs d'abord (priorité).
+  const curatedBrand = [...brandTemplates].sort((a, b) => Number(b.active) - Number(a.active))
   // Templates système (table content_templates, kind=image) → cartes.
-  const baseCards: TemplateCard[] = systemTemplates.map((template) => ({
+  const baseCards: TemplateCard[] = curatedSystem.map((template) => ({
     id: `sys-${template.id}`,
     label: template.label,
     category: template.category,
@@ -256,7 +288,7 @@ function StepFlow() {
   const categories = dbCategories.length ? dbCategories : TEMPLATE_CATEGORIES
   const activeCategory = categories.includes(templateCategory) ? templateCategory : categories[0]
   // Brand templates de l'utilisateur (table brand_templates) → cartes.
-  const brandCards: TemplateCard[] = brandTemplates.map((template) => ({
+  const brandCards: TemplateCard[] = curatedBrand.map((template) => ({
     id: `brand-${template.id}`,
     label: template.name,
     category: 'Brand',
@@ -321,6 +353,14 @@ function StepFlow() {
       const product = scene?.product ?? 'the product'
       const hasTemplate = selectedTemplates.some((t) => t.url)
       const fidelity = 'CRITICAL: reproduce the EXACT product shown in the reference image — identical shape, colors, text, logo, label and proportions. Do not redesign, replace or invent a different product. Keep it perfectly recognizable.'
+      // Contexte de marque (Profil) → toutes les générations respectent l'ADN/ton/audience.
+      const brandCtx = [
+        brand.name ? `Brand: ${brand.name}` : '',
+        brand.communicationTone ? `tone ${brand.communicationTone}` : '',
+        brand.targetAudience ? `audience: ${brand.targetAudience}` : '',
+        brand.preferredWords.length ? `emphasize: ${brand.preferredWords.slice(0, 6).join(', ')}` : '',
+        brand.wordsToAvoid.length ? `avoid: ${brand.wordsToAvoid.slice(0, 6).join(', ')}` : '',
+      ].filter(Boolean).join(' · ')
       const all: { url: string }[] = []
       for (const goalId of goalIds) {
         const goal = GOALS.find((item) => item.id === goalId)
@@ -332,7 +372,9 @@ function StepFlow() {
           hasTemplate ? 'Use the provided template image only as layout and style inspiration (composition, mood) — keep the product faithful.' : '',
           goal ? `Goal: ${goal.title} — ${goal.details}.` : '',
           scene?.background ? `Setting / style: ${scene.background}.` : '',
+          templateStructure ? `Reference structure (from a proven template) — follow its composition, layout, framing, color treatment and overall style, but feature OUR product faithfully and never copy the original subject, brand or text: """${templateStructure}""".` : '',
           visualDirection ? `Visual direction: ${visualDirection}.` : '',
+          brandCtx ? `On-brand context — ${brandCtx}.` : '',
           includeCta && ctaText ? `Include a call-to-action: "${ctaText}".` : '',
           customHeadline ? `Headline: "${customHeadline}".` : '',
           'High-quality, conversion-focused social media ad, clean composition, photorealistic.',
@@ -603,6 +645,10 @@ function StepFlow() {
             <button onClick={uploadLibraryImage} disabled={busy} className="w-[150px] min-h-[150px] rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center gap-4 px-5 hover:border-accent/70 hover:bg-accent/5 transition-colors disabled:opacity-55 disabled:cursor-not-allowed">
               <span className="w-10 h-10 rounded-full bg-fg/[0.10] flex items-center justify-center text-text-primary"><PlusCircle size={20} /></span>
               <span className="text-[14px] font-semibold text-text-primary">Importer une image</span>
+            </button>
+            <button onClick={() => setAssetPickerOpen(true)} className="w-[150px] min-h-[150px] rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center gap-4 px-5 hover:border-accent/70 hover:bg-accent/5 transition-colors">
+              <span className="w-10 h-10 rounded-full bg-fg/[0.10] flex items-center justify-center text-text-primary"><Images size={20} /></span>
+              <span className="text-[14px] font-semibold text-text-primary">Depuis mes Assets</span>
             </button>
             {productImages.map((image) => {
               const selected = selectedImageUrls.includes(image.url)
@@ -882,6 +928,40 @@ function StepFlow() {
       )}
 
       <ResultsOverlay open={resultsOpen} generating={generating} results={results} title="Tes pubs statiques" onClose={() => setResultsOpen(false)} />
+
+      {/* Sélecteur : utiliser un asset de marque comme référence */}
+      {assetPickerOpen && (
+        <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/75 p-6 animate-fade-in" onClick={() => setAssetPickerOpen(false)}>
+          <div className="flex max-h-[80vh] w-full max-w-[640px] flex-col overflow-hidden rounded-[16px] border border-border bg-bg-card shadow-neo-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+              <h2 className="text-[15px] font-extrabold tracking-tight text-text-primary">Mes Assets (images)</h2>
+              <button type="button" onClick={() => setAssetPickerOpen(false)} className="grid h-7 w-7 place-items-center rounded-full text-text-muted transition hover:bg-fg/[0.08] hover:text-text-primary"><X size={16} strokeWidth={2.3} /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {brandAssets.length === 0 ? (
+                <p className="py-12 text-center text-[13px] font-medium text-text-secondary">Aucune image dans tes Assets. Ajoute-en dans Brand → Assets.</p>
+              ) : (
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+                  {brandAssets.map((a) => {
+                    const sel = a.url ? selectedImageUrls.includes(a.url) : false
+                    return (
+                      <button key={a.id} type="button" onClick={() => a.url && toggleImage(a.url)} className={`group relative aspect-square overflow-hidden rounded-[10px] border-2 bg-fg/[0.04] transition-all ${sel ? 'border-accent ring-2 ring-accent/20' : 'border-transparent hover:border-accent/50'}`}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {a.url && <img src={a.url} alt={a.name} className="h-full w-full object-cover" />}
+                        {sel && <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-accent text-white"><Check size={12} strokeWidth={3} /></span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-between border-t border-border px-5 py-3">
+              <span className="text-[12px] font-semibold text-text-muted">{selectedImageUrls.length} sélectionnée(s)</span>
+              <button type="button" onClick={() => setAssetPickerOpen(false)} className="inline-flex h-9 items-center gap-2 rounded-[9px] bg-accent px-4 text-[13px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105">Terminé</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {previewTemplate && (
         <div className="fixed inset-0 z-[1300] bg-black/75 flex items-center justify-center p-6 animate-fade-in" onClick={() => setPreviewTemplate(null)}>

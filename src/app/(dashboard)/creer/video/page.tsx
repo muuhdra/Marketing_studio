@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -14,6 +14,7 @@ import {
   Globe,
   Handshake,
   Image as ImageIcon,
+  Images,
   Info,
   LayoutPanelLeft,
   Lightbulb,
@@ -49,6 +50,7 @@ import { persistOutput } from '@/lib/actions/outputs'
 import { useToast } from '@/lib/stores/toastStore'
 import { useSettings } from '@/lib/stores/settingsStore'
 import { StepSlider } from '@/components/features/creer/WizardKit'
+import { AssetPickerModal } from '@/components/features/creer/AssetPicker'
 
 // Ordre des étapes dans la pile glissante du B-Roll Voice Over (flux IA = adjacent ; flux manuel saute les étapes IA).
 const BROLL_STEP_ORDER = ['choice', 'goals', 'audience', 'products', 'images', 'actors', 'configure', 'manual-script'] as const
@@ -225,6 +227,7 @@ type VideoMode = 'menu' | 'realistic-actor' | 'broll-voiceover' | 'video-generat
 
 export default function CreerVideoPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const toast = useToast()
   const studioName = useSettings((s) => s.studioName)
   const [mode, setMode] = useState<VideoMode>('menu')
@@ -274,11 +277,14 @@ export default function CreerVideoPage() {
   const [durationMenuOpen, setDurationMenuOpen] = useState(false)
   const [brollInstructions, setBrollInstructions] = useState('')
   const [manualBrollScript, setManualBrollScript] = useState('')
+  // Structure d'inspiration issue d'un template sélectionné (Templates → « Utiliser »).
+  const [templateStructure, setTemplateStructure] = useState('')
   const [customVideoType, setCustomVideoType] = useState<'image' | 'text'>('image')
   const [selectedCustomVideoModel, setSelectedCustomVideoModel] = useState('')
   const [customVideoStep, setCustomVideoStep] = useState<'models' | 'generate'>('models')
   const [customVideoPrompt, setCustomVideoPrompt] = useState('')
   const [customVideoImageUrl, setCustomVideoImageUrl] = useState('')
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false)
   const [customVideoAspect, setCustomVideoAspect] = useState<'portrait' | 'landscape' | 'square'>('portrait')
   const [customVideoDuration, setCustomVideoDuration] = useState<5 | 10>(5)
   const [generatingCustomVideo, setGeneratingCustomVideo] = useState(false)
@@ -297,6 +303,36 @@ export default function CreerVideoPage() {
     actionListAvatarsForPicker().then(setAvatars).catch(() => setAvatars([]))
     actionListProducts().then(setProducts).catch(() => setProducts([]))
   }, [])
+
+  // Handoff depuis Production (?from=production&…&prompt=…) ou Templates (?from=template&…&templatePrompt=…).
+  // Production → pré-remplit directement le script. Template → mémorise la structure d'inspiration
+  // (utilisée à la génération du script, adaptée au produit choisi), sans copier le contenu.
+  useEffect(() => {
+    if (!['production','template'].includes(searchParams.get('from') ?? '')) return
+    const type = searchParams.get('type')
+    const prompt = searchParams.get('prompt') ?? ''
+    const tpl = searchParams.get('templatePrompt') ?? ''
+    if (tpl) setTemplateStructure(tpl)
+    if (type === 'broll-video') {
+      setMode('broll-voiceover')
+      if (prompt) setManualBrollScript(prompt)
+    } else {
+      setMode('realistic-actor')
+      if (prompt) setActorScript(prompt)
+    }
+    toast.info(tpl ? 'Template appliqué — choisis ton produit puis génère le script' : 'Pré-rempli')
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Avatar attaché (id) → on le résout vers l'URL de l'acteur une fois les avatars chargés.
+  useEffect(() => {
+    if (!['production','template'].includes(searchParams.get('from') ?? '')) return
+    const avatarId = searchParams.get('avatar')
+    if (!avatarId || avatars.length === 0) return
+    const photo = avatars.find((a) => a.id === avatarId)?.photoUrl
+    if (!photo) return
+    if (searchParams.get('type') === 'broll-video') setSelectedBrollActorUrl(photo)
+    else setSelectedActorUrl(photo)
+  }, [avatars]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ferme les popovers / menus au clic en dehors.
   useEffect(() => {
@@ -366,10 +402,15 @@ export default function CreerVideoPage() {
       const goal = BROLL_GOALS.find((g) => g.id === selectedBrollGoal)
       const goalText = goal?.title ?? (selectedBrollGoal === 'write-your-own' ? customBrollGoal.trim() : '')
       const audience = BROLL_AUDIENCES.find((a) => a.id === selectedBrollAudience)
+      const product = products.find((p) => p.id === selectedBrollProduct)
+      const productCtx = product
+        ? `Produit mis en avant : ${product.name}${product.description ? ` — ${product.description}` : ''}${product.benefits?.length ? ` · Bénéfices : ${product.benefits.join(', ')}` : ''}`
+        : ''
       const res = await actionGenerateScript({
         campaignName: 'Voice Over Ad',
-        campaignDna: [manualBrollScript.trim(), goalText, audience?.title || customBrollAudience, brollInstructions].filter(Boolean).join(' — ') || 'Punchy b-roll voice-over ad for a product.',
+        campaignDna: [productCtx, manualBrollScript.trim(), goalText, audience?.title || customBrollAudience, brollInstructions].filter(Boolean).join(' — ') || 'Punchy b-roll voice-over ad for a product.',
         contentType: 'ugc', format: 'social', platform: 'tiktok', duration: brollDuration,
+        templateStructure: templateStructure || undefined,
       })
       setManualBrollScript((res.voiceover || res.script || '').trim())
       setBrollStep('manual-script')
@@ -447,6 +488,7 @@ export default function CreerVideoPage() {
         campaignName: 'Voice Over Ad',
         campaignDna: [`Script à affiner: ${manualBrollScript.trim()}`, brollRefineInstruction.trim() ? `Consigne: ${brollRefineInstruction.trim()}` : 'Améliore, dynamise et rends-le plus percutant', goalText, audience?.title || customBrollAudience].filter(Boolean).join(' — '),
         contentType: 'ugc', format: 'social', platform: 'tiktok', duration: brollDuration,
+        templateStructure: templateStructure || undefined,
       })
       setManualBrollScript((res.voiceover || res.script || '').trim())
       toast.success('Script affiné')
@@ -2106,6 +2148,7 @@ export default function CreerVideoPage() {
                         </span>
                       )}
                     </button>
+                    <button type="button" onClick={() => setAssetPickerOpen(true)} className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-extrabold text-text-secondary transition hover:text-accent"><Images size={13} /> Depuis mes Assets</button>
                   </div>
                 )}
 
@@ -2175,6 +2218,8 @@ export default function CreerVideoPage() {
             </StepSlider>
           </main>
         </section>
+
+        <AssetPickerModal open={assetPickerOpen} onClose={() => setAssetPickerOpen(false)} onPick={(url) => setCustomVideoImageUrl(url)} types={['image']} selectedUrls={[customVideoImageUrl]} closeOnPick title="Mes Assets (images)" />
 
         {actorLightboxOpen && actorVideoUrl && (
           <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/85 p-6 animate-fade-in" onClick={() => setActorLightboxOpen(false)}>

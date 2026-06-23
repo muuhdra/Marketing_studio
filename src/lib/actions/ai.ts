@@ -17,6 +17,8 @@ import { requireAuth } from './auth'
 import {
   runResearchAgent,
   quickTrendResearch,
+  discoverCompetitors,
+  analyzeCompetitorStrategy,
   type ResearchParams,
 } from '@/lib/ai/research'
 import {
@@ -25,9 +27,11 @@ import {
   generateStrategy,
   generateHooks,
   generateCloneScript,
+  generateProductionPrompt,
   type GenerateScriptParams,
   type GenerateCopyParams,
   type GenerateStrategyParams,
+  type ProductionPromptParams,
 } from '@/lib/ai/text'
 import {
   generateImage,
@@ -81,6 +85,22 @@ export async function actionQuickTrendResearch(options: {
   return quickTrendResearch(options)
 }
 
+/** Veille concurrentielle — découverte + analyse des stratégies pub (Perplexity). */
+export async function actionDiscoverCompetitors(input: {
+  brandName?: string; category?: string; description?: string; audience?: string; query?: string
+}) {
+  await requireAuth()
+  return discoverCompetitors(input)
+}
+
+/** Analyse profonde d'un concurrent + playbook adapté à notre marque (Perplexity). */
+export async function actionAnalyzeCompetitorStrategy(input: {
+  competitor: string; brandName?: string; description?: string; tone?: string; audience?: string; product?: string; dna?: string
+}) {
+  await requireAuth()
+  return analyzeCompetitorStrategy(input)
+}
+
 /**
  * Pipeline complet : Research → Script
  * Perplexity cherche les tendances → Claude/ChatGPT génère le script enrichi
@@ -116,6 +136,12 @@ export async function actionGenerateScript(params: GenerateScriptParams) {
 export async function actionGenerateCopy(params: GenerateCopyParams) {
   await requireAuth()
   return generateCopy(params)
+}
+
+/** Brief de génération créatif (Production) : analyse produit + ADN marque → prompt sur-mesure. */
+export async function actionGenerateProductionPrompt(params: ProductionPromptParams) {
+  await requireAuth()
+  return generateProductionPrompt(params)
 }
 
 /** Stratégie — Claude par défaut (raisonnement profond) */
@@ -172,6 +198,7 @@ export async function actionGenerateAvatarPhoto(options: {
   setting?:   string
   traits?:    string
   descriptionPrompt?: string   // prompt issu du reverse-engineering d'une photo
+  imageUrl?:  string           // photo de référence (flux clone) → image-to-image
 }) {
   await requireAuth()
   return generateAvatarPhoto(options)

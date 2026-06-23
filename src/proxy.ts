@@ -40,8 +40,16 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Vérifier la session uniquement pour les routes protégées
-  const { data: { user } } = await supabase.auth.getUser()
+  // Vérifier la session uniquement pour les routes protégées.
+  // Si Supabase est injoignable (réseau coupé), on ne plante pas : on traite
+  // comme non authentifié et on redirige vers /login.
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    user = null
+  }
 
   if (!user) {
     // Non authentifié → login

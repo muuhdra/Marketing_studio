@@ -208,6 +208,21 @@ export const avatars = pgTable('avatars', {
 // PRODUITS — bibliothèque de marque
 // ─────────────────────────────────────────────
 
+// ── Marques (multi-marques) ──
+export const brands = pgTable('brands', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id').notNull(),
+  name: text('name').notNull(),
+  color: text('color').default('#ea580c'),
+  logo_url: text('logo_url'),
+  category: text('category'),
+  profile: jsonb('profile').notNull().default({}),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('brands_user_id_idx').on(t.user_id),
+])
+
 export const products = pgTable('products', {
   id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id').notNull(),
@@ -255,6 +270,7 @@ export const brand_templates = pgTable('brand_templates', {
   name: text('name').notNull(),
   prompt: text('prompt'),                  // prompt si généré par IA
   path: text('path').notNull(),            // chemin image dans le bucket assets
+  active: boolean('active').notNull().default(false), // template « actif » (sélectionné par l'utilisateur)
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('brand_templates_user_id_idx').on(t.user_id),

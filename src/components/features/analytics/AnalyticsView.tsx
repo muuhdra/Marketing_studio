@@ -250,7 +250,7 @@ export default function AnalyticsView({ campaigns, avatars }: Props) {
           ) : byCampaign.length === 0 ? (
             <div className="py-8 text-center">
               <p className="font-sans text-[11px] text-text-dim mb-1">Aucune campagne</p>
-              <Link href="/campagne/nouveau" className="font-sans text-[10px] text-accent hover:underline">
+              <Link href="/campaigns" className="font-sans text-[10px] text-accent hover:underline">
                 → Créer une campagne
               </Link>
             </div>

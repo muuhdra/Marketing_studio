@@ -6,16 +6,16 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useSettings, DEFAULT_STUDIO_NAME } from '@/lib/stores/settingsStore'
 import { useBrands } from '@/lib/stores/brandsStore'
+import { listBrands, createBrand } from '@/lib/actions/brands'
+import { BRAND_CATEGORIES } from '@/lib/stores/brandStore'
 import { createBrowserClient } from '@supabase/ssr'
 import {
   Clapperboard,
   LayoutGrid,
   LayoutTemplate,
   Drama,
-  Store,
   Send,
   Check,
-  ChevronDown,
   ChevronRight,
   BookOpen,
   Box,
@@ -24,23 +24,29 @@ import {
   Plus,
   Settings,
   LogOut,
-  Zap,
   Megaphone,
   Swords,
   Video,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
 
 // Navigation principale (mappée sur nos routes existantes)
-const NAV = [
+type NavItem = { href: string; icon: typeof Clapperboard; label: string; expandable?: boolean; badge?: string }
+const NAV: NavItem[] = [
   { href: '/dashboard', icon: Clapperboard, label: 'Content Studio' },
   { href: '/galerie', icon: LayoutGrid, label: 'Creations' },
   { href: '/templates', icon: LayoutTemplate, label: 'Templates' },
   { href: '/avatar-studio', icon: Drama, label: 'Characters' },
-  { href: '/parametres', icon: Megaphone, label: 'Campaigns', sub: true, expandable: true, badge: 'NEW' },
-  { href: '/calendrier', icon: Send, label: 'Publish', sub: true },
+  { href: '/parametres', icon: Megaphone, label: 'Campaigns', expandable: true, badge: 'NEW' },
+  { href: '/calendrier', icon: Send, label: 'Planning' },
 ]
 
-const BRAND_NAV = [
+// Palette de couleurs proposées à la création d'une marque
+const BRAND_COLORS = ['#ea580c', '#dc2626', '#d97706', '#16a34a', '#0d9488', '#2563eb', '#7c3aed', '#db2777', '#0f172a']
+
+type BrandNavItem = { href: string; icon: typeof BookOpen; label: string; section: string; badge?: string }
+const BRAND_NAV: BrandNavItem[] = [
   { href: '/parametres?section=profile', icon: BookOpen, label: 'Profile', section: 'profile' },
   { href: '/parametres?section=products', icon: Box, label: 'Products', section: 'products' },
   { href: '/parametres?section=assets', icon: Images, label: 'Assets', section: 'assets' },
@@ -55,21 +61,40 @@ export default function Sidebar() {
   const router = useRouter()
   const studioName = useSettings((s) => s.studioName)
   const [mounted, setMounted] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const [email, setEmail] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [brandMenuOpen, setBrandMenuOpen] = useState(false)
   const [brandNavOpen, setBrandNavOpen] = useState(false)
   const [addingBrand, setAddingBrand] = useState(false)
   const [newBrandName, setNewBrandName] = useState('')
+  const [newBrandColor, setNewBrandColor] = useState(BRAND_COLORS[0])
+  const [newBrandCategory, setNewBrandCategory] = useState(BRAND_CATEGORIES[0])
+  const [savingBrand, setSavingBrand] = useState(false)
 
-  const { brands, activeBrandId, setActiveBrand, addBrand } = useBrands()
+  const { brands, activeBrandId, setBrands, setActiveBrand } = useBrands()
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    setMounted(true)
+    setCollapsed(localStorage.getItem('sidebar-collapsed') === '1')
+    listBrands().then(setBrands).catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      const next = !c
+      localStorage.setItem('sidebar-collapsed', next ? '1' : '0')
+      return next
+    })
+    setBrandMenuOpen(false)
+    setBrandNavOpen(false)
+    setMenuOpen(false)
+  }
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? '')).catch(() => { })
   }, [])
@@ -81,24 +106,58 @@ export default function Sidebar() {
 
   const activeBrand = mounted ? (brands.find((b) => b.id === activeBrandId) ?? brands[0]) : { name: DEFAULT_STUDIO_NAME, color: '#ea580c', id: '' }
   const brandSection = searchParams.get('section') ?? 'profile'
+  const userInitial = (email.trim()[0] ?? studioName.trim()[0] ?? '?').toUpperCase()
 
-  function handleAddBrand() {
+  async function handleAddBrand() {
     const name = newBrandName.trim()
-    if (!name) return
-    addBrand(name)
-    setNewBrandName('')
-    setAddingBrand(false)
-    setBrandMenuOpen(false)
-    setBrandNavOpen(true)
-    router.push('/parametres?section=profile')
+    if (!name || savingBrand) return
+    setSavingBrand(true)
+    try {
+      const b = await createBrand({ name, color: newBrandColor, category: newBrandCategory })
+      setBrands(await listBrands())
+      setActiveBrand(b.id)
+      setNewBrandName('')
+      setNewBrandColor(BRAND_COLORS[0])
+      setNewBrandCategory(BRAND_CATEGORIES[0])
+      setAddingBrand(false)
+      setBrandMenuOpen(false)
+      setBrandNavOpen(true)
+      router.push('/parametres?section=profile')
+    } catch { /* ignore */ }
+    finally { setSavingBrand(false) }
   }
 
   return (
-    <aside className="sticky top-0 z-20 flex h-screen w-[212px] flex-shrink-0 flex-col border-r border-border bg-bg-surface">
+    <aside className={cn(
+      'sticky top-0 z-20 m-1.5 flex h-[calc(100vh-12px)] flex-shrink-0 flex-col rounded-[18px] border border-border bg-bg-card shadow-neo-sm transition-[width] duration-200',
+      collapsed ? 'w-[64px]' : 'w-[196px]',
+    )}>
 
       {/* ── Active brand ── */}
-      <div className="relative px-3 pt-4 pb-3">
-        <p className="text-[10px] font-extrabold uppercase tracking-wide text-text-primary/75">Active brand</p>
+      <div className={cn('relative pt-3 pb-2.5', collapsed ? 'px-2' : 'px-2.5')}>
+        <div className="flex items-center justify-between">
+          {!collapsed && <p className="text-[10px] font-extrabold uppercase tracking-wide text-text-primary/70">Active brand</p>}
+          <div className={cn('flex items-center gap-0.5', collapsed && 'mx-auto flex-col')}>
+            {!collapsed && (
+              <button
+                type="button"
+                onClick={() => { setBrandMenuOpen(true); setAddingBrand(true); setMenuOpen(false) }}
+                title="Nouvelle marque"
+                className="grid h-6 w-6 place-items-center rounded-[7px] text-text-secondary transition-colors hover:bg-accent/10 hover:text-accent"
+              >
+                <Plus size={15} strokeWidth={2.6} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              title={collapsed ? 'Déplier la sidebar' : 'Replier la sidebar'}
+              className="grid h-6 w-6 place-items-center rounded-[7px] text-text-secondary transition-colors hover:bg-fg/[0.06] hover:text-text-primary"
+            >
+              {collapsed ? <PanelLeftOpen size={15} strokeWidth={2.2} /> : <PanelLeftClose size={15} strokeWidth={2.2} />}
+            </button>
+          </div>
+        </div>
         <button
           type="button"
           onClick={() => {
@@ -107,16 +166,17 @@ export default function Sidebar() {
             setAddingBrand(false)
             setNewBrandName('')
           }}
-          className="mt-3.5 flex w-full items-center gap-2 rounded-[10px] py-1 text-left transition-colors hover:bg-fg/[0.03]"
+          title={collapsed ? (activeBrand?.name ?? DEFAULT_STUDIO_NAME) : undefined}
+          className={cn('mt-2.5 flex w-full items-center gap-2 rounded-[10px] py-1 text-left transition-colors hover:bg-fg/[0.03]', collapsed && 'justify-center')}
         >
           <span
-            className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full text-white"
+            className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full text-white"
             style={{ backgroundColor: activeBrand?.color ?? '#ea580c' }}
           >
-            <LayoutGrid size={17} strokeWidth={2.4} />
+            <LayoutGrid size={15} strokeWidth={2.4} />
           </span>
-          <span className="min-w-0 flex-1 truncate font-display text-[16.5px] font-extrabold tracking-tight text-text-primary">{activeBrand?.name ?? DEFAULT_STUDIO_NAME}</span>
-          <ChevronDown size={18} strokeWidth={2.2} className={cn('flex-shrink-0 text-text-primary transition-transform', brandMenuOpen && 'rotate-180')} />
+          {!collapsed && <span className="min-w-0 flex-1 truncate font-display text-[15px] font-extrabold tracking-tight text-text-primary">{activeBrand?.name ?? DEFAULT_STUDIO_NAME}</span>}
+          {!collapsed && <ChevronRight size={16} strokeWidth={2.2} className={cn('flex-shrink-0 text-text-primary transition-transform', brandMenuOpen && 'rotate-90')} />}
         </button>
 
         {brandMenuOpen && (
@@ -125,7 +185,7 @@ export default function Sidebar() {
             <div className="absolute left-[calc(100%+10px)] top-5 z-50 w-[272px] animate-fade-in overflow-hidden rounded-[16px] border border-border bg-bg-card shadow-neo">
               {/* Header */}
               <div className="flex items-center justify-between px-4 pt-4 pb-3">
-                <h2 className="text-[15px] font-extrabold tracking-tight text-text-primary">Your Brands</h2>
+                <h2 className="text-[15px] font-extrabold tracking-tight text-text-primary">Mes marques</h2>
                 <span className="rounded-full bg-fg/[0.07] px-2 py-0.5 text-[11px] font-extrabold text-text-primary">{brands.length}</span>
               </div>
 
@@ -165,27 +225,65 @@ export default function Sidebar() {
               {/* Add brand */}
               <div className="border-t border-border p-3">
                 {addingBrand ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      autoFocus
-                      type="text"
-                      value={newBrandName}
-                      onChange={(e) => setNewBrandName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddBrand()
-                        if (e.key === 'Escape') { setAddingBrand(false); setNewBrandName('') }
-                      }}
-                      placeholder="Brand name..."
-                      className="h-9 flex-1 rounded-[8px] border border-border bg-bg-surface px-3 text-[13px] font-semibold text-text-primary outline-none placeholder:text-text-secondary focus:border-accent"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddBrand}
-                      disabled={!newBrandName.trim()}
-                      className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[8px] bg-accent text-white transition hover:brightness-105 disabled:opacity-40"
-                    >
-                      <Check size={16} strokeWidth={2.8} />
-                    </button>
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-extrabold text-text-primary">Nom de la marque</label>
+                      <input
+                        autoFocus
+                        type="text"
+                        value={newBrandName}
+                        onChange={(e) => setNewBrandName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleAddBrand()
+                          if (e.key === 'Escape') { setAddingBrand(false); setNewBrandName('') }
+                        }}
+                        placeholder="ex. Nova Skincare"
+                        className="h-9 w-full rounded-[8px] border border-border bg-bg-surface px-3 text-[13px] font-semibold text-text-primary outline-none placeholder:text-text-secondary focus:border-accent"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-extrabold text-text-primary">Couleur</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {BRAND_COLORS.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => setNewBrandColor(c)}
+                            className={cn('grid h-6 w-6 place-items-center rounded-full transition', newBrandColor === c && 'ring-2 ring-offset-1 ring-offset-bg-card ring-text-primary')}
+                            style={{ backgroundColor: c }}
+                          >
+                            {newBrandColor === c && <Check size={13} strokeWidth={3} className="text-white" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-extrabold text-text-primary">Catégorie</label>
+                      <select
+                        value={newBrandCategory}
+                        onChange={(e) => setNewBrandCategory(e.target.value)}
+                        className="h-9 w-full rounded-[8px] border border-border bg-bg-surface px-2.5 text-[13px] font-semibold text-text-primary outline-none focus:border-accent"
+                      >
+                        {BRAND_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setAddingBrand(false); setNewBrandName('') }}
+                        className="h-9 flex-1 rounded-[8px] border border-border text-[12px] font-extrabold text-text-secondary transition hover:bg-fg/[0.05]"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddBrand}
+                        disabled={!newBrandName.trim() || savingBrand}
+                        className="h-9 flex-1 rounded-[8px] bg-accent text-[12px] font-extrabold text-white transition hover:brightness-105 disabled:opacity-40"
+                      >
+                        {savingBrand ? 'Création…' : 'Créer la marque'}
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <button
@@ -196,7 +294,7 @@ export default function Sidebar() {
                     <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] border border-border bg-bg-surface">
                       <Plus size={16} strokeWidth={2.5} />
                     </span>
-                    <span className="text-[14px] font-extrabold tracking-tight">Add Brand</span>
+                    <span className="text-[14px] font-extrabold tracking-tight">Nouvelle marque</span>
                   </button>
                 )}
               </div>
@@ -205,10 +303,10 @@ export default function Sidebar() {
         )}
       </div>
 
-      <div className="mx-3 h-px flex-shrink-0 bg-border" />
+      <div className="mx-2.5 h-px flex-shrink-0 bg-border" />
 
       {/* ── Navigation ── */}
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-3.5">
+      <nav className={cn('flex flex-1 flex-col gap-0.5 overflow-y-auto py-2.5', collapsed ? 'px-2' : 'px-2')}>
         {NAV.map((item) => {
           const isActive =
             pathname === item.href ||
@@ -223,26 +321,34 @@ export default function Sidebar() {
                 <button
                   type="button"
                   onClick={() => setBrandNavOpen((open) => !open)}
+                  title={collapsed ? item.label : undefined}
                   className={cn(
-                    'group flex min-h-[36px] items-center gap-2 rounded-[9px] px-2.5 text-left text-[14px] font-semibold tracking-tight transition-all',
+                    'group flex min-h-[32px] items-center gap-2 rounded-[9px] text-left text-[13px] font-semibold tracking-tight transition-all',
+                    collapsed ? 'justify-center px-0' : 'px-2.5',
                     isActive || brandNavOpen
                       ? 'bg-fg/[0.06] text-text-primary'
                       : 'text-text-primary hover:bg-fg/[0.035]',
                   )}
                 >
-                  <Icon size={18} strokeWidth={2.35} className="flex-shrink-0" />
-                  <span className="min-w-0 flex-1 truncate">
-                    {item.label}
-                  </span>
-                  <ChevronDown
-                    size={18}
-                    strokeWidth={2.2}
-                    className={cn('flex-shrink-0 text-text-primary transition-transform', brandNavOpen && 'rotate-180')}
-                  />
+                  <Icon size={16} strokeWidth={2.35} className="flex-shrink-0" />
+                  {!collapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
+                  {!collapsed && item.badge && (
+                    <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wide text-accent">{item.badge}</span>
+                  )}
+                  {!collapsed && (
+                    <ChevronRight
+                      size={15}
+                      strokeWidth={2.2}
+                      className={cn('flex-shrink-0 text-text-primary transition-transform', brandNavOpen && 'rotate-90')}
+                    />
+                  )}
                 </button>
 
                 {brandNavOpen && (
-                  <div className="ml-[17px] mt-1 flex flex-col gap-1 border-l border-border/80 py-1 pl-5">
+                  <div className={cn(
+                    'mt-0.5 flex flex-col gap-0.5 py-1',
+                    collapsed ? 'items-center' : 'ml-[15px] border-l border-border/80 pl-4',
+                  )}>
                     {BRAND_NAV.map((subItem) => {
                       const SubIcon = subItem.icon
                       const subActive = pathname === '/parametres' && brandSection === subItem.section
@@ -251,17 +357,17 @@ export default function Sidebar() {
                         <Link
                           key={subItem.label}
                           href={subItem.href}
+                          title={collapsed ? subItem.label : undefined}
                           className={cn(
-                            'flex min-h-[34px] items-center gap-2.5 rounded-[8px] px-2 text-[14px] font-semibold tracking-tight transition-colors',
+                            'flex min-h-[30px] items-center rounded-[8px] text-[13px] font-semibold tracking-tight transition-colors',
+                            collapsed ? 'w-9 justify-center px-0' : 'gap-2 px-2',
                             subActive ? 'bg-fg/[0.045] text-text-primary' : 'text-text-primary hover:bg-fg/[0.035]',
                           )}
                         >
-                          <SubIcon size={17} strokeWidth={2.35} className="flex-shrink-0" />
-                          <span className="flex-1">{subItem.label}</span>
-                          {/* @ts-ignore */}
-                          {subItem.badge && (
-                            <span className="rounded-full bg-[#f0d4ca] px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-[#f24e1e]">
-                              {/* @ts-ignore */}
+                          <SubIcon size={15} strokeWidth={2.35} className="flex-shrink-0" />
+                          {!collapsed && <span className="flex-1">{subItem.label}</span>}
+                          {!collapsed && subItem.badge && (
+                            <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wide text-accent">
                               {subItem.badge}
                             </span>
                           )}
@@ -278,62 +384,50 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              title={collapsed ? item.label : undefined}
               className={cn(
-                'group flex min-h-[36px] items-center gap-2 rounded-[9px] px-2.5 text-[14px] font-semibold tracking-tight transition-all relative',
+                'group relative flex min-h-[32px] items-center gap-2 rounded-[9px] text-[13px] font-semibold tracking-tight transition-all',
+                collapsed ? 'justify-center px-0' : 'px-2.5',
                 isActive
                   ? 'bg-fg/[0.06] text-text-primary'
                   : 'text-text-primary hover:bg-fg/[0.035]',
               )}
             >
-              <Icon size={18} strokeWidth={2.35} className="flex-shrink-0" />
-              <span className="flex-1">{item.label}</span>
-              {item.badge && (
-                <span className="rounded-full bg-[#f0d4ca] px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-[#f24e1e]">
+              <Icon size={16} strokeWidth={2.35} className="flex-shrink-0" />
+              {!collapsed && <span className="flex-1">{item.label}</span>}
+              {!collapsed && item.badge && (
+                <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wide text-accent">
                   {item.badge}
                 </span>
               )}
-              {item.sub && <ChevronRight size={18} strokeWidth={2.2} className="text-text-primary" />}
             </Link>
           )
         })}
       </nav>
 
-      {/* ── Carte free plan ── */}
-      <div className="px-2 pb-3">
-        <div className="rounded-[12px] bg-[#0d0705] p-3 text-white shadow-neo-sm">
-          <div className="mb-2 flex items-center gap-1.5">
-            <Zap size={14} className="flex-shrink-0 fill-accent text-accent" />
-            <span className="text-[12.5px] font-extrabold leading-tight">You&apos;re on the free plan</span>
-          </div>
-          <p className="mb-3 text-[11.5px] font-medium leading-relaxed text-white/55">
-            Subscribe to unlock every AI model and start making ads in minutes.
-          </p>
-          <button className="h-8 w-full rounded-[8px] bg-accent text-[12.5px] font-extrabold text-white transition hover:brightness-105">
-            Upgrade plan
-          </button>
-        </div>
-      </div>
-
       {/* ── Profil utilisateur + menu ── */}
-      <div className="relative mx-3 border-t border-border pb-3 pt-3">
+      <div className="relative mx-2.5 border-t border-border pb-2.5 pt-2.5">
         <button
           onClick={() => setMenuOpen((o) => !o)}
-          className="flex w-full items-center gap-2 rounded-[10px] transition-colors hover:bg-fg/[0.03]"
+          title={collapsed ? (email || studioName) : undefined}
+          className={cn('flex w-full items-center gap-2 rounded-[10px] p-1 transition-colors hover:bg-fg/[0.03]', collapsed && 'justify-center')}
         >
-          <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[#6f584e] text-[12px] font-extrabold text-white">
-            0
+          <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-accent text-[11px] font-extrabold text-white">
+            {userInitial}
           </span>
-          <div className="flex-1 min-w-0 text-left">
-            <p className="truncate text-[12.5px] font-extrabold leading-tight text-text-primary">{activeBrand?.name ?? DEFAULT_STUDIO_NAME}</p>
-            <p className="mt-0.5 truncate text-[10.5px] font-medium text-text-primary">{email || '—'}</p>
-          </div>
-          <Settings size={16} strokeWidth={2.2} className="flex-shrink-0 text-text-primary" />
+          {!collapsed && (
+            <div className="flex-1 min-w-0 text-left">
+              <p className="truncate text-[12px] font-extrabold leading-tight text-text-primary">{studioName || DEFAULT_STUDIO_NAME}</p>
+              <p className="mt-0.5 truncate text-[10px] font-medium text-text-secondary">{email || '—'}</p>
+            </div>
+          )}
+          {!collapsed && <Settings size={15} strokeWidth={2.2} className="flex-shrink-0 text-text-secondary" />}
         </button>
 
         {menuOpen && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-            <div className="absolute bottom-[calc(100%+8px)] left-0 right-0 z-50 animate-fade-in overflow-hidden rounded-[14px] border border-border bg-bg-card shadow-neo">
+            <div className={cn('absolute bottom-[calc(100%+8px)] z-50 w-[220px] animate-fade-in overflow-hidden rounded-[14px] border border-border bg-bg-card shadow-neo', collapsed ? 'left-0' : 'left-0 right-0')}>
               <div className="px-4 py-3 border-b border-border">
                 <div className="font-sans text-[10px] text-text-dim mb-0.5">Connecté en tant que</div>
                 <div className="text-[12px] font-medium text-text-primary truncate">{email || '—'}</div>

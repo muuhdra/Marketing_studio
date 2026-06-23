@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { createAvatar, updateAvatar } from '@/lib/actions/avatars'
 import { actionAddOutfit, actionPersistAvatarPhoto, actionUploadTempImage } from '@/lib/actions/avatar-assets'
 import { actionInspireFromMedia, actionGenerateAvatarPhoto, actionDescribeAvatarFromImage } from '@/lib/actions/ai'
+import { actionGenerateAppearanceIllustrations } from '@/lib/actions/appearance-illustrations'
+import { appearanceCategories, appearanceImg, type AppearanceCategoryDef, type AppearanceOptionDef, type AppearanceGender } from '@/lib/avatar/appearance-options'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useToast } from '@/lib/stores/toastStore'
 import {
@@ -40,71 +42,6 @@ const sourceOptions = [
   },
 ] as const
 
-const hairStyleOptions = [
-  {
-    label: 'Long wavy',
-    gradient: 'linear-gradient(180deg, #b9b0a8 0%, #7e7169 56%, #171717 100%)',
-  },
-  {
-    label: 'Buzz cut',
-    gradient: 'linear-gradient(180deg, #d1d1d1 0%, #9d9d9d 56%, #252525 100%)',
-  },
-  {
-    label: 'Messy bun',
-    gradient: 'linear-gradient(180deg, #b8b2aa 0%, #867568 56%, #1f1b19 100%)',
-  },
-  {
-    label: 'Mullet',
-    gradient: 'linear-gradient(180deg, #c4beb5 0%, #847767 56%, #22201d 100%)',
-  },
-  {
-    label: 'Curtain layers',
-    gradient: 'linear-gradient(180deg, #c6beb4 0%, #8a7c71 56%, #202020 100%)',
-  },
-  {
-    label: 'Bald',
-    gradient: 'linear-gradient(180deg, #ddd8d2 0%, #ad9a8c 56%, #232323 100%)',
-  },
-  {
-    label: 'Dreadlocks',
-    gradient: 'linear-gradient(180deg, #b2aea7 0%, #6b5a4a 56%, #1a1613 100%)',
-  },
-  { label: 'Custom', custom: true },
-] as const
-
-const hairColorOptions = [
-  {
-    label: 'Black',
-    gradient: 'linear-gradient(180deg, #c9c9c9 0%, #747474 56%, #050505 100%)',
-  },
-  {
-    label: 'Blonde',
-    gradient: 'linear-gradient(180deg, #ded8c9 0%, #c5a66f 56%, #33271b 100%)',
-  },
-  {
-    label: 'Red',
-    gradient: 'linear-gradient(180deg, #cfc5b9 0%, #a95b29 56%, #2b1510 100%)',
-  },
-  {
-    label: 'Brown',
-    gradient: 'linear-gradient(180deg, #cac4bb 0%, #6d5541 56%, #1c1510 100%)',
-  },
-  {
-    label: 'Gray',
-    gradient: 'linear-gradient(180deg, #dbdbdb 0%, #9c9c9c 56%, #292929 100%)',
-  },
-  { label: 'Custom', custom: true },
-] as const
-
-type CharacterStep = 'source' | 'identity' | 'appearance' | 'outfit' | 'background'
-
-type AppearanceOption = {
-  label: string
-  gradient?: string
-  imageSrc?: string
-  custom?: boolean
-}
-
 const ageGroupOptions = [
   'Enfant',
   'Adolescent',
@@ -113,6 +50,16 @@ const ageGroupOptions = [
   'Adulte (36-50)',
   'Senior (50+)',
 ] as const
+
+// Tranche d'âge FR → âge représentatif (numérique) pour le prompt de génération.
+const ageGroupToAge: Record<string, number> = {
+  'Enfant': 8,
+  'Adolescent': 16,
+  'Jeune adulte (18-25)': 22,
+  'Adulte (26-35)': 30,
+  'Adulte (36-50)': 43,
+  'Senior (50+)': 60,
+}
 
 const ethnicityOptions = [
   'Caucasien',
@@ -127,10 +74,27 @@ const ethnicityOptions = [
   'Autre',
 ] as const
 
+// Ethnie FR → descripteur EN pour le prompt de génération (le FR reste stocké pour l'affichage).
+const ethnicityToEn: Record<string, string> = {
+  'Caucasien': 'Caucasian',
+  'Africain / Noir': 'Black African',
+  'Afro-américain': 'African American',
+  'Maghrébin / Arabe': 'North African Arab',
+  'Moyen-oriental': 'Middle Eastern',
+  'Hispanique / Latino': 'Hispanic Latino',
+  'Asiatique de l’Est': 'East Asian',
+  'Asiatique du Sud': 'South Asian',
+  'Métis': 'mixed race',
+}
+
 type Identity = { name: string; gender: 'male' | 'female' | ''; ageGroup: string; ethnicity: string }
 
 type OutfitStyle = 'casual' | 'smart' | 'sport' | 'formal' | 'streetwear' | 'custom'
 type Outfit = { description: string; styleType: OutfitStyle | ''; file: File | null; previewUrl: string }
+
+type CloneImage = { file: File; previewUrl: string; dataUrl: string }
+
+type Appearance = { hairStyle: string; hairColor: string; eyes: string; facialHair: string; skinDetail: string; extra: string }
 
 const outfitTagOptions: { label: string; style: OutfitStyle }[] = [
   { label: 'Formel', style: 'formal' },
@@ -164,33 +128,25 @@ const shotTypeOptions = [
   'Contre-plongée',
 ] as const
 
-const eyeOptions = [
-  { label: 'Blue' },
-  { label: 'Black' },
-  { label: 'Brown' },
-  { label: 'Hazel' },
-  { label: 'Custom', custom: true },
-] as const
-
-const facialHairOptions = [
-  { label: 'Stubble' },
-  { label: 'Goatee' },
-  { label: 'Handlebar mustache' },
-  { label: 'Full beard' },
-  { label: 'Patchy beard' },
-  { label: 'Custom', custom: true },
-] as const
-
-const skinDetailOptions = [
-  { label: 'Flawless' },
-  { label: 'Acne scars' },
-  { label: 'Visible pores' },
-  { label: 'Rosacea' },
-  { label: 'Freckles' },
-  { label: 'Mole on cheek' },
-  { label: 'Wrinkles' },
-  { label: 'Custom', custom: true },
-] as const
+// Éclairage / plan FR → descripteur EN pour le prompt de génération.
+const lightingToEn: Record<string, string> = {
+  'Lumière naturelle': 'natural light',
+  'Studio': 'studio lighting',
+  'Lumière douce': 'soft lighting',
+  'Contre-jour': 'backlight',
+  'Golden hour': 'golden hour light',
+  'Néon': 'neon lighting',
+  'Clair-obscur': 'chiaroscuro lighting',
+}
+const shotTypeToEn: Record<string, string> = {
+  'Gros plan': 'close-up shot',
+  'Portrait (buste)': 'bust portrait shot',
+  'Plan taille': 'waist-up shot',
+  'Plan américain': 'American medium shot',
+  'Plan large': 'wide shot',
+  'Plongée': 'high angle shot',
+  'Contre-plongée': 'low angle shot',
+}
 
 export default function CharacterPromptGeneratorView() {
   const toast = useToast()
@@ -208,6 +164,32 @@ export default function CharacterPromptGeneratorView() {
   const [resultUrl, setResultUrl] = useState('')
   const [cloneImages, setCloneImages] = useState<CloneImage[]>([])
   const [savingClone, setSavingClone] = useState(false)
+  const [appearance, setAppearance] = useState<Appearance>({ hairStyle: '', hairColor: '', eyes: '', facialHair: '', skinDetail: '', extra: '' })
+  const [genIllusCat, setGenIllusCat] = useState<string | null>(null)
+  const [illusVersion, setIllusVersion] = useState(0)
+
+  // DEV : génère les illustrations manquantes (homme + femme, modèle Black) d'une catégorie.
+  // `force` (Shift+clic) régénère même celles déjà présentes.
+  const handleGenIllustrations = async (categorySlug: string, force = false) => {
+    if (genIllusCat) return
+    setGenIllusCat(categorySlug)
+    toast.info(force ? 'Régénération forcée en cours…' : 'Génération des illustrations manquantes…')
+    try {
+      const r = await actionGenerateAppearanceIllustrations(categorySlug, force)
+      if (r.count > 0) {
+        setIllusVersion((v) => v + 1) // cache-bust → les cartes re-téléchargent les images
+        toast.success(`${r.count} générées${r.skipped ? ` · ${r.skipped} déjà présentes` : ''}${r.failed ? ` · ${r.failed} échecs` : ''}`)
+      } else if (r.skipped > 0) {
+        toast.info(`Déjà à jour (${r.skipped} illustrations). Shift+clic pour régénérer.`)
+      } else {
+        toast.error(`Échec génération : ${r.error || 'voir la console serveur'}`)
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Génération impossible')
+    } finally {
+      setGenIllusCat(null)
+    }
+  }
 
   const handleNextStep = () => {
     setCurrentStepIndex((prev) => {
@@ -248,6 +230,23 @@ export default function CharacterPromptGeneratorView() {
       toast.error(e instanceof Error ? e.message : 'Enregistrement impossible')
     } finally {
       setSavingIdentity(false)
+    }
+  }
+
+  // Étape 3 (flux clone) → persiste la 1ʳᵉ image de référence comme portrait de l'avatar, puis avance.
+  const handleCloneContinue = async () => {
+    if (savingClone) return
+    if (!cloneImages.length || !avatarId) { handleNextStep(); return }
+    setSavingClone(true)
+    try {
+      const { url } = await actionUploadTempImage(cloneImages[0].dataUrl)
+      if (url) await actionPersistAvatarPhoto(avatarId, url)
+      toast.success('Images enregistrées ✓')
+      handleNextStep()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Enregistrement impossible')
+    } finally {
+      setSavingClone(false)
     }
   }
 
@@ -321,6 +320,38 @@ export default function CharacterPromptGeneratorView() {
     }
   }
 
+  // Étape 3 (scratch, Apparence) → résume les traits choisis (+ identité) en une description.
+  const handleGenerateAppearance = () => {
+    const noCustom = (v: string) => v && v !== 'Personnalisé' ? v : ''
+    const parts = [
+      noCustom(appearance.hairStyle) && `cheveux ${appearance.hairStyle.toLowerCase()}`,
+      noCustom(appearance.hairColor) && `couleur ${appearance.hairColor.toLowerCase()}`,
+      noCustom(appearance.eyes) && `yeux ${appearance.eyes.toLowerCase()}`,
+      noCustom(appearance.facialHair) && appearance.facialHair.toLowerCase(),
+      noCustom(appearance.skinDetail) && appearance.skinDetail.toLowerCase(),
+    ].filter(Boolean)
+    if (!parts.length) { toast.info('Choisis au moins un trait d’apparence'); return }
+    setAppearance((a) => ({ ...a, extra: `${parts.join(', ')}.` }))
+    toast.success('Description générée ✓')
+  }
+
+  // Traits d'apparence pour le prompt : on mappe le libellé FR choisi → descripteur EN (promptEn).
+  const appearanceTraits = () => {
+    const en = (catKey: string, label: string) => {
+      if (!label || label === 'Personnalisé') return ''
+      const cat = appearanceCategories.find((c) => c.key === catKey)
+      return cat?.options.find((o) => o.label === label)?.promptEn ?? ''
+    }
+    return [
+      en('hairStyle', appearance.hairStyle),
+      en('hairColor', appearance.hairColor),
+      en('eyes', appearance.eyes),
+      en('facialHair', appearance.facialHair),
+      en('skinDetail', appearance.skinDetail),
+      appearance.extra.trim(),
+    ].filter(Boolean).join(', ')
+  }
+
   // Étape 5 → GÉNÉRATION RÉELLE du personnage : compose le prompt à partir de toutes les
   // étapes, génère le portrait (Nano Banana), le persiste et l'affiche dans l'aperçu.
   const handleGenerateCharacter = async () => {
@@ -341,16 +372,38 @@ export default function CharacterPromptGeneratorView() {
       }
       const traits = [
         identity.gender === 'female' ? 'female' : identity.gender === 'male' ? 'male' : '',
-        identity.ageGroup,
+        appearanceTraits(),
         outfit.description.trim() ? `wearing ${outfit.description.trim()}` : '',
       ].filter(Boolean).join(', ')
-      const setting = [background.sceneType.trim(), background.lighting, background.shotType].filter(Boolean).join(', ')
+      const age = ageGroupToAge[identity.ageGroup]
+      const setting = [
+        background.sceneType.trim(),
+        lightingToEn[background.lighting] ?? background.lighting,
+        shotTypeToEn[background.shotType] ?? background.shotType,
+      ].filter(Boolean).join(', ')
+      // Flux clone : on passe la VRAIE photo en image-to-image (fidélité au visage) + une
+      // description du visage en secours. La tenue uploadée sert aussi de référence si présente.
+      let imageUrl: string | undefined
+      let descriptionPrompt: string | undefined
+      if (cloneImages.length) {
+        try {
+          const up = await actionUploadTempImage(cloneImages[0].dataUrl)
+          imageUrl = up.url || undefined
+        } catch { /* best-effort */ }
+        // Secours uniquement si l'upload a échoué : on reconstruit le visage par description.
+        if (!imageUrl) {
+          try { descriptionPrompt = await actionDescribeAvatarFromImage({ dataUrl: cloneImages[0].dataUrl }) } catch { /* best-effort */ }
+        }
+      }
       const result = await actionGenerateAvatarPhoto({
         name: identity.name.trim(),
-        ethnicity: identity.ethnicity || undefined,
+        age,
+        ethnicity: (ethnicityToEn[identity.ethnicity] ?? identity.ethnicity) || undefined,
         style: outfit.description.trim() || undefined,
         setting: setting || undefined,
         traits: traits || undefined,
+        descriptionPrompt,
+        imageUrl,
       })
       setResultUrl(result.url)
       await actionPersistAvatarPhoto(id, result.url)
@@ -426,7 +479,7 @@ export default function CharacterPromptGeneratorView() {
                     <CharacterIdentityStep value={identity} onChange={setIdentity} saving={savingIdentity} onContinue={handleIdentityContinue} onBack={handlePrevStep} />
                   </div>
                   <div className={stepContainer}>
-                    <CharacterAppearanceStep onContinue={handleNextStep} onBack={handlePrevStep} />
+                    <CharacterAppearanceStep value={appearance} onChange={setAppearance} gender={identity.gender || 'male'} version={illusVersion} onGenerate={handleGenerateAppearance} onGenIllustrations={handleGenIllustrations} genIllusCat={genIllusCat} onContinue={handleNextStep} onBack={handlePrevStep} />
                   </div>
                   <div className={stepContainer}>
                     <CharacterOutfitStep value={outfit} onChange={setOutfit} onGenerate={handleGenerateOutfit} generating={generatingOutfit} saving={savingOutfit} onContinue={handleOutfitContinue} onBack={handlePrevStep} />
@@ -442,7 +495,7 @@ export default function CharacterPromptGeneratorView() {
                     <CharacterIdentityStep value={identity} onChange={setIdentity} saving={savingIdentity} onContinue={handleIdentityContinue} onBack={handlePrevStep} />
                   </div>
                   <div className={stepContainer}>
-                    <UploadCharacterImagesStep onContinue={handleNextStep} onBack={handlePrevStep} />
+                    <UploadCharacterImagesStep value={cloneImages} onChange={setCloneImages} saving={savingClone} onContinue={handleCloneContinue} onBack={handlePrevStep} />
                   </div>
                   <div className={stepContainer}>
                     <CharacterOutfitStep value={outfit} onChange={setOutfit} onGenerate={handleGenerateOutfit} generating={generatingOutfit} saving={savingOutfit} onContinue={handleOutfitContinue} onBack={handlePrevStep} />
@@ -627,56 +680,86 @@ function CharacterIdentityStep({
   )
 }
 
-function CharacterAppearanceStep({ onContinue, onBack, hideContinue }: { onContinue: () => void; onBack?: () => void; hideContinue?: boolean }) {
-  const [selectedSkinDetail, setSelectedSkinDetail] = useState<string>('Wrinkles')
+function CharacterAppearanceStep({
+  value,
+  onChange,
+  gender,
+  version,
+  onGenerate,
+  onGenIllustrations,
+  genIllusCat,
+  onContinue,
+  onBack,
+  hideContinue,
+}: {
+  value: Appearance
+  onChange: (next: Appearance) => void
+  gender: AppearanceGender
+  version: number
+  onGenerate: () => void
+  onGenIllustrations: (categorySlug: string, force?: boolean) => void
+  genIllusCat: string | null
+  onContinue: () => void
+  onBack?: () => void
+  hideContinue?: boolean
+}) {
+  const isDev = process.env.NODE_ENV !== 'production'
+  const set = <K extends keyof Appearance>(key: K, v: Appearance[K]) => onChange({ ...value, [key]: v })
+  // Toggle : recliquer la même valeur la désélectionne.
+  const toggle = (key: keyof Appearance, label: string) => set(key, value[key] === label ? '' : label)
 
   return (
     <div className="w-full max-w-[680px] animate-in fade-in-0 slide-in-from-bottom-2 duration-300 lg:py-2">
-      <StepHeading step={3} title="Character Appearance (optional)" />
+      <StepHeading step={3} title="Apparence du personnage (optionnel)" />
 
-      <AppearanceSection title="Hair Style" options={hairStyleOptions} />
+      {appearanceCategories.map((cat, i) => (
+        <AppearanceSection
+          key={cat.slug}
+          category={cat}
+          gender={gender}
+          version={version}
+          className={i > 0 ? 'mt-4' : ''}
+          selectedLabel={value[cat.key as keyof Appearance] as string}
+          onSelect={(l) => toggle(cat.key as keyof Appearance, l)}
+          extraHeader={isDev ? (
+            <button
+              type="button"
+              onClick={(e) => onGenIllustrations(cat.slug, e.shiftKey)}
+              disabled={genIllusCat !== null}
+              className="inline-flex items-center gap-1 rounded-full bg-fg/[0.06] px-2 py-0.5 text-[10px] font-extrabold text-text-secondary transition hover:bg-fg/[0.12] disabled:opacity-55"
+              title="DEV : générer les illustrations manquantes (homme + femme) · Shift+clic = régénérer tout"
+            >
+              {genIllusCat === cat.slug
+                ? <><span className="h-2.5 w-2.5 rounded-full border-2 border-text-secondary/40 border-t-text-secondary animate-spin" /> génération…</>
+                : <>⚙︎ illustrations</>}
+            </button>
+          ) : undefined}
+        />
+      ))}
 
-      <AppearanceSection title="Hair Color" options={hairColorOptions} className="mt-5" />
-
-      <AppearanceSection title="Eyes" options={eyeOptions} className="mt-5" />
-
-      <AppearanceSection title="Facial Hair" options={facialHairOptions} className="mt-5" />
-
-      <AppearanceSection
-        title="Skin Details"
-        options={skinDetailOptions}
-        className="mt-5"
-        selectedLabel={selectedSkinDetail}
-        onSelect={setSelectedSkinDetail}
-        extraHeader={
-          <span className="text-[12px] font-extrabold text-text-primary">
-            Selected: <span className="text-text-primary">{selectedSkinDetail}</span>
-          </span>
-        }
-      />
-
-      <div className="mt-7 flex items-center justify-between">
-        <button type="button" className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-text-primary hover:text-accent">
-          More details
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-        </button>
-
-        <button type="button" className="inline-flex items-center gap-2 text-[12px] font-extrabold text-accent hover:brightness-110">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path><path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path></svg>
-          Generate Description
+      <div className="mt-5 flex items-center justify-between">
+        <span className="text-[12px] font-extrabold text-text-secondary">Détails supplémentaires</span>
+        <button
+          type="button"
+          onClick={onGenerate}
+          className="inline-flex items-center gap-1.5 text-[12px] font-extrabold text-accent transition hover:brightness-110"
+        >
+          <Sparkles size={14} strokeWidth={2.4} /> Générer une description
         </button>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-2">
         <textarea
-          placeholder="e.g Tattoos, scars, glasses, piercings, body build, or distinctive marks."
-          className="h-[80px] w-full resize-none rounded-[10px] border border-border bg-fg/[0.03] p-3 text-[13px] font-medium text-text-primary outline-none transition-colors placeholder:text-text-secondary focus:border-accent"
+          value={value.extra}
+          onChange={(e) => set('extra', e.target.value)}
+          placeholder="ex. tatouages, cicatrices, lunettes, piercings, carrure ou signes distinctifs."
+          className="h-[68px] w-full resize-none rounded-[10px] border border-border bg-fg/[0.03] p-3 text-[12px] font-medium text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
         />
       </div>
 
       {!hideContinue && (
-        <div className="mt-7 mb-4 flex justify-center gap-3">
-          {onBack && <BackButton onBack={onBack} />}
+        <div className="mt-6 mb-4 flex justify-center gap-3">
+          {onBack && <BackButton onBack={onBack} className="h-9" />}
           <button
             type="button"
             onClick={onContinue}
@@ -925,15 +1008,17 @@ function CharacterBackgroundStep({
 }
 
 function AppearanceSection({
-  title,
-  options,
+  category,
+  gender,
+  version,
   className = '',
   selectedLabel,
   onSelect,
   extraHeader,
 }: {
-  title: string
-  options: readonly AppearanceOption[]
+  category: AppearanceCategoryDef
+  gender: AppearanceGender
+  version: number
   className?: string
   selectedLabel?: string
   onSelect?: (label: string) => void
@@ -941,17 +1026,19 @@ function AppearanceSection({
 }) {
   return (
     <section className={className}>
-      <div className="mb-3 flex items-end justify-between">
-        <h3 className="text-[14px] font-extrabold tracking-[-0.01em] text-text-primary">
-          {title}
+      <div className="mb-2 flex items-end justify-between">
+        <h3 className="text-[13px] font-extrabold tracking-[-0.01em] text-text-primary">
+          {category.title}
         </h3>
         {extraHeader}
       </div>
       <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
-        {options.map((option) => (
+        {category.options.map((option) => (
           <AppearanceOptionCard
-            key={`${title}-${option.label}`}
+            key={`${category.slug}-${gender}-${version}-${option.label}`}
             option={option}
+            src={!option.custom && option.slug ? `${appearanceImg(category.slug, gender, option.slug)}${version ? `?v=${version}` : ''}` : ''}
+            objectPosition={category.objectPosition ?? 'object-[center_22%]'}
             selected={selectedLabel === option.label}
             onClick={() => onSelect?.(option.label)}
           />
@@ -961,17 +1048,19 @@ function AppearanceSection({
   )
 }
 
-function AppearanceOptionCard({ option, selected, onClick }: { option: AppearanceOption, selected?: boolean, onClick?: () => void }) {
+function AppearanceOptionCard({ option, src, objectPosition = 'object-[center_22%]', selected, onClick }: { option: AppearanceOptionDef; src: string; objectPosition?: string; selected?: boolean; onClick?: () => void }) {
+  const [imgOk, setImgOk] = useState(true)
+
   if (option.custom) {
     return (
       <button
         type="button"
         onClick={onClick}
-        className={`relative h-[76px] overflow-hidden rounded-[10px] border bg-fg/[0.05] shadow-neo-sm transition-all hover:bg-fg/[0.06] ${selected ? 'border-accent ring-[1.5px] ring-accent ring-offset-[1.5px] ring-offset-bg-card' : 'border-dashed border-border-strong hover:border-accent'
+        className={`relative aspect-[4/5] overflow-hidden rounded-[12px] border bg-fg/[0.05] shadow-neo-sm transition-all hover:bg-fg/[0.06] ${selected ? 'border-accent ring-[1.5px] ring-accent ring-offset-[1.5px] ring-offset-bg-card' : 'border-dashed border-border-strong hover:border-accent'
           }`}
       >
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/65" />
-        <span className="absolute left-1/2 top-[46%] -translate-x-1/2 -translate-y-1/2 text-[24px] font-extrabold text-text-faint">
+        <span className="absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2 text-[26px] font-extrabold text-text-faint">
           C
         </span>
         <span className="absolute inset-x-0 bottom-1.5 px-2 text-center text-[12px] font-extrabold leading-tight text-white">
@@ -981,35 +1070,35 @@ function AppearanceOptionCard({ option, selected, onClick }: { option: Appearanc
     )
   }
 
+  const showImg = Boolean(src) && imgOk
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group relative h-[76px] overflow-hidden rounded-[10px] border bg-fg/[0.05] shadow-sm transition-all hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)] ${selected ? 'border-accent ring-[1.5px] ring-accent ring-offset-[1.5px] ring-offset-bg-card' : 'border-border hover:border-accent'
+      className={`group relative aspect-[4/5] overflow-hidden rounded-[12px] border bg-fg/[0.05] shadow-sm transition-all hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)] ${selected ? 'border-accent ring-[1.5px] ring-accent ring-offset-[1.5px] ring-offset-bg-card' : 'border-border hover:border-accent'
         }`}
     >
-      {option.imageSrc ? (
-        <img src={option.imageSrc} alt={option.label} className="absolute inset-0 h-full w-full object-cover" />
-      ) : (
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              option.gradient ?? 'linear-gradient(180deg, #dadada 0%, #b5b5b5 55%, #444 100%)',
-          }}
-        />
-      )}
-      {!option.imageSrc && (
+      {/* Placeholder (toujours présent) — visible tant que la photo n'est pas générée/chargée. */}
+      <div className="absolute inset-0" style={{ background: option.gradient ?? 'linear-gradient(180deg, #dadada 0%, #b5b5b5 55%, #444 100%)' }} />
+      {!showImg && (
         <>
-          <div className="absolute left-1/2 top-[36%] h-9 w-8 -translate-x-1/2 rounded-full bg-white/18 ring-1 ring-white/15" />
-          <UserRound
-            className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2 text-white/75"
-            size={30}
-            strokeWidth={1.7}
-          />
+          <div className="absolute left-1/2 top-[34%] h-10 w-8 -translate-x-1/2 rounded-full bg-white/18 ring-1 ring-white/15" />
+          <UserRound className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2 text-white/75" size={30} strokeWidth={1.7} />
         </>
       )}
-      <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
+      {Boolean(src) && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={option.label}
+          loading="lazy"
+          onError={() => setImgOk(false)}
+          onLoad={() => setImgOk(true)}
+          className={`absolute inset-0 h-full w-full object-cover ${objectPosition} transition-opacity duration-200 ${showImg ? 'opacity-100' : 'opacity-0'}`}
+        />
+      )}
+      <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
 
       {selected && (
         <div className="absolute right-1.5 top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-white shadow-sm">
@@ -1024,37 +1113,111 @@ function AppearanceOptionCard({ option, selected, onClick }: { option: Appearanc
   )
 }
 
-function UploadCharacterImagesStep({ onContinue, onBack }: { onContinue: () => void; onBack?: () => void }) {
+function UploadCharacterImagesStep({
+  value,
+  onChange,
+  saving,
+  onContinue,
+  onBack,
+}: {
+  value: CloneImage[]
+  onChange: (next: CloneImage[]) => void
+  saving?: boolean
+  onContinue: () => void
+  onBack?: () => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const MAX = 4
+
+  const addFiles = async (files: FileList | null) => {
+    if (!files) return
+    const room = MAX - value.length
+    const picked = Array.from(files).filter((f) => f.type.startsWith('image/')).slice(0, room)
+    const mapped = await Promise.all(
+      picked.map(async (file) => ({ file, previewUrl: URL.createObjectURL(file), dataUrl: await fileToDataUrl(file) })),
+    )
+    onChange([...value, ...mapped])
+    if (inputRef.current) inputRef.current.value = ''
+  }
+
+  const remove = (index: number) => {
+    URL.revokeObjectURL(value[index].previewUrl)
+    onChange(value.filter((_, i) => i !== index))
+  }
+
   return (
     <div className="w-full max-w-[680px] animate-in fade-in-0 slide-in-from-bottom-2 duration-300 lg:py-2">
-      <StepHeading step={3} title="Upload Character Images" />
+      <StepHeading step={3} title="Importer des photos du personnage" />
 
-      <p className="-mt-2 mb-5 text-[13px] font-medium text-text-secondary">
-        Upload up to 4 images of your character for better cloning results
+      <p className="-mt-2 mb-4 text-[12px] font-medium text-text-secondary">
+        Importe jusqu'à 4 photos de ton personnage pour un meilleur clonage
       </p>
 
-      <button
-        type="button"
-        className="group flex w-full flex-col items-center justify-center rounded-[12px] border border-dashed border-border-strong bg-fg/[0.03] py-10 transition-colors hover:border-accent hover:bg-accent/5"
-      >
-        <Upload size={28} strokeWidth={1.8} className="text-text-secondary transition-colors group-hover:text-accent" />
-        <span className="mt-4 text-[14px] font-extrabold text-text-primary">
-          Click to upload character images
-        </span>
-        <span className="mt-2 text-[12px] font-extrabold uppercase text-text-faint">
-          PNG, JPG, or WEBP (MAX. 10MB) · 0 of 4 uploaded
-        </span>
-      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        multiple
+        className="hidden"
+        onChange={(e) => addFiles(e.target.files)}
+      />
 
-      <div className="mt-8 flex justify-center gap-3">
-        {onBack && <BackButton onBack={onBack} />}
+      {value.length > 0 ? (
+        <div className="grid grid-cols-4 gap-2.5">
+          {value.map((img, i) => (
+            <div key={img.previewUrl} className="group relative aspect-square overflow-hidden rounded-[10px] border border-border bg-fg/[0.05]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.previewUrl} alt={`Référence ${i + 1}`} className="h-full w-full object-cover" />
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                aria-label="Retirer"
+                className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-bg-card/95 text-text-secondary shadow-neo-sm ring-1 ring-border backdrop-blur transition-all hover:bg-coral hover:text-white hover:ring-coral hover:scale-110 active:scale-95"
+              >
+                <X size={12} strokeWidth={2.6} />
+              </button>
+            </div>
+          ))}
+          {value.length < MAX && (
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="group flex aspect-square flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-border-strong bg-fg/[0.03] transition-colors hover:border-accent hover:bg-accent/5"
+            >
+              <Upload size={18} strokeWidth={2} className="text-text-secondary transition-colors group-hover:text-accent" />
+              <span className="text-[10px] font-extrabold text-text-secondary">Ajouter</span>
+            </button>
+          )}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="group flex w-full flex-col items-center justify-center rounded-[12px] border border-dashed border-border-strong bg-fg/[0.03] py-8 transition-colors hover:border-accent hover:bg-accent/5"
+        >
+          <Upload size={24} strokeWidth={1.8} className="text-text-secondary transition-colors group-hover:text-accent" />
+          <span className="mt-3 text-[13px] font-extrabold text-text-primary">
+            Clique pour importer des photos
+          </span>
+          <span className="mt-1.5 text-[11px] font-extrabold uppercase text-text-faint">
+            PNG, JPG ou WEBP (max. 10 Mo) · {value.length} / {MAX}
+          </span>
+        </button>
+      )}
+
+      <div className="mt-7 flex justify-center gap-3">
+        {onBack && <BackButton onBack={onBack} className="h-9" />}
         <button
           type="button"
           onClick={onContinue}
-          className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-accent px-5 text-[13px] font-extrabold text-white shadow-sm transition-colors hover:brightness-105"
+          disabled={saving}
+          className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-accent px-5 text-[13px] font-extrabold text-white shadow-sm transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:brightness-100"
         >
-          Continue
-          <ChevronDown size={16} strokeWidth={2.4} />
+          {saving ? (
+            <><span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" /> Enregistrement…</>
+          ) : (
+            <>Continue <ChevronDown size={16} strokeWidth={2.4} /></>
+          )}
         </button>
       </div>
     </div>

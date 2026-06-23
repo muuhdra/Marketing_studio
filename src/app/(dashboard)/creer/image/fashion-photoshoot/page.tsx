@@ -1,15 +1,17 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Box, Camera, Check, ChevronDown, CircleCheck, Download, Gem, ImageIcon, Maximize2, RotateCcw, ScanSearch, Shirt, Sparkles, Upload, UserRound, Watch, Wand2, X } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Box, Camera, Check, ChevronDown, CircleCheck, Download, Gem, ImageIcon, Images, Maximize2, RotateCcw, ScanSearch, Shirt, Sparkles, Upload, UserRound, Watch, Wand2, X } from 'lucide-react'
 import { actionGenerateImage, actionDescribeProductScene, actionSuggestFashionScene } from '@/lib/actions/ai'
 import { actionListAvatarsForPicker } from '@/lib/actions/avatar-assets'
 import { actionListShootingModels, actionGenerateShootingModel, type ShootingModelDTO } from '@/lib/actions/shooting-models'
 import { MODEL_NATIONALITIES, MODEL_BODY_TYPES, nationalityFlag } from '@/lib/fashion/model-traits'
 import { persistOutput } from '@/lib/actions/outputs'
 import { useToast } from '@/lib/stores/toastStore'
+import { useBrand } from '@/lib/stores/brandStore'
 import { BackButton, ContinueButton, DevStepNav, MainPanel, PageShell, WizardHeader, ratioStyle, ratioToSize, uploadImageFile, StepSlider } from '@/components/features/creer/WizardKit'
+import { AssetPickerModal } from '@/components/features/creer/AssetPicker'
 
 const FASHION_TYPES = [
   { id: 'apparel', title: 'Apparel / Clothing', desc: 'Create professional fashion photoshoots with models wearing your clothing products', icon: Shirt, points: ['Choose a fashion model', 'Upload clothing images', 'Get 4 angle variations'] },
@@ -52,7 +54,9 @@ function buildSteps(type: string): StepId[] {
 
 export default function FashionPhotoshootPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const toast = useToast()
+  const brand = useBrand()
   const [currentStep, setCurrentStep] = useState(0)
   const [generating, setGenerating] = useState(false)
   const [selectedType, setSelectedType] = useState('')
@@ -80,6 +84,9 @@ export default function FashionPhotoshootPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const accessoryInputRef = useRef<HTMLInputElement | null>(null)
   const clothingFrontInputRef = useRef<HTMLInputElement | null>(null)
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false)
+  const [assetApply, setAssetApply] = useState<((url: string) => void) | null>(null)
+  function openAssetPicker(apply: (url: string) => void) { setAssetApply(() => apply); setAssetPickerOpen(true) }
   const clothingBackInputRef = useRef<HTMLInputElement | null>(null)
   const modelUploadInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -87,6 +94,14 @@ export default function FashionPhotoshootPage() {
     actionListAvatarsForPicker().then(setAvatars).catch(() => setAvatars([]))
     actionListShootingModels().then(setShootingModels).catch(() => setShootingModels([]))
   }, [])
+
+  // Handoff depuis Production (?from=production&prompt=…) → pré-remplit la description.
+  useEffect(() => {
+    if (!['production','template'].includes(searchParams.get('from') ?? '')) return
+    const prompt = searchParams.get('prompt')
+    if (prompt) setProductDescription(prompt)
+    toast.info('Pré-rempli')
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleUpload(file: File | undefined, apply: (url: string) => void) {
     const url = await uploadImageFile(file)
@@ -239,6 +254,12 @@ export default function FashionPhotoshootPage() {
       const look = productImg ? await actionDescribeProductScene({ imageUrl: productImg }).catch(() => null) : null
       const garment = [look?.product ?? (isAccessory ? 'the accessory' : 'the clothing product'), productDescription.trim()].filter(Boolean).join(' — ')
 
+      const brandCtx = [
+        brand.name ? `Brand: ${brand.name}` : '',
+        brand.communicationTone ? `tone ${brand.communicationTone}` : '',
+        brand.targetAudience ? `audience: ${brand.targetAudience}` : '',
+        brand.preferredWords.length ? `emphasize: ${brand.preferredWords.slice(0, 6).join(', ')}` : '',
+      ].filter(Boolean).join(' · ')
       const all: { url: string }[] = []
       for (const shot of shots) {
         // Réalisme + créativité : direction photographique par prise + boosters photoréalistes.
@@ -251,6 +272,7 @@ export default function FashionPhotoshootPage() {
               `Art direction: ${shot.direction}.`,
               look?.holding ? `Presentation: ${look.holding}.` : '',
               `Setting: ${look?.background ?? 'a premium editorial environment that matches the accessory'}.`,
+              brandCtx ? `On-brand context — ${brandCtx}.` : '',
               realism,
             ].filter(Boolean).join(' ')
           : [
@@ -263,6 +285,7 @@ export default function FashionPhotoshootPage() {
               backgroundColor && backgroundColor !== 'ALL' ? `Background color: ${backgroundColor.toLowerCase()}.` : '',
               selectedScene ? `Scene: ${selectedScene}.` : (look?.background ? `Scene: ${look.background}.` : ''),
               scenePrompt ? `Background: ${scenePrompt}.` : '',
+              brandCtx ? `On-brand context — ${brandCtx}.` : '',
               realism,
             ].filter(Boolean).join(' ')
         const res = await actionGenerateImage({ prompt: promptText, model: 'nano-banana', size, n: 1, ...(refs.length ? { imageUrl: refs } : {}) })
@@ -434,6 +457,7 @@ export default function FashionPhotoshootPage() {
             )}
           </button>
           <input ref={accessoryInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => handleUpload(event.target.files?.[0], setAccessoryImageUrl)} />
+          <button type="button" onClick={() => openAssetPicker(setAccessoryImageUrl)} className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-extrabold text-text-secondary transition hover:text-accent"><Images size={13} /> Depuis mes Assets</button>
           <div className="mt-3 rounded-[12px] bg-fg/[0.04] px-4 py-3">
             <h4 className="text-[12px] font-extrabold text-text-primary">Tips for best results</h4>
             <ul className="mt-1.5 space-y-0.5 text-[12px] font-medium leading-relaxed text-text-secondary">
@@ -524,6 +548,7 @@ export default function FashionPhotoshootPage() {
                   <span className="relative z-10 flex items-center gap-2 text-[12px] font-extrabold"><Wand2 size={16} /> Click to change your image</span>
                 </button>
                 <input ref={item.inputRef} type="file" accept="image/*" className="hidden" onChange={(event) => handleUpload(event.target.files?.[0], item.apply)} />
+                <button type="button" onClick={() => openAssetPicker(item.apply)} className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-extrabold text-text-secondary transition hover:text-accent"><Images size={13} /> Depuis mes Assets</button>
               </div>
             ))}
           </div>
@@ -661,6 +686,8 @@ export default function FashionPhotoshootPage() {
           </aside>
         </div>
       </MainPanel>
+
+      <AssetPickerModal open={assetPickerOpen} onClose={() => setAssetPickerOpen(false)} onPick={(url) => assetApply?.(url)} types={['image']} closeOnPick title="Mes Assets (images)" />
 
       {lightboxOpen && activeUrl && (
         <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/85 p-6 animate-fade-in" onClick={() => setLightboxOpen(false)}>

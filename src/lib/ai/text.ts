@@ -28,6 +28,9 @@ export interface GenerateScriptParams {
   model?:          'chatgpt' | 'claude'
   // Contexte de recherche Perplexity (optionnel — enrichit le script)
   researchContext?: ResearchContext
+  // Structure d'inspiration : prompt ayant produit un template existant. On en
+  // reprend la structure / le rythme / le style, mais on l'adapte au produit.
+  templateStructure?: string
 }
 
 export interface ScriptResult {
@@ -102,9 +105,17 @@ Langue de sortie : ${lang === 'fr' ? 'français' : lang}.`
     ? `\n${formatResearchForPrompt(params.researchContext)}\n`
     : ''
 
+  // Structure de référence (template existant) → on en reprend l'ossature, pas le sujet.
+  const templateBlock = params.templateStructure?.trim()
+    ? `\nSTRUCTURE DE RÉFÉRENCE (issue d'un template qui a fait ses preuves) :
+"""${params.templateStructure.trim()}"""
+Inspire-toi STRICTEMENT de cette structure : même enchaînement de plans/beats, même rythme, même type d'accroche et de chute, même style de réalisation. MAIS remplace entièrement le sujet par le produit de la campagne ci-dessus — ne recopie jamais le contenu, les marques ou les exemples d'origine.\n`
+    : ''
+
   const userPrompt = `Crée un script ${params.contentType} pour la campagne "${params.campaignName}".
 
 ADN Campagne : ${params.campaignDna}
+${templateBlock}
 ${params.avatarName ? `Avatar : ${params.avatarName}${params.avatarStyle ? ` (style: ${params.avatarStyle})` : ''}${params.avatarAge ? ` · ${params.avatarAge} ans` : ''}${params.avatarNiche ? ` · niche: ${params.avatarNiche}` : ''}` : ''}
 Format : ${params.format ?? 'social'}
 Durée : ${params.duration ?? 30}s
@@ -135,6 +146,103 @@ JSON exact :
 
   const raw = response.choices[0]?.message?.content ?? '{}'
   return { ...parseJsonLoose<ScriptResult>(raw), model: modelId }
+}
+
+// ─── generateProductionPrompt — brief créatif de génération (image/vidéo) ────
+
+export interface ProductionPromptParams {
+  contentType: string                 // libellé du type (Pub statique, Carrousel, Vidéo acteur…)
+  brand: {
+    name?: string
+    description?: string
+    tone?: string
+    audience?: string
+    keyFeatures?: string[]
+    preferredWords?: string[]
+    wordsToAvoid?: string[]
+    audienceDesires?: string[]
+    audienceProblems?: string[]
+    dna?: string                      // texte ADN importé (extrait)
+  }
+  product?: {
+    name?: string
+    description?: string
+    benefits?: string[]
+    price?: string
+  }
+  inspiredBy?: {                      // OPTIONNEL : s'inspirer d'un concurrent suivi
+    name: string
+    positioning?: string
+    angles?: string[]
+  }
+  language?: string
+}
+
+/**
+ * Compose un brief de génération ULTRA créatif et sur-mesure : le modèle analyse le produit
+ * et l'ADN de marque (description, ton, audience, désirs/problèmes, mots clés), applique les
+ * meilleures pratiques publicitaires et met le produit en avant. Retourne { prompt }.
+ */
+export async function generateProductionPrompt(params: ProductionPromptParams): Promise<{ prompt: string }> {
+  const client  = createAimlClient()
+  const modelId = resolveModel('chatgpt')
+  const lang    = params.language ?? 'fr'
+  const b = params.brand
+  const p = params.product
+
+  const list = (arr?: string[]) => (arr && arr.length ? arr.join(', ') : '—')
+
+  const systemPrompt = `Tu es un directeur artistique publicitaire de classe mondiale, expert en performance créative (DTC, social ads).
+Ta mission : à partir de l'ADN de la marque et du produit, concevoir UN brief de génération visuelle (pour un modèle d'image/vidéo) ultra créatif, concret et orienté conversion, qui MET LE PRODUIT EN AVANT de façon mémorable.
+Analyse en profondeur : le produit (usage, bénéfices, différenciation), l'audience (désirs, problèmes), le ton de marque. Choisis une idée créative forte (concept, mise en scène, décor, lumière, composition, émotion) adaptée à la plateforme et au type de contenu demandé.
+Le brief doit : être fidèle au produit, parler à l'audience, respecter le ton, et appliquer les codes des pubs qui convertissent (accroche visuelle, hiérarchie, contraste, désir).
+Réponds UNIQUEMENT en JSON valide. Langue de sortie : ${lang === 'fr' ? 'français' : lang}.`
+
+  const userPrompt = `Type de contenu : ${params.contentType}
+
+— MARQUE —
+Nom : ${b.name ?? '—'}
+Description : ${b.description ?? '—'}
+Ton de communication : ${b.tone ?? '—'}
+Audience cible : ${b.audience ?? '—'}
+Désirs de l'audience : ${list(b.audienceDesires)}
+Problèmes de l'audience : ${list(b.audienceProblems)}
+Points clés / différenciateurs : ${list(b.keyFeatures)}
+Mots à privilégier : ${list(b.preferredWords)}
+Mots à éviter : ${list(b.wordsToAvoid)}
+${b.dna ? `ADN (extrait) : ${b.dna.slice(0, 1200)}` : ''}
+
+— PRODUIT —
+${p ? `Nom : ${p.name ?? '—'}
+Description : ${p.description ?? '—'}
+Bénéfices : ${list(p.benefits)}
+Prix : ${p.price ?? '—'}` : 'Aucun produit attaché — reste générique mais cohérent avec la marque.'}
+
+${params.inspiredBy ? `— INSPIRATION CONCURRENT (optionnel) —
+S'inspirer de l'approche qui marche chez « ${params.inspiredBy.name} »${params.inspiredBy.positioning ? ` (positionnement : ${params.inspiredBy.positioning})` : ''}${params.inspiredBy.angles?.length ? ` · angles gagnants : ${params.inspiredBy.angles.join(', ')}` : ''}.
+IMPORTANT : ne copie PAS — reprends ce qui fonctionne et ADAPTE-le à notre identité (ton, audience, produit), trouve le bon équilibre, garde une signature propre à notre marque.
+` : ''}
+INSTRUCTIONS : Sois audacieux et spécifique. Décris la scène, le décor, la lumière, la composition, l'émotion et la façon dont le produit est sublimé. Pas de blabla générique. 3 à 5 phrases denses, exploitables directement par un modèle de génération.
+
+JSON exact :
+{
+  "prompt": "le brief de génération créatif, détaillé, en ${lang === 'fr' ? 'français' : lang}"
+}`
+
+  const response = await client.chat.completions.create({
+    model:           modelId,
+    messages:        [
+      { role: 'system', content: systemPrompt },
+      { role: 'user',   content: userPrompt },
+    ],
+    response_format: { type: 'json_object' },
+    temperature:     0.95,
+    max_tokens:      700,
+  })
+
+  const raw = response.choices[0]?.message?.content ?? '{}'
+  const parsed = parseJsonLoose<{ prompt?: string }>(raw)
+  return { prompt: (parsed.prompt ?? '').trim() }
 }
 
 // ─── generateCopy — ChatGPT (créativité copy) ───────────────────────────────

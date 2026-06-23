@@ -1,14 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Check, Download, Gem, Image as ImageIcon, Info, Layers, Lightbulb, Maximize2, PlusCircle, Rocket, ScanLine, ShoppingCart, Sparkles, Wand2, X } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Check, Download, Gem, Image as ImageIcon, Images, Info, Layers, Lightbulb, Maximize2, PlusCircle, Rocket, ScanLine, ShoppingCart, Sparkles, Wand2, X } from 'lucide-react'
 import { actionListProducts, actionUploadProductImage, actionCreateProduct, actionDeleteProduct, type ProductDTO } from '@/lib/actions/products'
 import { actionGenerateImage, actionDescribeProductScene } from '@/lib/actions/ai'
 import { actionUploadTempImage } from '@/lib/actions/avatar-assets'
+import { actionListBrandAssets, type BrandAssetDTO } from '@/lib/actions/brand-assets'
 import { persistOutput } from '@/lib/actions/outputs'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useToast } from '@/lib/stores/toastStore'
+import { useBrand } from '@/lib/stores/brandStore'
 import { BackButton, ContinueButton, DevStepNav, MainPanel, PageShell, WizardHeader, ratioStyle, ratioToSize, StepSlider } from '@/components/features/creer/WizardKit'
 
 // Nano Banana ne produit que 3 tailles → on n'expose que les 3 formats réels.
@@ -31,7 +33,9 @@ type StepId = 'products' | 'images' | 'dimensions' | 'goals'
 
 export default function CarouselCreatorPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const toast = useToast()
+  const brand = useBrand()
   const [currentStep, setCurrentStep] = useState(0)
   const [products, setProducts] = useState<ProductDTO[]>([])
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
@@ -46,10 +50,21 @@ export default function CarouselCreatorPage() {
   const [busy, setBusy] = useState(false)
   const [extraImages, setExtraImages] = useState<{ id: string; name: string; url: string }[]>([])
   const [openGoalInfo, setOpenGoalInfo] = useState<string | null>(null)
+  const [brandAssets, setBrandAssets] = useState<BrandAssetDTO[]>([])
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false)
 
   useEffect(() => {
     actionListProducts().then(setProducts).catch(() => setProducts([]))
+    actionListBrandAssets().then((a) => setBrandAssets(a.filter((x) => x.type === 'image' && x.url))).catch(() => setBrandAssets([]))
   }, [])
+
+  // Handoff depuis Production (?from=production&product=…) → pré-sélectionne le produit.
+  useEffect(() => {
+    if (!['production','template'].includes(searchParams.get('from') ?? '')) return
+    const product = searchParams.get('product')
+    if (product) setSelectedProductIds([product])
+    toast.info('Pré-rempli')
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Popover descriptif (i) des objectifs : ferme au clic en dehors (le (i) et le popover stoppent la propagation).
   useEffect(() => {
@@ -186,11 +201,19 @@ export default function CarouselCreatorPage() {
       const product = scene?.product ?? 'the product'
       const background = scene?.background ?? 'a styled environment that matches the product'
       const fidelity = 'CRITICAL: reproduce the EXACT product shown in the reference image — identical shape, colors, text, logo, label and proportions. Do not redesign, replace or invent a different product. Keep it perfectly recognizable.'
+      const brandCtx = [
+        brand.name ? `Brand: ${brand.name}` : '',
+        brand.communicationTone ? `tone ${brand.communicationTone}` : '',
+        brand.targetAudience ? `audience: ${brand.targetAudience}` : '',
+        brand.preferredWords.length ? `emphasize: ${brand.preferredWords.slice(0, 6).join(', ')}` : '',
+        brand.wordsToAvoid.length ? `avoid: ${brand.wordsToAvoid.slice(0, 6).join(', ')}` : '',
+      ].filter(Boolean).join(' · ')
       const promptText = [
         `Cohesive social media carousel slide featuring the product shown in the reference image${product && product !== 'the product' ? ` (${product})` : ''}.`,
         fidelity,
         goal ? `Angle: ${goal.title} — ${goal.details}.` : '',
         `Setting / style: ${background}.`,
+        brandCtx ? `On-brand context — ${brandCtx}.` : '',
         'Consistent style across slides, scroll-stopping, photorealistic, high quality, no text, no watermark.',
       ].filter(Boolean).join(' ')
       const res = await actionGenerateImage({
@@ -260,6 +283,10 @@ export default function CarouselCreatorPage() {
             <button onClick={uploadLibraryImage} disabled={busy} className="w-[150px] min-h-[150px] rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center gap-4 px-5 hover:border-accent/70 hover:bg-accent/5 transition-colors disabled:opacity-55 disabled:cursor-not-allowed">
               <span className="w-10 h-10 rounded-full bg-fg/[0.10] flex items-center justify-center text-text-primary"><PlusCircle size={20} /></span>
               <span className="text-[14px] font-semibold text-text-primary">Importer une image</span>
+            </button>
+            <button onClick={() => setAssetPickerOpen(true)} className="w-[150px] min-h-[150px] rounded-[12px] border-2 border-dashed border-border-strong bg-bg-card flex flex-col items-center justify-center text-center gap-4 px-5 hover:border-accent/70 hover:bg-accent/5 transition-colors">
+              <span className="w-10 h-10 rounded-full bg-fg/[0.10] flex items-center justify-center text-text-primary"><Images size={20} /></span>
+              <span className="text-[14px] font-semibold text-text-primary">Depuis mes Assets</span>
             </button>
             {productImages.map((image) => {
               const selected = selectedImageUrls.includes(image.url)
@@ -442,6 +469,40 @@ export default function CarouselCreatorPage() {
           </aside>
         </div>
       </MainPanel>
+
+      {/* Sélecteur : utiliser un asset de marque comme référence (optionnel) */}
+      {assetPickerOpen && (
+        <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/75 p-6 animate-fade-in" onClick={() => setAssetPickerOpen(false)}>
+          <div className="flex max-h-[80vh] w-full max-w-[640px] flex-col overflow-hidden rounded-[16px] border border-border bg-bg-card shadow-neo-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+              <h2 className="text-[15px] font-extrabold tracking-tight text-text-primary">Mes Assets (images)</h2>
+              <button type="button" onClick={() => setAssetPickerOpen(false)} className="grid h-7 w-7 place-items-center rounded-full text-text-muted transition hover:bg-fg/[0.08] hover:text-text-primary"><X size={16} strokeWidth={2.3} /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {brandAssets.length === 0 ? (
+                <p className="py-12 text-center text-[13px] font-medium text-text-secondary">Aucune image dans tes Assets. Ajoute-en dans Brand → Assets.</p>
+              ) : (
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+                  {brandAssets.map((a) => {
+                    const sel = a.url ? selectedImageUrls.includes(a.url) : false
+                    return (
+                      <button key={a.id} type="button" onClick={() => a.url && toggleImage(a.url)} className={`group relative aspect-square overflow-hidden rounded-[10px] border-2 bg-fg/[0.04] transition-all ${sel ? 'border-accent ring-2 ring-accent/20' : 'border-transparent hover:border-accent/50'}`}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {a.url && <img src={a.url} alt={a.name} className="h-full w-full object-cover" />}
+                        {sel && <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-accent text-white"><Check size={12} strokeWidth={3} /></span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-between border-t border-border px-5 py-3">
+              <span className="text-[12px] font-semibold text-text-muted">{selectedImageUrls.length} sélectionnée(s)</span>
+              <button type="button" onClick={() => setAssetPickerOpen(false)} className="inline-flex h-9 items-center gap-2 rounded-[9px] bg-accent px-4 text-[13px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105">Terminé</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {lightboxOpen && activeUrl && (
         <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/85 p-6 animate-fade-in" onClick={() => setLightboxOpen(false)}>
