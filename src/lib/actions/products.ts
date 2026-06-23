@@ -7,7 +7,7 @@
 
 import { randomUUID } from 'crypto'
 import { and, eq, desc } from 'drizzle-orm'
-import { requireAuth } from './auth'
+import { requireAuth, getActiveBrandId } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { products } from '@/lib/db/schema'
@@ -59,8 +59,10 @@ export interface ProductInput {
 export async function actionCreateProduct(input: ProductInput): Promise<{ id: string }> {
   const user = await requireAuth()
   if (!input.name?.trim()) throw new Error('Nom requis')
+  const brandId = await getActiveBrandId()
   const [row] = await db.insert(products).values({
     user_id:           user.id,
+    brand_id:          brandId,
     name:              input.name.trim(),
     description:       input.description ?? null,
     currency:          input.currency ?? 'USD',
@@ -87,7 +89,11 @@ export interface ProductDTO {
 
 export async function actionListProducts(): Promise<ProductDTO[]> {
   const user = await requireAuth()
-  const rows = await db.select().from(products).where(eq(products.user_id, user.id)).orderBy(desc(products.created_at))
+  const brandId = await getActiveBrandId()
+  if (!brandId) return []
+  const rows = await db.select().from(products)
+    .where(and(eq(products.user_id, user.id), eq(products.brand_id, brandId)))
+    .orderBy(desc(products.created_at))
   const supabase = await createClient()
   const out: ProductDTO[] = []
   for (const r of rows) {

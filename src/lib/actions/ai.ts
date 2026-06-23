@@ -28,10 +28,12 @@ import {
   generateHooks,
   generateCloneScript,
   generateProductionPrompt,
+  chatAssistant,
   type GenerateScriptParams,
   type GenerateCopyParams,
   type GenerateStrategyParams,
   type ProductionPromptParams,
+  type ChatMessage,
 } from '@/lib/ai/text'
 import {
   generateImage,
@@ -139,6 +141,11 @@ export async function actionGenerateCopy(params: GenerateCopyParams) {
 }
 
 /** Brief de génération créatif (Production) : analyse produit + ADN marque → prompt sur-mesure. */
+export async function actionChatAssistant(messages: ChatMessage[], context?: { studioName?: string; brand?: string }) {
+  await requireAuth()
+  return chatAssistant(messages, context)
+}
+
 export async function actionGenerateProductionPrompt(params: ProductionPromptParams) {
   await requireAuth()
   return generateProductionPrompt(params)

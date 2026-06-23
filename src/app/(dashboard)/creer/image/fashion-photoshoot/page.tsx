@@ -55,6 +55,8 @@ function buildSteps(type: string): StepId[] {
 export default function FashionPhotoshootPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  // Lien campagne = point d'entrée : ON depuis Production, OFF en création libre (dashboard).
+  const [useBrandCtx] = useState(searchParams.get('from') === 'production')
   const toast = useToast()
   const brand = useBrand()
   const [currentStep, setCurrentStep] = useState(0)
@@ -254,8 +256,9 @@ export default function FashionPhotoshootPage() {
       const look = productImg ? await actionDescribeProductScene({ imageUrl: productImg }).catch(() => null) : null
       const garment = [look?.product ?? (isAccessory ? 'the accessory' : 'the clothing product'), productDescription.trim()].filter(Boolean).join(' — ')
 
-      const brandCtx = [
+      const brandCtx = !useBrandCtx ? '' : [
         brand.name ? `Brand: ${brand.name}` : '',
+        brand.website ? `brand site: ${brand.website}` : '',
         brand.communicationTone ? `tone ${brand.communicationTone}` : '',
         brand.targetAudience ? `audience: ${brand.targetAudience}` : '',
         brand.preferredWords.length ? `emphasize: ${brand.preferredWords.slice(0, 6).join(', ')}` : '',

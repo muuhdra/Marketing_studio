@@ -1,58 +1,47 @@
 'use client'
 
 import { useToastStore, type Toast, type ToastVariant } from '@/lib/stores/toastStore'
+import { Check, X, AlertTriangle, Info, type LucideIcon } from 'lucide-react'
 
 // ─── Config visuelle par variant ─────────────────────────────────────────────
 
-const VARIANT_CONFIG: Record<ToastVariant, { icon: string; border: string; bg: string; text: string; bar: string }> = {
-  success: { icon: '✓', border: 'border-border-teal',   bg: 'bg-teal/10',   text: 'text-teal',   bar: 'bg-teal'   },
-  error:   { icon: '✕', border: 'border-border-coral',  bg: 'bg-coral/10',  text: 'text-coral',  bar: 'bg-coral'  },
-  warning: { icon: '⚠', border: 'border-amber/40',      bg: 'bg-amber/10',  text: 'text-amber',  bar: 'bg-amber'  },
-  info:    { icon: '', border: 'border-accent',         bg: 'bg-accent/10', text: 'text-accent', bar: 'bg-accent' },
+const VARIANT_CONFIG: Record<ToastVariant, { Icon: LucideIcon; iconBg: string; bar: string }> = {
+  success: { Icon: Check,         iconBg: 'bg-emerald-500', bar: 'bg-emerald-500' },
+  error:   { Icon: X,             iconBg: 'bg-coral',       bar: 'bg-coral'       },
+  warning: { Icon: AlertTriangle, iconBg: 'bg-amber',       bar: 'bg-amber'       },
+  info:    { Icon: Info,          iconBg: 'bg-accent',      bar: 'bg-accent'      },
 }
 
 // ─── Toast item ───────────────────────────────────────────────────────────────
 
 function ToastItem({ toast }: { toast: Toast }) {
   const remove = useToastStore((s) => s.remove)
-  const cfg    = VARIANT_CONFIG[toast.variant]
+  const { Icon, iconBg, bar } = VARIANT_CONFIG[toast.variant]
 
   return (
-    <div className={`
-      relative flex items-start gap-3 w-full
-      bg-bg-card border ${cfg.border} ${cfg.bg}
-      rounded-neo-lg px-4 py-3 shadow-neo
-      animate-slide-up overflow-hidden
-    `}>
-      {/* Icône */}
-      <div className={`
-        w-5 h-5 rounded-neo border ${cfg.border} flex-shrink-0
-        flex items-center justify-center
-        font-sans text-[10px] font-bold ${cfg.text}
-        mt-0.5
-      `}>
-        {cfg.icon}
-      </div>
+    <div className="relative flex items-center gap-3 w-full overflow-hidden rounded-[14px] border border-border bg-bg-card px-3.5 py-3 shadow-neo-lg animate-slide-up">
+      {/* Pastille d'icône */}
+      <span className={`grid h-7 w-7 flex-shrink-0 place-items-center rounded-full text-white ${iconBg}`}>
+        <Icon size={15} strokeWidth={2.8} />
+      </span>
 
       {/* Message */}
-      <p className={`flex-1 text-[13px] font-medium ${cfg.text} leading-snug pt-0.5`}>
+      <p className="flex-1 text-[13px] font-semibold leading-snug text-text-primary">
         {toast.message}
       </p>
 
       {/* Close */}
       <button
         onClick={() => remove(toast.id)}
-        className={`flex-shrink-0 font-sans text-[14px] ${cfg.text} opacity-60 hover:opacity-100 transition-opacity mt-0.5`}
+        aria-label="Fermer"
+        className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-full text-text-muted transition-colors hover:bg-fg/[0.08] hover:text-text-primary"
       >
-        ×
+        <X size={14} strokeWidth={2.4} />
       </button>
 
       {/* Barre de progression (animation 4s) */}
-      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black/10">
-        <div
-          className={`h-full ${cfg.bar} origin-left`}
-          style={{ animation: 'toast-shrink 4s linear forwards' }}
-        />
+      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-fg/[0.06]">
+        <div className={`h-full origin-left ${bar}`} style={{ animation: 'toast-shrink 4s linear forwards' }} />
       </div>
     </div>
   )
@@ -66,7 +55,7 @@ export default function Toaster() {
   if (toasts.length === 0) return null
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2.5 w-[360px] pointer-events-none">
+    <div className="fixed bottom-6 right-6 z-[9999] flex w-[340px] flex-col gap-2.5 pointer-events-none">
       {toasts.map((t) => (
         <div key={t.id} className="pointer-events-auto">
           <ToastItem toast={t} />

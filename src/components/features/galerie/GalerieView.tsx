@@ -688,7 +688,7 @@ export default function GalerieView({ avatars }: { avatars: DbAvatar[] }) {
           </p>
         </div>
         <div className="flex gap-2">
-          <Link href="/creative-studio">
+          <Link href="/creer/video">
             <Button variant="secondary" size="sm">+ Générer du contenu</Button>
           </Link>
           <Link href="/avatar-studio">
@@ -820,7 +820,7 @@ export default function GalerieView({ avatars }: { avatars: DbAvatar[] }) {
           </p>
           <div className="flex gap-2">
             {activeTab !== 'avatar' && (
-              <Link href="/creative-studio">
+              <Link href="/creer/video">
                 <Button size="sm">Ouvrir le Creative Studio</Button>
               </Link>
             )}
@@ -852,7 +852,7 @@ export default function GalerieView({ avatars }: { avatars: DbAvatar[] }) {
                 ))}
                 {/* Add card */}
                 {(activeTab === 'image' || activeTab === 'video' || activeTab === 'audio') && (
-                  <Link href="/creative-studio" className="block group">
+                  <Link href="/creer/video" className="block group">
                     <div className="h-full min-h-[220px] flex flex-col items-center justify-center bg-bg-surface border border-dashed border-border rounded-neo-lg transition-all group-hover:border-accent group-hover:bg-accent/5 group-hover:border-border-strong">
                       <div className="w-10 h-10 rounded-neo border border-border flex items-center justify-center text-xl text-text-dim group-hover:border-accent group-hover:text-accent transition-colors mb-2">+</div>
                       <span className="font-sans text-[10px] text-text-dim group-hover:text-accent transition-colors">Générer</span>

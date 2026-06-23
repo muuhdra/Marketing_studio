@@ -89,6 +89,7 @@ export const outfitStyleEnum = pgEnum('outfit_style', [
 export const campaigns = pgTable('campaigns', {
   id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id').notNull(),
+  brand_id: uuid('brand_id'),
   name: text('name').notNull(),
   status: campaignStatusEnum('status').notNull().default('draft'),
   campaign_type: campaignTypeEnum('campaign_type').notNull().default('generale'),
@@ -226,6 +227,7 @@ export const brands = pgTable('brands', {
 export const products = pgTable('products', {
   id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id').notNull(),
+  brand_id: uuid('brand_id'),
   name: text('name').notNull(),
   description: text('description'),
   currency: text('currency').default('USD'),
@@ -244,6 +246,7 @@ export const products = pgTable('products', {
 export const brand_folders = pgTable('brand_folders', {
   id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id').notNull(),
+  brand_id: uuid('brand_id'),
   name: text('name').notNull(),
   color: text('color'),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -254,6 +257,7 @@ export const brand_folders = pgTable('brand_folders', {
 export const brand_assets = pgTable('brand_assets', {
   id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id').notNull(),
+  brand_id: uuid('brand_id'),
   folder_id: uuid('folder_id'),
   type: text('type').notNull(),            // 'image' | 'video' | 'audio'
   name: text('name').notNull(),
@@ -267,6 +271,7 @@ export const brand_assets = pgTable('brand_assets', {
 export const brand_templates = pgTable('brand_templates', {
   id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id').notNull(),
+  brand_id: uuid('brand_id'),
   name: text('name').notNull(),
   prompt: text('prompt'),                  // prompt si généré par IA
   path: text('path').notNull(),            // chemin image dans le bucket assets
@@ -475,6 +480,7 @@ export const content_jobs = pgTable('content_jobs', {
 export const generated_outputs = pgTable('generated_outputs', {
   id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id').notNull(),
+  brand_id: uuid('brand_id'),
   campaign_id: uuid('campaign_id').references(() => campaigns.id, { onDelete: 'set null' }),
 
   type: text('type').notNull(),          // image | video | audio

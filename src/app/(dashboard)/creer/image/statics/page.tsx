@@ -40,6 +40,7 @@ import { persistOutput } from '@/lib/actions/outputs'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useToast } from '@/lib/stores/toastStore'
 import { MainPanel, PageShell, ratioToSize, ResultsOverlay, StepSlider } from '@/components/features/creer/WizardKit'
+import { BrandContextToggle } from '@/components/features/creer/BrandContextToggle'
 
 const DIMENSIONS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']
 
@@ -127,6 +128,8 @@ function StepFlow() {
   const [selectedDimension, setSelectedDimension] = useState('9:16')
   const [selectedGoalIds, setSelectedGoalIds] = useState<string[]>(['stop-scroll'])
   const [visualDirection, setVisualDirection] = useState('')
+  // Lien à la campagne = point d'entrée : ON depuis Production, OFF en création libre (dashboard).
+  const [useBrandCtx, setUseBrandCtx] = useState(searchParams.get('from') === 'production')
   // Structure d'inspiration issue d'un template sélectionné (Templates → « Utiliser »).
   const [templateStructure, setTemplateStructure] = useState('')
   const [ctaText, setCtaText] = useState('')
@@ -353,9 +356,10 @@ function StepFlow() {
       const product = scene?.product ?? 'the product'
       const hasTemplate = selectedTemplates.some((t) => t.url)
       const fidelity = 'CRITICAL: reproduce the EXACT product shown in the reference image — identical shape, colors, text, logo, label and proportions. Do not redesign, replace or invent a different product. Keep it perfectly recognizable.'
-      // Contexte de marque (Profil) → toutes les générations respectent l'ADN/ton/audience.
-      const brandCtx = [
+      // Contexte de marque (Profil) → respecte l'ADN/ton/audience. Désactivable (création libre).
+      const brandCtx = !useBrandCtx ? '' : [
         brand.name ? `Brand: ${brand.name}` : '',
+        brand.website ? `brand site: ${brand.website}` : '',
         brand.communicationTone ? `tone ${brand.communicationTone}` : '',
         brand.targetAudience ? `audience: ${brand.targetAudience}` : '',
         brand.preferredWords.length ? `emphasize: ${brand.preferredWords.slice(0, 6).join(', ')}` : '',
@@ -792,6 +796,9 @@ function StepFlow() {
             </div>
             <p className="self-center text-[12px] font-medium text-text-primary">{variationsToGenerate} variation{variationsToGenerate > 1 ? 's' : ''} per goal</p>
             <div>
+              <div className="mb-2 flex justify-center">
+                <BrandContextToggle on={useBrandCtx} onChange={setUseBrandCtx} />
+              </div>
               <p className="mb-2 text-center text-[12px] font-extrabold text-text-primary">Total Goals: {selectedGoalIds.length}</p>
               <button onClick={generate} disabled={generating} className="h-9 w-full rounded-[8px] bg-accent px-5 text-[13px] font-extrabold text-white flex items-center justify-center gap-2 hover:brightness-105 transition disabled:opacity-55 disabled:cursor-not-allowed">
                 {generating ? 'Génération…' : <>Create ({variationsToGenerate * Math.max(1, selectedGoalIds.length)}) Ad <Gem size={15} fill="currentColor" /> {variationsToGenerate * Math.max(1, selectedGoalIds.length)}</>}

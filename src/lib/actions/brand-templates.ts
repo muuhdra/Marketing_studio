@@ -7,7 +7,7 @@
 
 import { randomUUID } from 'crypto'
 import { and, eq, desc, inArray } from 'drizzle-orm'
-import { requireAuth } from './auth'
+import { requireAuth, getActiveBrandId } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brand_templates } from '@/lib/db/schema'
@@ -39,7 +39,11 @@ async function toDTO(row: { id: string; name: string; path: string; prompt: stri
 
 export async function actionListBrandTemplates(): Promise<BrandTemplateDTO[]> {
   const user = await requireAuth()
-  const rows = await db.select().from(brand_templates).where(eq(brand_templates.user_id, user.id)).orderBy(desc(brand_templates.created_at))
+  const brandId = await getActiveBrandId()
+  if (!brandId) return []
+  const rows = await db.select().from(brand_templates)
+    .where(and(eq(brand_templates.user_id, user.id), eq(brand_templates.brand_id, brandId)))
+    .orderBy(desc(brand_templates.created_at))
   return Promise.all(rows.map((r) => toDTO(r)))
 }
 
@@ -56,7 +60,8 @@ export async function actionUploadBrandTemplate(formData: FormData): Promise<Bra
   const supabase = await createClient()
   const { error } = await supabase.storage.from(BUCKETS.ASSETS).upload(path, buffer, { contentType: file.type, upsert: false })
   if (error) throw error
-  const [row] = await db.insert(brand_templates).values({ user_id: user.id, name: name || file.name, path }).returning()
+  const brandId = await getActiveBrandId()
+  const [row] = await db.insert(brand_templates).values({ user_id: user.id, brand_id: brandId, name: name || file.name, path }).returning()
   return toDTO(row)
 }
 
@@ -77,7 +82,8 @@ export async function actionGenerateBrandTemplate(input: { prompt: string; aspec
   const supabase = await createClient()
   const { error } = await supabase.storage.from(BUCKETS.ASSETS).upload(path, buffer, { contentType, upsert: false })
   if (error) throw error
-  const [row] = await db.insert(brand_templates).values({ user_id: user.id, name: input.prompt.trim().slice(0, 60), prompt: input.prompt.trim(), path }).returning()
+  const brandId = await getActiveBrandId()
+  const [row] = await db.insert(brand_templates).values({ user_id: user.id, brand_id: brandId, name: input.prompt.trim().slice(0, 60), prompt: input.prompt.trim(), path }).returning()
   return toDTO(row)
 }
 
@@ -96,8 +102,10 @@ export async function actionDeleteBrandTemplate(id: string): Promise<void> {
  */
 export async function actionSetActiveBrandTemplates(activeIds: string[]): Promise<void> {
   const user = await requireAuth()
-  // Tout désactiver, puis activer la sélection (2 updates simples, sûrs avec RLS user).
-  await db.update(brand_templates).set({ active: false }).where(eq(brand_templates.user_id, user.id))
+  const brandId = await getActiveBrandId()
+  if (!brandId) return
+  // Désactive les templates de CETTE marque, puis active la sélection.
+  await db.update(brand_templates).set({ active: false }).where(and(eq(brand_templates.user_id, user.id), eq(brand_templates.brand_id, brandId)))
   if (activeIds.length > 0) {
     await db.update(brand_templates).set({ active: true }).where(and(eq(brand_templates.user_id, user.id), inArray(brand_templates.id, activeIds)))
   }

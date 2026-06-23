@@ -11,6 +11,26 @@ import { createAimlClient, MODELS } from './client'
 import { type ResearchContext, formatResearchForPrompt } from './research'
 import { parseJsonLoose } from './json'
 
+// ─── chatAssistant — assistant conversationnel du studio ─────────────────────
+
+export interface ChatMessage { role: 'user' | 'assistant'; content: string }
+
+/** Assistant IA du studio marketing : répond aux questions et guide l'utilisateur. */
+export async function chatAssistant(messages: ChatMessage[], context?: { studioName?: string; brand?: string }): Promise<string> {
+  const client = createAimlClient()
+  const system = `Tu es l'assistant IA de « ${context?.studioName || 'notre studio'} », un studio de création publicitaire par IA.
+Tu aides l'utilisateur à : créer des images et vidéos (UGC, pubs statiques, carrousels, shootings, B-roll voix off), gérer ses marques et campagnes, ses produits, avatars/personnages, templates, et sa stratégie marketing (ads DTC, social).
+Réponds en français, de façon concise, concrète et actionnable (puces si utile). Oriente vers la bonne fonctionnalité du studio quand c'est pertinent. Si on te demande quelque chose hors marketing/produit, recadre poliment.${context?.brand ? `\nMarque active : ${context.brand}.` : ''}`
+
+  const res = await client.chat.completions.create({
+    model: MODELS.text.chatgpt,
+    messages: [{ role: 'system', content: system }, ...messages.slice(-12)],
+    temperature: 0.6,
+    max_tokens: 600,
+  })
+  return res.choices[0]?.message?.content?.trim() || "Désolé, je n'ai pas pu répondre. Réessaie."
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface GenerateScriptParams {
@@ -154,6 +174,7 @@ export interface ProductionPromptParams {
   contentType: string                 // libellé du type (Pub statique, Carrousel, Vidéo acteur…)
   brand: {
     name?: string
+    website?: string                  // URL du site de la marque (référence on-brand)
     description?: string
     tone?: string
     audience?: string
@@ -202,6 +223,7 @@ Réponds UNIQUEMENT en JSON valide. Langue de sortie : ${lang === 'fr' ? 'franç
 
 — MARQUE —
 Nom : ${b.name ?? '—'}
+${b.website ? `Site : ${b.website}` : ''}
 Description : ${b.description ?? '—'}
 Ton de communication : ${b.tone ?? '—'}
 Audience cible : ${b.audience ?? '—'}

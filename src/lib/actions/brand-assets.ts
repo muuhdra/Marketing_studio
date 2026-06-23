@@ -7,7 +7,7 @@
 
 import { randomUUID } from 'crypto'
 import { and, eq, desc } from 'drizzle-orm'
-import { requireAuth } from './auth'
+import { requireAuth, getActiveBrandId } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brand_folders, brand_assets } from '@/lib/db/schema'
@@ -33,14 +33,19 @@ export interface FolderDTO { id: string; name: string; color: string | null }
 
 export async function actionListFolders(): Promise<FolderDTO[]> {
   const user = await requireAuth()
-  const rows = await db.select().from(brand_folders).where(eq(brand_folders.user_id, user.id)).orderBy(desc(brand_folders.created_at))
+  const brandId = await getActiveBrandId()
+  if (!brandId) return []
+  const rows = await db.select().from(brand_folders)
+    .where(and(eq(brand_folders.user_id, user.id), eq(brand_folders.brand_id, brandId)))
+    .orderBy(desc(brand_folders.created_at))
   return rows.map((r) => ({ id: r.id, name: r.name, color: r.color }))
 }
 
 export async function actionCreateFolder(input: { name: string; color?: string | null }): Promise<FolderDTO> {
   const user = await requireAuth()
   if (!input.name?.trim()) throw new Error('Nom requis')
-  const [row] = await db.insert(brand_folders).values({ user_id: user.id, name: input.name.trim(), color: input.color ?? null }).returning()
+  const brandId = await getActiveBrandId()
+  const [row] = await db.insert(brand_folders).values({ user_id: user.id, brand_id: brandId, name: input.name.trim(), color: input.color ?? null }).returning()
   return { id: row.id, name: row.name, color: row.color }
 }
 
@@ -54,7 +59,11 @@ export interface BrandAssetDTO { id: string; type: AssetType; name: string; url:
 
 export async function actionListBrandAssets(): Promise<BrandAssetDTO[]> {
   const user = await requireAuth()
-  const rows = await db.select().from(brand_assets).where(eq(brand_assets.user_id, user.id)).orderBy(desc(brand_assets.created_at))
+  const brandId = await getActiveBrandId()
+  if (!brandId) return []
+  const rows = await db.select().from(brand_assets)
+    .where(and(eq(brand_assets.user_id, user.id), eq(brand_assets.brand_id, brandId)))
+    .orderBy(desc(brand_assets.created_at))
   const supabase = await createClient()
   const out: BrandAssetDTO[] = []
   for (const r of rows) {
@@ -78,7 +87,8 @@ export async function actionUploadBrandAsset(formData: FormData): Promise<BrandA
   const supabase = await createClient()
   const { error } = await supabase.storage.from(BUCKETS.ASSETS).upload(path, buffer, { contentType: file.type || undefined, upsert: false })
   if (error) throw error
-  const [row] = await db.insert(brand_assets).values({ user_id: user.id, folder_id: folderId, type, name: file.name, path }).returning()
+  const brandId = await getActiveBrandId()
+  const [row] = await db.insert(brand_assets).values({ user_id: user.id, brand_id: brandId, folder_id: folderId, type, name: file.name, path }).returning()
   const { data } = await supabase.storage.from(BUCKETS.ASSETS).createSignedUrl(path, 60 * 60)
   return { id: row.id, type: row.type as AssetType, name: row.name, url: data?.signedUrl ?? null, folderId: row.folder_id }
 }
@@ -102,7 +112,8 @@ export async function actionGenerateBrandAsset(input: { prompt: string; aspect?:
   const supabase = await createClient()
   const { error } = await supabase.storage.from(BUCKETS.ASSETS).upload(path, buffer, { contentType, upsert: false })
   if (error) throw error
-  const [row] = await db.insert(brand_assets).values({ user_id: user.id, folder_id: input.folderId ?? null, type: 'image', name: input.prompt.trim().slice(0, 60), path }).returning()
+  const brandId = await getActiveBrandId()
+  const [row] = await db.insert(brand_assets).values({ user_id: user.id, brand_id: brandId, folder_id: input.folderId ?? null, type: 'image', name: input.prompt.trim().slice(0, 60), path }).returning()
   return { id: row.id, type: 'image', name: row.name, url: (await supabase.storage.from(BUCKETS.ASSETS).createSignedUrl(path, 60 * 60)).data?.signedUrl ?? null, folderId: row.folder_id }
 }
 

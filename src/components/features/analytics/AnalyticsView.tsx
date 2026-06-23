@@ -217,7 +217,7 @@ export default function AnalyticsView({ campaigns, avatars }: Props) {
           ) : assets.length === 0 ? (
             <div className="py-8 text-center">
               <p className="font-sans text-[11px] text-text-dim mb-1">Aucun asset généré</p>
-              <Link href="/creative-studio" className="font-sans text-[10px] text-accent hover:underline">
+              <Link href="/creer/video" className="font-sans text-[10px] text-accent hover:underline">
                 → Creative Studio
               </Link>
             </div>
@@ -325,7 +325,7 @@ export default function AnalyticsView({ campaigns, avatars }: Props) {
         ) : budget.rows.length === 0 ? (
           <div className="py-8 text-center">
             <p className="font-sans text-[11px] text-text-dim mb-1">Aucune génération ce mois-ci</p>
-            <Link href="/creative-studio" className="font-sans text-[10px] text-accent hover:underline">→ Générer du contenu</Link>
+            <Link href="/creer/video" className="font-sans text-[10px] text-accent hover:underline">→ Générer du contenu</Link>
           </div>
         ) : (
           <>

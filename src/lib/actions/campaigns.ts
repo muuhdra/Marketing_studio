@@ -12,6 +12,7 @@ import {
   avatars,
 } from '@/lib/db/schema'
 import { revalidatePath } from 'next/cache'
+import { getActiveBrandId } from './auth'
 
 // ─── Helper : récupère l'user authentifié côté serveur ───────────────────────
 
@@ -36,11 +37,13 @@ async function getAuthUser() {
 
 export async function listCampaigns() {
   const user = await getAuthUser()
+  const brandId = await getActiveBrandId()
+  if (!brandId) return []
 
   const rows = await db
     .select()
     .from(campaigns)
-    .where(eq(campaigns.user_id, user.id))
+    .where(and(eq(campaigns.user_id, user.id), eq(campaigns.brand_id, brandId)))
     .orderBy(desc(campaigns.created_at))
 
   return rows
@@ -63,11 +66,13 @@ export async function createCampaign(data: {
   assetsUrl?:          string
 }) {
   const user = await getAuthUser()
+  const brandId = await getActiveBrandId()
 
   const [campaign] = await db
     .insert(campaigns)
     .values({
       user_id:              user.id,
+      brand_id:             brandId,
       name:                 data.name,
       campaign_type:        data.campaignType,
       status:               'draft',

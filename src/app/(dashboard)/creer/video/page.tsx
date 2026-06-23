@@ -49,6 +49,8 @@ import { VOICE_PROFILES, MINIMAX_EMOTIONS, VOICE_LANGUAGES } from '@/lib/ai/voic
 import { persistOutput } from '@/lib/actions/outputs'
 import { useToast } from '@/lib/stores/toastStore'
 import { useSettings } from '@/lib/stores/settingsStore'
+import { useBrand } from '@/lib/stores/brandStore'
+import { BrandContextToggle } from '@/components/features/creer/BrandContextToggle'
 import { StepSlider } from '@/components/features/creer/WizardKit'
 import { AssetPickerModal } from '@/components/features/creer/AssetPicker'
 
@@ -229,6 +231,19 @@ export default function CreerVideoPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const toast = useToast()
+  // Contexte de marque (Profil de la marque active) → scripts vidéo on-brand.
+  // Optionnel : désactivable pour une création libre, sans lien avec la marque/campagne.
+  const brand = useBrand()
+  // Lien à la campagne = point d'entrée : ON depuis Production, OFF en création libre (dashboard).
+  const [useBrandCtx, setUseBrandCtx] = useState(searchParams.get('from') === 'production')
+  const brandCtx = () => !useBrandCtx ? '' : [
+    brand.name ? `Marque: ${brand.name}` : '',
+    brand.communicationTone ? `Ton: ${brand.communicationTone}` : '',
+    brand.targetAudience ? `Audience: ${brand.targetAudience}` : '',
+    brand.preferredWords.length ? `Mots à privilégier: ${brand.preferredWords.slice(0, 6).join(', ')}` : '',
+    brand.wordsToAvoid.length ? `Mots à éviter: ${brand.wordsToAvoid.slice(0, 6).join(', ')}` : '',
+    brand.website ? `Site: ${brand.website}` : '',
+  ].filter(Boolean).join(' · ')
   const studioName = useSettings((s) => s.studioName)
   const [mode, setMode] = useState<VideoMode>('menu')
   const [avatars, setAvatars] = useState<{ id: string; name: string; photoUrl: string | null }[]>([])
@@ -303,6 +318,12 @@ export default function CreerVideoPage() {
     actionListAvatarsForPicker().then(setAvatars).catch(() => setAvatars([]))
     actionListProducts().then(setProducts).catch(() => setProducts([]))
   }, [])
+
+  // Ouverture directe d'un mode via ?mode= (raccourcis du dashboard).
+  useEffect(() => {
+    const m = searchParams.get('mode')
+    if (m && AVAILABLE_VIDEO_TYPE_IDS.has(m)) setMode(m as VideoMode)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handoff depuis Production (?from=production&…&prompt=…) ou Templates (?from=template&…&templatePrompt=…).
   // Production → pré-remplit directement le script. Template → mémorise la structure d'inspiration
@@ -408,7 +429,7 @@ export default function CreerVideoPage() {
         : ''
       const res = await actionGenerateScript({
         campaignName: 'Voice Over Ad',
-        campaignDna: [productCtx, manualBrollScript.trim(), goalText, audience?.title || customBrollAudience, brollInstructions].filter(Boolean).join(' — ') || 'Punchy b-roll voice-over ad for a product.',
+        campaignDna: [brandCtx(), productCtx, manualBrollScript.trim(), goalText, audience?.title || customBrollAudience, brollInstructions].filter(Boolean).join(' — ') || 'Punchy b-roll voice-over ad for a product.',
         contentType: 'ugc', format: 'social', platform: 'tiktok', duration: brollDuration,
         templateStructure: templateStructure || undefined,
       })
@@ -486,7 +507,7 @@ export default function CreerVideoPage() {
       const audience = BROLL_AUDIENCES.find((a) => a.id === selectedBrollAudience)
       const res = await actionGenerateScript({
         campaignName: 'Voice Over Ad',
-        campaignDna: [`Script à affiner: ${manualBrollScript.trim()}`, brollRefineInstruction.trim() ? `Consigne: ${brollRefineInstruction.trim()}` : 'Améliore, dynamise et rends-le plus percutant', goalText, audience?.title || customBrollAudience].filter(Boolean).join(' — '),
+        campaignDna: [brandCtx(), `Script à affiner: ${manualBrollScript.trim()}`, brollRefineInstruction.trim() ? `Consigne: ${brollRefineInstruction.trim()}` : 'Améliore, dynamise et rends-le plus percutant', goalText, audience?.title || customBrollAudience].filter(Boolean).join(' — '),
         contentType: 'ugc', format: 'social', platform: 'tiktok', duration: brollDuration,
         templateStructure: templateStructure || undefined,
       })
@@ -600,7 +621,7 @@ export default function CreerVideoPage() {
     try {
       const res = await actionGenerateScript({
         campaignName: 'Realistic Actor Video',
-        campaignDna: actorScript.trim() || 'Short, punchy UGC video where an actor talks straight to camera about a product, friendly and authentic tone.',
+        campaignDna: [brandCtx(), actorScript.trim() || 'Short, punchy UGC video where an actor talks straight to camera about a product, friendly and authentic tone.'].filter(Boolean).join(' — '),
         contentType: 'ugc',
         format: 'social',
         platform: 'tiktok',
@@ -625,7 +646,7 @@ export default function CreerVideoPage() {
     try {
       const res = await actionGenerateScript({
         campaignName: 'Realistic Actor Video',
-        campaignDna: `Script actuel: ${actorScript.trim() || '(vide)'}.${enhanceInstruction.trim() ? ` Consigne d'amélioration: ${enhanceInstruction.trim()}.` : ' Améliore, dynamise et rends-le plus percutant.'}`,
+        campaignDna: [brandCtx(), `Script actuel: ${actorScript.trim() || '(vide)'}.${enhanceInstruction.trim() ? ` Consigne d'amélioration: ${enhanceInstruction.trim()}.` : ' Améliore, dynamise et rends-le plus percutant.'}`].filter(Boolean).join(' — '),
         contentType: 'ugc', format: 'social', platform: 'tiktok', duration: 20, avatarName: selectedActor?.name,
       })
       setActorScript((res.voiceover || res.script || '').trim())
@@ -1047,9 +1068,12 @@ export default function CreerVideoPage() {
                         <span className="w-5 h-5 flex-shrink-0 rounded-full bg-fg/[0.09] text-text-secondary flex items-center justify-center text-[11px] font-extrabold">3</span>
                         <h2 className="font-display text-[15px] font-extrabold text-text-primary">What will your actor say?</h2>
                       </div>
-                      <button onClick={generateActorScript} disabled={generatingScript} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-accent hover:brightness-95 transition disabled:opacity-55">
-                        <Sparkles size={15} /> {generatingScript ? 'Génération…' : 'Generate Script with AI'}
-                      </button>
+                      <div className="flex items-center gap-2.5">
+                        <BrandContextToggle on={useBrandCtx} onChange={setUseBrandCtx} />
+                        <button onClick={generateActorScript} disabled={generatingScript} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-accent hover:brightness-95 transition disabled:opacity-55">
+                          <Sparkles size={15} /> {generatingScript ? 'Génération…' : 'Generate Script with AI'}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="overflow-hidden rounded-[10px] border border-border bg-bg-card">
@@ -1785,23 +1809,26 @@ export default function CreerVideoPage() {
                   />
                 </div>
 
-                <div className="mt-6 flex justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setBrollStep('actors')}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] bg-fg/[0.08] px-5 text-[13px] font-extrabold text-text-primary transition hover:bg-fg/[0.12]"
-                  >
-                    <ChevronDown size={15} className="rotate-90" /> Retour
-                  </button>
-                  <button
-                    type="button"
-                    onClick={generateBrollScript}
-                    disabled={generatingBrollScript}
-                    className="inline-flex h-10 items-center justify-center gap-2.5 rounded-[10px] bg-accent px-6 text-[14px] font-extrabold text-white shadow-neo-solid transition hover:brightness-105 disabled:opacity-55 disabled:cursor-not-allowed"
-                  >
-                    <Sparkles size={16} />
-                    {generatingBrollScript ? 'Génération…' : 'Generate Voiceover Script'}
-                  </button>
+                <div className="mt-6 flex flex-col items-center gap-3">
+                  <BrandContextToggle on={useBrandCtx} onChange={setUseBrandCtx} />
+                  <div className="flex justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setBrollStep('actors')}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] bg-fg/[0.08] px-5 text-[13px] font-extrabold text-text-primary transition hover:bg-fg/[0.12]"
+                    >
+                      <ChevronDown size={15} className="rotate-90" /> Retour
+                    </button>
+                    <button
+                      type="button"
+                      onClick={generateBrollScript}
+                      disabled={generatingBrollScript}
+                      className="inline-flex h-10 items-center justify-center gap-2.5 rounded-[10px] bg-accent px-6 text-[14px] font-extrabold text-white shadow-neo-solid transition hover:brightness-105 disabled:opacity-55 disabled:cursor-not-allowed"
+                    >
+                      <Sparkles size={16} />
+                      {generatingBrollScript ? 'Génération…' : 'Generate Voiceover Script'}
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="w-full max-w-[720px] animate-fade-in">

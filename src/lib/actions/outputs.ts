@@ -10,7 +10,7 @@
 
 import { randomUUID } from 'crypto'
 import { and, eq, gt, gte, desc, isNull } from 'drizzle-orm'
-import { requireAuth } from './auth'
+import { requireAuth, getActiveBrandId } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { generated_outputs, campaigns } from '@/lib/db/schema'
@@ -81,8 +81,10 @@ export async function persistOutput(input: PersistInput): Promise<OutputDTO | nu
   const { error: upErr } = await supabase.storage.from(BUCKETS.OUTPUTS).upload(path, buffer, { contentType, upsert: true })
   if (upErr) throw upErr
 
+  const brandId = await getActiveBrandId()
   const [row] = await db.insert(generated_outputs).values({
     user_id:          user.id,
+    brand_id:         brandId,
     campaign_id:      input.campaignId ?? null,
     type:             input.type,
     engine:           input.engine ?? null,
@@ -108,6 +110,8 @@ export async function persistOutput(input: PersistInput): Promise<OutputDTO | nu
 /** Liste les outputs ACTIFS (fichier dispo, non purgé) de l'utilisateur, URLs signées (1h). */
 export async function listOutputs(): Promise<OutputDTO[]> {
   const user = await requireAuth()
+  const brandId = await getActiveBrandId()
+  if (!brandId) return []
   const rows = await db
     .select({
       id: generated_outputs.id, type: generated_outputs.type, engine: generated_outputs.engine,
@@ -121,6 +125,7 @@ export async function listOutputs(): Promise<OutputDTO[]> {
     .leftJoin(campaigns, eq(generated_outputs.campaign_id, campaigns.id))
     .where(and(
       eq(generated_outputs.user_id, user.id),
+      eq(generated_outputs.brand_id, brandId),
       isNull(generated_outputs.purged_at),
       gt(generated_outputs.expires_at, new Date()),
     ))

@@ -57,6 +57,8 @@ function buildSteps(type: string | null, style: string): StepId[] {
 export default function ProductPhotoshootPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  // Lien campagne = point d'entrée : ON depuis Production, OFF en création libre (dashboard).
+  const [useBrandCtx] = useState(searchParams.get('from') === 'production')
   const toast = useToast()
   const brand = useBrand()
   const actorProductInputRef = useRef<HTMLInputElement | null>(null)
@@ -329,8 +331,9 @@ export default function ProductPhotoshootPage() {
           : 'the same person (face, identity and features) from the model reference image'
         promptText = `Realistic lifestyle advertising photo: ${holder} naturally holding the EXACT product from the product reference image. ${fidelity} ${holding}. Product ${placement?.prompt ?? 'centered in the frame'}, the product is the clear hero — prominently presented toward the camera, fully visible, unobstructed, sharp focus, fingers not covering it.${selectedHoldingStyle === 'hand' ? '' : ` Model styled as ${styling}.`} Setting: ${background}. Cohesive natural lighting, photorealistic, high quality, no text, no watermark.`
       }
-      const brandCtx = [
+      const brandCtx = !useBrandCtx ? '' : [
         brand.name ? `Brand: ${brand.name}` : '',
+        brand.website ? `brand site: ${brand.website}` : '',
         brand.communicationTone ? `tone ${brand.communicationTone}` : '',
         brand.targetAudience ? `audience: ${brand.targetAudience}` : '',
         brand.preferredWords.length ? `emphasize: ${brand.preferredWords.slice(0, 6).join(', ')}` : '',

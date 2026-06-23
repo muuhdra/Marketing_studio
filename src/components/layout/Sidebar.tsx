@@ -104,6 +104,14 @@ export default function Sidebar() {
     router.push('/login')
   }
 
+  // Bascule de marque : pose le cookie (scoping serveur) puis recharge l'app
+  // pour que TOUTES les données (products/assets/templates/campagnes/créations) suivent la marque.
+  function switchBrand(id: string) {
+    setActiveBrand(id)
+    document.cookie = `active-brand=${id}; path=/; max-age=31536000; samesite=lax`
+    window.location.assign('/parametres?section=profile')
+  }
+
   const activeBrand = mounted ? (brands.find((b) => b.id === activeBrandId) ?? brands[0]) : { name: DEFAULT_STUDIO_NAME, color: '#ea580c', id: '' }
   const brandSection = searchParams.get('section') ?? 'profile'
   const userInitial = (email.trim()[0] ?? studioName.trim()[0] ?? '?').toUpperCase()
@@ -114,15 +122,7 @@ export default function Sidebar() {
     setSavingBrand(true)
     try {
       const b = await createBrand({ name, color: newBrandColor, category: newBrandCategory })
-      setBrands(await listBrands())
-      setActiveBrand(b.id)
-      setNewBrandName('')
-      setNewBrandColor(BRAND_COLORS[0])
-      setNewBrandCategory(BRAND_CATEGORIES[0])
-      setAddingBrand(false)
-      setBrandMenuOpen(false)
-      setBrandNavOpen(true)
-      router.push('/parametres?section=profile')
+      switchBrand(b.id)   // pose le cookie + recharge sur la nouvelle marque
     } catch { /* ignore */ }
     finally { setSavingBrand(false) }
   }
@@ -197,13 +197,7 @@ export default function Sidebar() {
                     <button
                       key={b.id}
                       type="button"
-                      onClick={() => {
-                        setActiveBrand(b.id)
-                        setBrandMenuOpen(false)
-                        setAddingBrand(false)
-                        setBrandNavOpen(true)
-                        router.push('/parametres?section=profile')
-                      }}
+                      onClick={() => switchBrand(b.id)}
                       className={cn(
                         'flex min-h-[50px] w-full items-center gap-3 rounded-[10px] px-2.5 text-left transition-colors',
                         isActive ? 'bg-fg/[0.06]' : 'hover:bg-fg/[0.04]',
@@ -434,9 +428,9 @@ export default function Sidebar() {
               </div>
               <div className="p-1.5">
                 <Link
-                  href="/parametres"
+                  href="/reglages"
                   onClick={() => setMenuOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-neo text-[12.5px] text-text-secondary hover:bg-bg-elevated hover:text-text-primary transition-colors"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-neo text-[12.5px] text-text-secondary hover:bg-fg/[0.06] hover:text-text-primary transition-colors"
                 >
                   <Settings size={13} />
                   Paramètres

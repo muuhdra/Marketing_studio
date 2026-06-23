@@ -3,6 +3,8 @@
 import { useState, useEffect, type ReactNode } from 'react'
 import Link from 'next/link'
 import { listOutputMeta, type OutputMeta } from '@/lib/actions/outputs'
+import { actionListProducts } from '@/lib/actions/products'
+import { useBrand } from '@/lib/stores/brandStore'
 import {
   Image as ImageIcon,
   UserRound,
@@ -10,10 +12,8 @@ import {
   ArrowUpRight,
   ChevronRight,
   Coins,
-  Camera,
   Check,
   Circle,
-  X,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -61,27 +61,43 @@ function Ring({ pct, size, stroke, children }: { pct: number; size: number; stro
 export default function DashboardView({ userName, campaigns, avatars }: Props) {
   const [meta, setMeta] = useState<OutputMeta[]>([])
   const [mounted, setMounted] = useState(false)
-  const [brandProfileOpen, setBrandProfileOpen] = useState(false)
-  useEffect(() => { setMounted(true); listOutputMeta().then(setMeta).catch(() => {}) }, [])
+  const [productsCount, setProductsCount] = useState(0)
+  useEffect(() => {
+    setMounted(true)
+    listOutputMeta().then(setMeta).catch(() => {})
+    actionListProducts().then((p) => setProductsCount(p.length)).catch(() => {})
+  }, [])
   const assets = mounted ? meta : []
+
+  // Complétion réelle du profil de la marque active (champs renseignés par l'utilisateur).
+  const brand = useBrand()
+  const profileTasks = [
+    { done: !!brand.logoDataUrl,                     label: 'Logo de marque' },
+    { done: brand.keyFeatures.length > 0,            label: 'Caractéristiques clés' },
+    { done: !!(brand.dnaFileName || brand.dnaText),  label: 'Document ADN' },
+    { done: productsCount > 0,                        label: 'Produits' },
+  ]
+  const profileDone = profileTasks.filter((t) => t.done).length
+  const profilePct = Math.round((profileDone / profileTasks.length) * 100)
 
   const hours = mounted ? new Date().getHours() : 12
   const greet = hours < 12 ? 'Bonjour' : hours < 18 ? 'Bon aprèm' : 'Bonsoir'
 
-  // Complétion du profil — dérivée de l'état réel du studio
-  const tasks = [
-    { done: avatars.length > 0,   label: 'Créer un avatar' },
-    { done: campaigns.length > 0, label: 'Lancer une campagne' },
-    { done: assets.length > 0,    label: 'Générer du contenu' },
-    { done: false,                label: 'Connecter un réseau' },
+  // Mise en route du studio — étapes réelles et actionnables (chacune mène à sa page).
+  const startupTasks = [
+    { done: profilePct === 100,   label: 'Compléter le profil de marque', href: '/parametres?section=profile' },
+    { done: productsCount > 0,    label: 'Ajouter un produit',            href: '/parametres?section=products' },
+    { done: avatars.length > 0,   label: 'Créer un personnage',           href: '/avatar-studio' },
+    { done: assets.length > 0,    label: 'Générer un contenu',            href: '/creer/image/creator' },
   ]
-  const doneCount = tasks.filter((t) => t.done).length
-  const pct = Math.round((doneCount / tasks.length) * 100)
+  const startupDone = startupTasks.filter((t) => t.done).length
+  const startupPct = Math.round((startupDone / startupTasks.length) * 100)
+  const nextStep = startupTasks.find((t) => !t.done)
 
   const quickActions = [
-    { icon: ImageIcon,    label: 'Créer un visuel statique', href: '/creer/image' },
-    { icon: UserRound,    label: 'Vidéo avatar réaliste',    href: '/creative-studio' },
-    { icon: Clapperboard, label: 'Pub B-Roll avec voix off', href: '/creative-studio' },
+    { icon: ImageIcon,    label: 'Créer un visuel statique', href: '/creer/image/creator' },
+    { icon: UserRound,    label: 'Vidéo avatar réaliste',    href: '/creer/video?mode=realistic-actor' },
+    { icon: Clapperboard, label: 'Pub B-Roll avec voix off', href: '/creer/video?mode=broll-voiceover' },
   ]
 
   return (
@@ -100,176 +116,103 @@ export default function DashboardView({ userName, campaigns, avatars }: Props) {
         </div>
 
         <div className="hidden md:flex flex-col gap-2.5 w-[330px] flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => setBrandProfileOpen(true)}
+          <Link
+            href="/parametres?section=profile"
             className="flex items-center gap-3 bg-bg-card border border-border rounded-neo-lg p-3.5 text-left shadow-neo-sm transition-shadow hover:shadow-neo"
           >
-            <Ring pct={pct} size={40} stroke={4}>
-              <span className="text-[11px] font-bold text-text-primary">{pct}</span>
+            <Ring pct={profilePct} size={40} stroke={4}>
+              <span className="text-[11px] font-bold text-text-primary">{profilePct}</span>
             </Ring>
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-bold text-text-primary">Profil de marque</p>
-              <p className="text-[11px] text-text-muted">{tasks.length - doneCount} sections à compléter</p>
+              <p className="text-[11px] text-text-muted">
+                {profileDone === profileTasks.length
+                  ? 'Profil complété ✓'
+                  : `${profileTasks.length - profileDone} section${profileTasks.length - profileDone > 1 ? 's' : ''} à compléter`}
+              </p>
             </div>
             <ChevronRight size={16} className="text-text-dim" />
-          </button>
-          <Link href="/brand-profile" className="bg-bg-surface border border-border rounded-neo-lg p-3.5 hover:border-border-strong transition-colors">
-            <p className="text-[13px] font-bold text-text-primary mb-0.5">Configure ta vraie marque</p>
-            <p className="text-[11px] text-text-muted leading-relaxed">Le studio fonctionne mieux avec l&apos;URL de ton site et tes produits.</p>
           </Link>
         </div>
       </div>
 
       {/* ── Actions rapides ── */}
-      <p className="nb-label mb-3">Actions rapides ({quickActions.length})</p>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
+      <p className="nb-label mb-2.5 mt-32">Actions rapides ({quickActions.length})</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 mb-6">
         {quickActions.map((a) => {
           const Icon = a.icon
           return (
             <Link key={a.label} href={a.href}
-              className="group flex items-center gap-3 bg-bg-card border border-border rounded-neo-lg px-4 py-3.5 shadow-neo-sm hover:shadow-neo hover:-translate-y-0.5 transition-all">
-              <span className="w-10 h-10 rounded-neo-md bg-accent/10 flex items-center justify-center text-accent flex-shrink-0"><Icon size={20} /></span>
-              <span className="flex-1 text-[14px] font-semibold text-text-primary">{a.label}</span>
-              <ChevronRight size={18} className="text-text-dim group-hover:text-accent transition-colors" />
+              className="group flex items-center gap-2.5 bg-bg-card border border-border rounded-neo-lg px-3 py-2.5 shadow-neo-sm hover:shadow-neo hover:-translate-y-0.5 transition-all">
+              <span className="w-8 h-8 rounded-neo-md bg-accent/10 flex items-center justify-center text-accent flex-shrink-0"><Icon size={16} /></span>
+              <span className="flex-1 text-[13px] font-semibold text-text-primary">{a.label}</span>
+              <ChevronRight size={16} className="text-text-dim group-hover:text-accent transition-colors" />
             </Link>
           )
         })}
       </div>
 
       {/* ── 3 cartes ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
 
-        {/* Profil */}
-        <div className="bg-bg-card border border-border rounded-neo-xl p-5 shadow-neo-sm flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-[14px] font-bold text-text-primary">Profil</p>
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-accent bg-accent/10 rounded-full px-2.5 py-1">
-              <Coins size={12} /> {assets.length} générés
+        {/* Mise en route */}
+        <div className="bg-bg-card border border-border rounded-neo-xl p-4 shadow-neo-sm flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[13px] font-bold text-text-primary">Mise en route</p>
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-accent bg-accent/10 rounded-full px-2 py-0.5">
+              <Coins size={11} /> {assets.length} générés
             </span>
           </div>
-          <p className="text-center text-[12px] text-text-muted mb-4">{doneCount} / {tasks.length} tâches complétées</p>
-          <div className="flex justify-center mb-5">
-            <Ring pct={pct} size={120} stroke={9}>
-              <div className="text-center">
-                <p className="font-display font-extrabold text-[26px] text-accent leading-none">{pct}%</p>
-              </div>
+          <div className="flex items-center gap-3 mb-3">
+            <Ring pct={startupPct} size={52} stroke={5}>
+              <p className="font-display font-extrabold text-[13px] text-accent leading-none">{startupPct}%</p>
             </Ring>
+            <p className="text-[11px] text-text-muted">{startupDone} / {startupTasks.length} étapes complétées pour lancer ta marque.</p>
           </div>
-          <p className="text-center font-display font-bold text-[16px] text-text-primary mb-4 truncate">{userName}</p>
-          <Link href="/creative-studio" className="mt-auto">
-            <span className="w-full py-2.5 rounded-neo-md border border-accent/40 text-accent text-[13px] font-bold hover:bg-accent/5 transition flex items-center justify-center gap-1.5">
-              Crée ta première pub <ArrowUpRight size={15} />
-            </span>
-          </Link>
+          <div className="flex flex-col gap-0.5 mb-3">
+            {startupTasks.map((t) => (
+              <Link key={t.label} href={t.href} className="group flex items-center gap-2 rounded-neo-md px-1.5 py-1 hover:bg-fg/[0.04] transition-colors">
+                <span className={`grid h-4 w-4 flex-shrink-0 place-items-center rounded-full ${t.done ? 'bg-accent text-white' : 'text-text-dim'}`}>
+                  {t.done ? <Check size={10} strokeWidth={3} /> : <Circle size={13} strokeWidth={1.8} />}
+                </span>
+                <span className={`flex-1 text-[12px] font-semibold ${t.done ? 'text-text-muted line-through' : 'text-text-primary'}`}>{t.label}</span>
+                {!t.done && <ChevronRight size={14} className="text-text-dim group-hover:text-accent transition-colors" />}
+              </Link>
+            ))}
+          </div>
+          {nextStep && (
+            <Link href={nextStep.href} className="mt-auto">
+              <span className="w-full py-2 rounded-neo-md border border-accent/40 text-accent text-[12px] font-bold hover:bg-accent/5 transition flex items-center justify-center gap-1.5">
+                {nextStep.label} <ArrowUpRight size={14} />
+              </span>
+            </Link>
+          )}
         </div>
 
         {/* Créer une image */}
         <Link href="/creer/image"
-          className="group relative rounded-neo-xl overflow-hidden min-h-[300px] flex flex-col justify-end p-5 bg-gradient-accent shadow-neo hover:shadow-neo-lg transition-shadow">
-          <ArrowUpRight size={22} className="absolute top-4 right-4 text-white/90 group-hover:scale-110 transition-transform" />
-          <h3 className="font-display font-extrabold text-[24px] text-white leading-tight">Créer une image</h3>
-          <p className="text-[12.5px] text-white/85 mt-1">Visuels statiques, shootings mode, carrousels.</p>
+          className="group relative rounded-neo-xl overflow-hidden min-h-[210px] flex flex-col justify-end p-4 bg-gradient-accent shadow-neo hover:shadow-neo-lg transition-shadow">
+          <ArrowUpRight size={20} className="absolute top-3.5 right-3.5 text-white/90 group-hover:scale-110 transition-transform" />
+          <h3 className="font-display font-extrabold text-[20px] text-white leading-tight">Créer une image</h3>
+          <p className="text-[12px] text-white/85 mt-1">Visuels statiques, shootings mode, carrousels.</p>
         </Link>
 
         {/* Créer une vidéo */}
         <Link href="/creer/video"
-          className="group relative rounded-neo-xl overflow-hidden min-h-[300px] flex flex-col justify-end p-5 shadow-neo hover:shadow-neo-lg transition-shadow"
+          className="group relative rounded-neo-xl overflow-hidden min-h-[210px] flex flex-col justify-end p-4 shadow-neo hover:shadow-neo-lg transition-shadow"
           style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #ff5c28 100%)' }}>
-          <ArrowUpRight size={22} className="absolute top-4 right-4 text-white/90 group-hover:scale-110 transition-transform" />
-          <h3 className="font-display font-extrabold text-[24px] text-white leading-tight">Créer une vidéo</h3>
-          <p className="text-[12.5px] text-white/85 mt-1">UGC réalistes, ASMR, VFX, mèmes et plus.</p>
+          <ArrowUpRight size={20} className="absolute top-3.5 right-3.5 text-white/90 group-hover:scale-110 transition-transform" />
+          <h3 className="font-display font-extrabold text-[20px] text-white leading-tight">Créer une vidéo</h3>
+          <p className="text-[12px] text-white/85 mt-1">UGC réalistes, ASMR, VFX, mèmes et plus.</p>
         </Link>
       </div>
 
       {/* ── Réseaux connectés ── */}
-      <div className="bg-bg-card border border-border rounded-neo-lg px-5 py-4 flex items-center justify-between shadow-neo-sm">
-        <p className="text-[14px] font-bold text-text-primary">Réseaux connectés</p>
-        <p className="text-[12px] text-text-muted">Aucun réseau connecté</p>
+      <div className="bg-bg-card border border-border rounded-neo-lg px-4 py-3 flex items-center justify-between shadow-neo-sm">
+        <p className="text-[13px] font-bold text-text-primary">Réseaux connectés</p>
+        <p className="text-[11px] text-text-muted">Aucun réseau connecté</p>
       </div>
     </div>
-    {brandProfileOpen && (
-      <BrandProfileDrawer onClose={() => setBrandProfileOpen(false)} />
-    )}
     </>
-  )
-}
-
-function BrandProfileDrawer({ onClose }: { onClose: () => void }) {
-  const sections = [
-    { label: 'Brand basics', done: true },
-    { label: 'Brand description', done: true },
-    { label: 'Brand logo', done: false },
-    { label: 'Brand voice & tone', done: true },
-    { label: 'Target audience', done: true },
-    { label: 'Visual identity', done: true },
-    { label: 'Products & services', done: false },
-    { label: 'Selling points', done: false },
-  ]
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/76" onClick={onClose}>
-      <aside
-        className="relative h-full w-[450px] max-w-[calc(100vw-22px)] animate-slide-left overflow-y-auto bg-[#eeeeee] px-8 py-8 text-[#1b1b1f] shadow-[-18px_0_60px_rgba(0,0,0,0.28)]"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full border-2 border-accent/70 text-text-secondary transition hover:bg-accent/10 hover:text-accent"
-          aria-label="Fermer le profil de marque"
-        >
-          <X size={18} strokeWidth={2.5} />
-        </button>
-
-        <div className="flex items-center gap-3 pr-10">
-          <h2 className="font-display text-[24px] font-extrabold leading-none tracking-tight">Brand Profile</h2>
-          <span className="rounded-full bg-[#dddddc] px-3 py-1 text-[13px] font-extrabold text-[#202023]">65%</span>
-        </div>
-        <p className="mt-5 text-[17px] font-medium leading-snug text-[#2f3036]">
-          Complete your brand profile to get the best AI-generated content.
-        </p>
-
-        <div className="mt-8">
-          <p className="mb-2 text-[13px] font-extrabold uppercase tracking-wide text-[#6f6f74]">Brand Logo</p>
-          <button
-            type="button"
-            className="grid w-full grid-cols-[124px_1fr] overflow-hidden rounded-[12px] border-2 border-[#c9c9c9] bg-[#e1e1e1] text-left transition hover:border-accent/60"
-          >
-            <span className="grid min-h-[116px] place-items-center border-r-2 border-dashed border-[#b8b8b8] text-[#8a8a8d]">
-              <Camera size={22} />
-            </span>
-            <span className="flex min-h-[116px] items-start px-5 py-4 text-[14px] font-semibold leading-snug text-[#28282c]">
-              Upload your brand logo for better ad generation.
-            </span>
-          </button>
-        </div>
-
-        <div className="mt-9">
-          <p className="mb-5 text-[13px] font-extrabold uppercase tracking-wide text-[#6f6f74]">Brand Sections</p>
-          <div className="space-y-5">
-            {sections.map((section) => (
-              <button
-                key={section.label}
-                type="button"
-                className="group flex w-full items-center gap-4 text-left"
-              >
-                <span
-                  className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-full ${
-                    section.done
-                      ? 'bg-emerald-200/70 text-emerald-600'
-                      : 'text-[#9fa0a4]'
-                  }`}
-                >
-                  {section.done ? <Check size={15} strokeWidth={3} /> : <Circle size={18} strokeWidth={1.8} />}
-                </span>
-                <span className="flex-1 text-[16px] font-semibold text-[#29292d]">{section.label}</span>
-                <ChevronRight size={18} className="text-[#9c9da1] transition group-hover:text-accent" />
-              </button>
-            ))}
-          </div>
-        </div>
-      </aside>
-    </div>
   )
 }

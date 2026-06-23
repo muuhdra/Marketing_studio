@@ -1,117 +1,140 @@
 'use client'
 
-import { useState } from 'react'
-import {
-  MessageSquare,
-  X,
-  ChevronDown,
-  User,
-  Smile,
-  AudioLines,
-  Send,
-  Zap
-} from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { MessageSquare, X, ChevronDown, Send, Sparkles, Loader2 } from 'lucide-react'
 import { useSettings } from '@/lib/stores/settingsStore'
+import { useBrand } from '@/lib/stores/brandStore'
+import { actionChatAssistant } from '@/lib/actions/ai'
+
+type Msg = { role: 'user' | 'assistant'; content: string }
 
 export default function GlobalChat() {
   const [isOpen, setIsOpen] = useState(false)
   const studioName = useSettings((s) => s.studioName)
+  const brandName = useBrand((s) => s.name)
+
+  const [messages, setMessages] = useState<Msg[]>([
+    { role: 'assistant', content: `Salut 👋 Je suis l'assistant de ${studioName}. Comment puis-je t'aider à créer ta prochaine pub ?` },
+  ])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [messages, sending])
+
+  async function send() {
+    const text = input.trim()
+    if (!text || sending) return
+    const next: Msg[] = [...messages, { role: 'user', content: text }]
+    setMessages(next)
+    setInput('')
+    setSending(true)
+    try {
+      const reply = await actionChatAssistant(next, { studioName, brand: brandName })
+      setMessages((m) => [...m, { role: 'assistant', content: reply }])
+    } catch {
+      setMessages((m) => [...m, { role: 'assistant', content: "Désolé, une erreur est survenue. Réessaie dans un instant." }])
+    } finally {
+      setSending(false)
+    }
+  }
 
   return (
     <>
-      {/* Chat Window */}
+      {/* Fenêtre de chat */}
       {isOpen && (
-        <div className="fixed bottom-[88px] right-6 z-50 flex h-[calc(100vh-130px)] max-h-[720px] w-[420px] flex-col overflow-hidden rounded-[16px] border border-[#2a2a2a] bg-[#1a1a1a] shadow-[0_12px_40px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-[84px] right-6 z-50 flex h-[calc(100vh-130px)] max-h-[640px] w-[400px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[18px] border border-border bg-bg-card shadow-neo-lg animate-slide-up">
           {/* Header */}
-          <header className="relative flex flex-col items-center bg-gradient-to-br from-[#f26513] to-[#d65113] pb-6 pt-5 px-5 text-white" style={{ backgroundImage: 'linear-gradient(135deg, #f26513 0%, #d65113 100%), url("data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 10l10-10 10 10-10 10L0 10z\' fill=\'rgba(0,0,0,0.03)\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")', backgroundBlendMode: 'overlay' }}>
-            {/* Top Bar */}
-            <div className="flex w-full items-center justify-between">
-              <div className="w-6" /> {/* Spacer */}
-              <button className="flex items-center gap-1.5 rounded-full bg-black/15 px-3.5 py-1.5 text-[13px] font-extrabold transition hover:bg-black/25">
-                <MessageSquare size={14} strokeWidth={2.5} className="fill-white" />
-                Messages
-              </button>
-              <button className="grid h-6 w-6 place-items-center rounded-full text-white/80 transition hover:bg-black/15 hover:text-white" onClick={() => setIsOpen(false)}>
-                <ChevronDown size={20} strokeWidth={2.5} />
-              </button>
-            </div>
-
-            {/* Avatars */}
-            <div className="mt-5 flex items-center justify-center">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="-ml-2 grid h-[46px] w-[46px] place-items-center rounded-full border-2 border-[#de5a19] bg-[#292a2c] first:ml-0">
-                  <User size={22} className="text-[#6d6e73]" strokeWidth={2.5} />
-                </div>
-              ))}
-              <div className="-ml-2 grid h-[46px] w-[46px] place-items-center rounded-full border-2 border-[#de5a19] bg-white">
-                <div className="grid h-8 w-8 place-items-center rounded-full bg-[#f25c1a]">
-                  <Zap size={16} strokeWidth={2.5} className="fill-white text-white" />
-                </div>
+          <header className="flex items-center justify-between gap-2 bg-gradient-accent px-4 py-3.5 text-white">
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-white/15">
+                <Sparkles size={18} strokeWidth={2.4} />
+              </span>
+              <div>
+                <p className="text-[14px] font-extrabold leading-tight">Assistant</p>
+                <p className="flex items-center gap-1.5 text-[11px] font-medium text-white/80">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" /> En ligne · {studioName}
+                </p>
               </div>
             </div>
-
-            <p className="mt-4 text-[15px] font-extrabold tracking-tight">
-              Questions? Chat with us.
-            </p>
+            <button onClick={() => setIsOpen(false)} className="grid h-7 w-7 place-items-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white">
+              <ChevronDown size={20} strokeWidth={2.5} />
+            </button>
           </header>
 
-          {/* Messages Area */}
-          <main className="flex-1 overflow-y-auto p-4">
-            <div className="flex items-end gap-2.5">
-              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white">
-                <div className="grid h-5 w-5 place-items-center rounded-full bg-[#f25c1a]">
-                  <Zap size={11} strokeWidth={2.5} className="fill-white text-white" />
+          {/* Messages */}
+          <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-fg/[0.02] p-4">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex items-end gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {m.role === 'assistant' && (
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent/10 text-accent">
+                    <Sparkles size={12} strokeWidth={2.4} />
+                  </span>
+                )}
+                <div className={`max-w-[82%] whitespace-pre-wrap rounded-[14px] px-3 py-2 text-[12px] font-medium leading-relaxed shadow-sm ${
+                  m.role === 'user'
+                    ? 'rounded-br-[5px] bg-accent text-white'
+                    : 'rounded-bl-[5px] border border-border bg-bg-card text-text-primary'
+                }`}>
+                  {m.content}
                 </div>
               </div>
-              <div className="rounded-[14px] rounded-bl-[4px] bg-[#272727] px-3.5 py-2.5 text-[14px] font-medium text-white max-w-[85%]">
-                How can we help with {studioName}?
+            ))}
+            {sending && (
+              <div className="flex items-end gap-2 justify-start">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent/10 text-accent">
+                  <Sparkles size={12} strokeWidth={2.4} />
+                </span>
+                <div className="flex items-center gap-1.5 rounded-[14px] rounded-bl-[5px] border border-border bg-bg-card px-3 py-2 text-text-muted shadow-sm">
+                  <span className="flex gap-1">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-text-muted/60 [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-text-muted/60 [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-text-muted/60" />
+                  </span>
+                </div>
               </div>
-            </div>
-          </main>
+            )}
+          </div>
 
-          {/* Input Area */}
-          <div className="p-4 pt-0">
-            <div className="relative flex flex-col justify-between overflow-hidden rounded-[14px] border border-[#ea580c] bg-[#272727] transition-colors focus-within:border-[#ff7a2e]">
+          {/* Saisie — même composer que Production */}
+          <div className="border-t border-border p-3">
+            <div className="rounded-[14px] border border-border bg-bg-card px-3 py-2.5 shadow-[0_6px_20px_rgba(0,0,0,0.07)] transition-all focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
               <textarea
-                placeholder="Compose your message..."
-                rows={1}
-                className="w-full resize-none bg-transparent px-3.5 pt-3.5 pb-2 text-[14px] text-white outline-none placeholder:text-[#888]"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+                placeholder="Écris ton message…"
+                rows={2}
+                className="block max-h-32 w-full resize-none border-0 bg-transparent p-0 text-[13px] leading-relaxed text-text-primary outline-none ring-0 placeholder:text-text-muted focus:ring-0"
               />
-              <div className="flex items-center justify-between px-3.5 pb-2.5">
-                <div className="flex items-center gap-2.5 text-[#aaa]">
-                  <button type="button" className="transition hover:text-white"><Smile size={18} strokeWidth={2} /></button>
-                  <button type="button" className="transition hover:text-white"><AudioLines size={18} strokeWidth={2} /></button>
-                </div>
-                <button type="button" className="text-[#444] transition hover:text-[#ea580c]">
-                  <Send size={18} strokeWidth={2.5} className="fill-current" />
+              <div className="mt-1.5 flex items-center justify-between">
+                <span className="text-[10px] font-medium text-text-faint">↵ Envoyer · ⇧↵ nouvelle ligne</span>
+                <button
+                  type="button"
+                  onClick={send}
+                  disabled={!input.trim() || sending}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Envoyer"
+                >
+                  {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} strokeWidth={2.5} />}
                 </button>
               </div>
             </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex h-8 items-center justify-center gap-1.5 bg-[#141414] text-[10px] font-extrabold text-[#777]">
-            We run on
-            <span className="flex items-center gap-0.5 text-white">
-              <MessageSquare size={10} strokeWidth={0} className="fill-[#0051e2] mb-px" />
-              crisp
-            </span>
+            <p className="mt-2 text-center text-[10px] font-medium text-text-faint">Propulsé par IA · peut faire des erreurs</p>
           </div>
         </div>
       )}
 
-      {/* Floating Button */}
+      {/* Bouton flottant */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-50 grid h-12 w-12 place-items-center rounded-full bg-[#ea580c] shadow-[0_8px_16px_rgba(234,88,12,0.3)] transition-transform hover:scale-105"
-        aria-label={isOpen ? 'Close chat' : 'Open chat'}
+        className="fixed bottom-6 right-6 z-50 grid h-12 w-12 place-items-center rounded-full bg-accent shadow-neo-solid transition-transform hover:scale-105"
+        aria-label={isOpen ? 'Fermer le chat' : 'Ouvrir le chat'}
       >
-        {isOpen ? (
-          <X size={24} strokeWidth={2.5} className="text-white" />
-        ) : (
-          <MessageSquare size={22} strokeWidth={0} className="fill-white" />
-        )}
+        {isOpen ? <X size={24} strokeWidth={2.5} className="text-white" /> : <MessageSquare size={22} strokeWidth={0} className="fill-white" />}
       </button>
     </>
   )

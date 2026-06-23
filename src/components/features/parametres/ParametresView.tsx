@@ -8,6 +8,7 @@ import { useSettings } from '@/lib/stores/settingsStore'
 import { useToast } from '@/lib/stores/toastStore'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useCampaignSettings, CONTENT_TYPES, DURATION_UNITS, CADENCE_PER } from '@/lib/stores/campaignSettingsStore'
+import { useBrandSave } from '@/lib/stores/brandSaveStore'
 import { useProduction } from '@/lib/stores/productionStore'
 import { actionListAvatarsForPicker } from '@/lib/actions/avatar-assets'
 import { actionGenerateProductionPrompt, actionDiscoverCompetitors, actionAnalyzeCompetitorStrategy } from '@/lib/actions/ai'
@@ -41,6 +42,7 @@ import {
   type BrandTemplateDTO,
 } from '@/lib/actions/brand-templates'
 import { listTemplates, type TemplateDTO } from '@/lib/actions/templates'
+import { actionAnalyzeBrandUrl } from '@/lib/actions/brands'
 
 import {
   Box,
@@ -249,8 +251,9 @@ export default function ParametresView(_props: Props) {
   const router = useRouter()
   const section = searchParams.get('section') ?? 'profile'
 
-  // ── Profil de marque (persisté localStorage via brandStore) ──
+  // ── Profil de marque (chargé/sauvé par marque active via BrandProfileSync) ──
   const brand = useBrand()
+  const saveStatus = useBrandSave((s) => s.status)
   const campaign = useCampaignSettings()
   const production = useProduction()
   const [prodPrompt, setProdPrompt] = useState('')
@@ -361,6 +364,7 @@ export default function ParametresView(_props: Props) {
         contentType: contentLabel,
         brand: {
           name: brand.name,
+          website: brand.website,
           description: brand.description,
           tone: brand.communicationTone,
           audience: brand.targetAudience,
@@ -395,6 +399,28 @@ export default function ParametresView(_props: Props) {
   function updateName(value: string) {
     brand.setField('name', value)
     setSettings({ studioName: value || 'My Brand' })
+  }
+
+  // ── Importer le profil depuis le site de la marque ──
+  const [importingBrand, setImportingBrand] = useState(false)
+  async function importBrandFromSite() {
+    const url = brand.website.trim()
+    if (!url) { toast.error('Ajoute d\'abord l\'URL de ton site'); return }
+    setImportingBrand(true)
+    try {
+      const a = await actionAnalyzeBrandUrl(url)
+      if (a.name) updateName(a.name)
+      if (a.description) brand.setField('description', a.description)
+      if (a.category && BRAND_CATEGORIES.includes(a.category)) brand.setField('category', a.category)
+      if (a.communicationTone) brand.setField('communicationTone', a.communicationTone)
+      if (a.targetAudience) brand.setField('targetAudience', a.targetAudience)
+      if (a.keyFeatures?.length) brand.setField('keyFeatures', a.keyFeatures)
+      if (a.preferredWords?.length) brand.setField('preferredWords', a.preferredWords)
+      if (a.audienceDesires?.length) brand.setField('audienceDesires', a.audienceDesires)
+      if (a.audienceProblems?.length) brand.setField('audienceProblems', a.audienceProblems)
+      toast.success('Profil pré-rempli depuis ton site ✓')
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Analyse du site impossible') }
+    finally { setImportingBrand(false) }
   }
 
   // ── Produits (vrai backend Supabase) ──
@@ -2083,10 +2109,22 @@ export default function ParametresView(_props: Props) {
       <section className="flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-border bg-bg-card text-text-primary shadow-neo-sm">
         <header className="flex h-[56px] flex-shrink-0 items-center justify-between border-b border-border px-5">
           <h1 className="font-display text-[20px] font-extrabold leading-tight tracking-tight text-text-primary">Détails de la marque</h1>
-          <div className="flex items-center gap-2 text-[13px] font-extrabold text-text-secondary">
-            <CheckCircle2 size={16} className="text-emerald-600" />
-            Enregistré
-          </div>
+          {saveStatus === 'saving' ? (
+            <div className="flex items-center gap-2 text-[13px] font-extrabold text-text-muted">
+              <span className="h-3.5 w-3.5 rounded-full border-2 border-text-muted/40 border-t-text-muted animate-spin" />
+              Enregistrement…
+            </div>
+          ) : saveStatus === 'error' ? (
+            <div className="flex items-center gap-2 text-[13px] font-extrabold text-coral">
+              <Info size={16} />
+              Échec de l'enregistrement
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-[13px] font-extrabold text-text-secondary">
+              <CheckCircle2 size={16} className="text-emerald-600" />
+              Enregistré
+            </div>
+          )}
         </header>
 
         <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto px-5 py-6 lg:grid-cols-[170px_1fr] lg:px-6">
@@ -2156,6 +2194,32 @@ export default function ParametresView(_props: Props) {
                     className="h-9 w-full rounded-[8px] border border-border bg-fg/[0.12] px-3 font-display text-[15px] font-extrabold text-text-primary outline-none transition-colors placeholder:font-medium placeholder:text-text-muted focus:border-accent"
                   />
                 </label>
+
+                <div className="mt-4">
+                  <span className="mb-1.5 block text-[12px] font-extrabold text-text-primary">Site web <span className="font-medium text-text-muted">(optionnel)</span></span>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      inputMode="url"
+                      aria-label="Site web de la marque"
+                      value={brand.website}
+                      onChange={(e) => brand.setField('website', e.target.value)}
+                      placeholder="https://exemple.com"
+                      className="h-9 flex-1 rounded-[8px] border border-border bg-fg/[0.12] px-3 text-[13px] font-semibold text-text-primary outline-none transition-colors placeholder:font-medium placeholder:text-text-muted focus:border-accent"
+                    />
+                    <button
+                      type="button"
+                      onClick={importBrandFromSite}
+                      disabled={importingBrand || !brand.website.trim()}
+                      title="Pré-remplir le profil depuis ton site"
+                      className="flex h-9 shrink-0 items-center gap-1.5 rounded-[8px] bg-accent px-3 text-[12px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105 disabled:opacity-50"
+                    >
+                      <Sparkles size={14} strokeWidth={2.4} />
+                      {importingBrand ? 'Analyse…' : 'Importer'}
+                    </button>
+                  </div>
+                  <p className="mt-1.5 text-[11px] font-medium text-text-muted">L'IA analyse ton site pour pré-remplir Identité, Ton et Audience.</p>
+                </div>
 
                 <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_280px]">
                   <label className="block">

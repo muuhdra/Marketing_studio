@@ -34,6 +34,8 @@ type StepId = 'products' | 'images' | 'dimensions' | 'goals'
 export default function CarouselCreatorPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  // Lien campagne = point d'entrée : ON depuis Production, OFF en création libre (dashboard).
+  const [useBrandCtx] = useState(searchParams.get('from') === 'production')
   const toast = useToast()
   const brand = useBrand()
   const [currentStep, setCurrentStep] = useState(0)
@@ -201,8 +203,9 @@ export default function CarouselCreatorPage() {
       const product = scene?.product ?? 'the product'
       const background = scene?.background ?? 'a styled environment that matches the product'
       const fidelity = 'CRITICAL: reproduce the EXACT product shown in the reference image — identical shape, colors, text, logo, label and proportions. Do not redesign, replace or invent a different product. Keep it perfectly recognizable.'
-      const brandCtx = [
+      const brandCtx = !useBrandCtx ? '' : [
         brand.name ? `Brand: ${brand.name}` : '',
+        brand.website ? `brand site: ${brand.website}` : '',
         brand.communicationTone ? `tone ${brand.communicationTone}` : '',
         brand.targetAudience ? `audience: ${brand.targetAudience}` : '',
         brand.preferredWords.length ? `emphasize: ${brand.preferredWords.slice(0, 6).join(', ')}` : '',

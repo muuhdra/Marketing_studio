@@ -10,6 +10,8 @@ import { db } from '@/lib/db'
 import { brands } from '@/lib/db/schema'
 import { eq, asc, and } from 'drizzle-orm'
 import { requireAuth } from './auth'
+import { createAimlClient, MODELS } from '@/lib/ai/client'
+import { parseJsonLoose } from '@/lib/ai/json'
 
 export interface BrandDTO {
   id: string
@@ -110,4 +112,53 @@ export async function updateBrand(id: string, patch: {
 export async function deleteBrand(id: string): Promise<void> {
   const user = await requireAuth()
   await db.delete(brands).where(and(eq(brands.id, id), eq(brands.user_id, user.id)))
+}
+
+// ── Importer une marque depuis son site web (scrape + extraction IA) ──
+export interface BrandAnalysis {
+  name?:              string
+  description?:       string
+  category?:          string
+  communicationTone?: string
+  targetAudience?:    string
+  keyFeatures?:       string[]
+  preferredWords?:    string[]
+  audienceDesires?:   string[]
+  audienceProblems?:  string[]
+}
+
+/** Analyse le site d'une marque → champs de profil pré-remplis (proposés au client). */
+export async function actionAnalyzeBrandUrl(url: string): Promise<BrandAnalysis> {
+  await requireAuth()
+  let u: URL
+  try { u = new URL(url) } catch { throw new Error('URL invalide') }
+  if (!/^https?:$/.test(u.protocol)) throw new Error('URL invalide')
+
+  const res = await fetch(u.toString(), { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MarketingStudioBot/1.0)' } })
+  if (!res.ok) throw new Error(`Site inaccessible (${res.status})`)
+  const html = await res.text()
+
+  const title = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim()
+  const desc = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1]
+  const text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 6000)
+
+  const client = createAimlClient()
+  const response = await client.chat.completions.create({
+    model: MODELS.text.claude,
+    messages: [
+      { role: 'system', content: "Tu analyses le site d'une marque pour en extraire l'identité marketing. Réponds UNIQUEMENT en JSON." },
+      { role: 'user', content: `À partir de ce site, extrais en JSON exact : {"name": string (nom de la marque), "description": string (1-2 phrases), "category": string, "communicationTone": string (ton de communication), "targetAudience": string (audience cible), "keyFeatures": string[] (3-5 atouts), "preferredWords": string[] (mots récurrents de la marque), "audienceDesires": string[] (2-3 désirs de l'audience), "audienceProblems": string[] (2-3 problèmes résolus)}.\n\nTITRE: ${title ?? ''}\nMETA: ${desc ?? ''}\n\nCONTENU: ${text}` },
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.3,
+    max_tokens: 700,
+  })
+
+  try { return parseJsonLoose<BrandAnalysis>(response.choices[0]?.message?.content) } catch { return {} }
 }
