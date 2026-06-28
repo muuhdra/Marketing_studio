@@ -9,7 +9,7 @@ import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { brands } from '@/lib/db/schema'
 import { eq, and, asc } from 'drizzle-orm'
-import { isDevEmail, isEmailAllowed } from '@/lib/auth/access'
+import { isDevEmail } from '@/lib/auth/access'
 
 export async function requireAuth() {
   const cookieStore = await cookies()
@@ -27,8 +27,6 @@ export async function requireAuth() {
 
   const { data: { user }, error } = await supabase.auth.getUser()
   if (error || !user) throw new Error('Non authentifié')
-  // Accès privé : même authentifié, l'email doit être dans l'allowlist.
-  if (!isEmailAllowed(user.email)) throw new Error('Accès refusé')
   return user
 }
 
@@ -49,10 +47,6 @@ export async function actionIsDev(): Promise<boolean> {
   }
 }
 
-/** Vérif côté client AVANT l'envoi du magic link (évite d'envoyer un email à un non-autorisé). */
-export async function actionEmailAllowed(email: string): Promise<boolean> {
-  return isEmailAllowed(email)
-}
 
 /**
  * Marque active de l'utilisateur (cookie `active-brand`, validé en base).

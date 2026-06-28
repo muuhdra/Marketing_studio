@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { isEmailAllowed } from '@/lib/auth/access'
 import Sidebar from '@/components/layout/Sidebar'
 import BrandProfileSync from '@/components/layout/BrandProfileSync'
 import HtmlLangSync from '@/components/layout/HtmlLangSync'
@@ -30,11 +29,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!user) {
     redirect('/login')
-  }
-
-  // Accès privé : seuls les emails de l'allowlist passent (vraie barrière serveur).
-  if (!isEmailAllowed(user.email)) {
-    redirect('/login?denied=1')
   }
 
   return (
