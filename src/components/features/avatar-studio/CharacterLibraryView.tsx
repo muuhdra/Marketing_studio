@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { Plus, UserRound, Sparkles } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 
 export type CharacterCard = {
   id: string
@@ -14,6 +15,7 @@ export type CharacterCard = {
 }
 
 export default function CharacterLibraryView({ characters = [] }: { characters?: CharacterCard[] }) {
+  const tr = useT()
   const hasCharacters = characters.length > 0
 
   return (
@@ -35,7 +37,7 @@ export default function CharacterLibraryView({ characters = [] }: { characters?:
             className="inline-flex h-9 flex-shrink-0 items-center gap-2 rounded-[10px] bg-accent px-4 text-[13px] font-extrabold text-white shadow-neo-solid transition hover:brightness-105"
           >
             <Plus size={17} strokeWidth={2.6} />
-            <span>Créer un personnage</span>
+            <span>{tr('avatar.createCharacter')}</span>
           </Link>
         </header>
 
@@ -77,10 +79,10 @@ export default function CharacterLibraryView({ characters = [] }: { characters?:
                   <Sparkles size={30} strokeWidth={2.1} />
                 </div>
                 <h2 className="mt-6 text-[20px] font-extrabold tracking-tight text-text-primary">
-                  Aucun personnage pour l’instant
+                  {tr('avatar.libEmptyTitle')}
                 </h2>
                 <p className="mx-auto mt-3 max-w-[360px] text-[14px] font-medium text-text-secondary">
-                  Crée ton premier personnage personnalisé pour le réutiliser dans tes images et vidéos.
+                  {tr('avatar.libEmptyDesc')}
                 </p>
                 <Link
                   href="/avatar-studio?create=actor"

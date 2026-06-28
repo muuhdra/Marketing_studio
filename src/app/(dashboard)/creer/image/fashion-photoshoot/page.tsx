@@ -10,7 +10,7 @@ import { MODEL_NATIONALITIES, MODEL_BODY_TYPES, nationalityFlag } from '@/lib/fa
 import { persistOutput } from '@/lib/actions/outputs'
 import { useToast } from '@/lib/stores/toastStore'
 import { useBrand } from '@/lib/stores/brandStore'
-import { BackButton, ContinueButton, DevStepNav, MainPanel, PageShell, WizardHeader, ratioStyle, ratioToSize, uploadImageFile, StepSlider } from '@/components/features/creer/WizardKit'
+import { BackButton, ContinueButton, MainPanel, PageShell, WizardHeader, ratioStyle, ratioToSize, uploadImageFile, StepSlider } from '@/components/features/creer/WizardKit'
 import { AssetPickerModal } from '@/components/features/creer/AssetPicker'
 
 const FASHION_TYPES = [
@@ -200,19 +200,6 @@ export default function FashionPhotoshootPage() {
       setSelectedType(id)
       if (id === 'accessory') setAccessoryImageUrl('')
     })
-  }
-
-  // [DEV] Saut direct vers n'importe quelle étape, sans validation.
-  function goToStep(id: StepId) {
-    let type = selectedType
-    if (id === 'scene' || id === 'clothing') type = 'apparel'
-    else if (id === 'accessoryUpload') type = 'accessory'
-    else if ((id === 'model' || id === 'aspect' || id === 'shot') && !type) type = 'apparel'
-    const list = buildSteps(type)
-    const idx = list.indexOf(id)
-    if (idx < 0) return
-    setSelectedType(type)
-    setCurrentStep(idx)
   }
 
   function toggleShot(shotId: string) {
@@ -700,20 +687,6 @@ export default function FashionPhotoshootPage() {
           <a href={activeUrl} download target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="absolute bottom-5 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-[13px] font-extrabold text-zinc-950 shadow-neo hover:brightness-95"><Download size={15} /> Télécharger</a>
         </div>
       )}
-
-      <DevStepNav
-        steps={[
-          { id: 'type', label: 'Type' },
-          { id: 'model', label: 'Model' },
-          { id: 'scene', label: 'Scene' },
-          { id: 'accessoryUpload', label: 'Accessory' },
-          { id: 'aspect', label: 'Ratio' },
-          { id: 'clothing', label: 'Clothing' },
-          { id: 'shot', label: 'Shot' },
-        ]}
-        active={stepId}
-        onJump={goToStep}
-      />
     </PageShell>
   )
 }

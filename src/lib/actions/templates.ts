@@ -4,12 +4,13 @@
  * Server Actions — Bibliothèque de templates de contenu (vidéos/images + prompt).
  *
  * Fichiers dans le bucket public `templates`, métadonnées dans `content_templates`.
- * Globaux (pas per-user) — tout utilisateur authentifié peut gérer (= admin).
+ * Globaux (pas per-user). Lecture = tout utilisateur authentifié ;
+ * ajout / modification / suppression = DÉVELOPPEUR uniquement (requireDev).
  */
 
 import { randomUUID } from 'crypto'
 import { eq, asc } from 'drizzle-orm'
-import { requireAuth } from './auth'
+import { requireAuth, requireDev } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { content_templates } from '@/lib/db/schema'
@@ -58,7 +59,7 @@ function toDTO(r: typeof content_templates.$inferSelect): TemplateDTO {
 
 /** Crée un template : upload fichier (vidéo/image) + enregistre métadonnées + prompt. */
 export async function createTemplate(formData: FormData): Promise<TemplateDTO> {
-  await requireAuth()
+  await requireDev()
   const file        = formData.get('file') as File | null
   const category    = (formData.get('category') as string)?.trim()
   const label       = (formData.get('label') as string)?.trim()
@@ -99,7 +100,7 @@ export async function updateTemplate(id: string, patch: {
   label?: string; category?: string; description?: string | null
   prompt?: string | null; sort_order?: number; active?: boolean
 }): Promise<void> {
-  await requireAuth()
+  await requireDev()
   await db.update(content_templates).set(patch).where(eq(content_templates.id, id))
 }
 
@@ -114,7 +115,7 @@ export async function analyzeTemplate(input: {
   frames?: string[]        // vidéo : frames ordonnées (décomposition Gemini)
   hint?: string
 }): Promise<string> {
-  await requireAuth()
+  await requireDev()
   const prompt = await reverseEngineerPrompt({
     imageUrl:  input.imageUrl,
     imageData: input.frameDataUrl,
@@ -129,7 +130,7 @@ export async function analyzeTemplate(input: {
 
 /** Supprime un template (fichier + ligne). */
 export async function deleteTemplate(id: string): Promise<void> {
-  await requireAuth()
+  await requireDev()
   const [row] = await db
     .select({ storage_path: content_templates.storage_path })
     .from(content_templates)

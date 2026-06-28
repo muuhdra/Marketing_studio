@@ -28,18 +28,23 @@ import {
   generateHooks,
   generateCloneScript,
   generateProductionPrompt,
-  chatAssistant,
   type GenerateScriptParams,
   type GenerateCopyParams,
   type GenerateStrategyParams,
   type ProductionPromptParams,
   type ChatMessage,
+  type ChatAction,
 } from '@/lib/ai/text'
+import { createAimlClient, MODELS } from '@/lib/ai/client'
+import { parseJsonLoose } from '@/lib/ai/json'
+import { getActiveBrandId } from './auth'
+import { persistOutput } from './outputs'
+import { actionCreateProduct, actionListProducts } from './products'
+import { listBrands, updateBrand, actionAnalyzeBrandUrl } from './brands'
 import {
   generateImage,
   generateCampaignVisual,
   generateAvatarPhoto,
-  generateAvatarSheet,
   generateMoodboard,
   generateVideoThumbnail,
   type GenerateImageParams,
@@ -141,9 +146,148 @@ export async function actionGenerateCopy(params: GenerateCopyParams) {
 }
 
 /** Brief de génération créatif (Production) : analyse produit + ADN marque → prompt sur-mesure. */
-export async function actionChatAssistant(messages: ChatMessage[], context?: { studioName?: string; brand?: string }) {
+// ─── Agent à outils (façon MCP) : l'assistant exécute vraiment des actions ────
+
+export interface ChatAgentResult { reply: string; images?: string[]; action?: ChatAction | null; link?: { label: string; path: string } | null }
+
+// Outils exécutés côté client (navigation, bascule de marque…) → renvoyés pour exécution.
+const CLIENT_TOOLS = new Set(['navigate', 'create_image', 'create_video', 'switch_brand', 'create_brand'])
+
+function toClientAction(name: string, args: Record<string, unknown>): ChatAction | null {
+  switch (name) {
+    case 'navigate':      return { type: 'navigate', path: String(args.path ?? '/dashboard') }
+    case 'create_image':  return { type: 'create_image', prompt: args.prompt ? String(args.prompt) : undefined }
+    case 'create_video':  return { type: 'create_video', mode: args.mode === 'broll-voiceover' ? 'broll-voiceover' : 'realistic-actor' }
+    case 'switch_brand':  return { type: 'switch_brand', name: String(args.name ?? '') }
+    case 'create_brand':  return { type: 'create_brand', name: String(args.name ?? ''), color: args.color ? String(args.color) : undefined, category: args.category ? String(args.category) : undefined }
+    default: return null
+  }
+}
+
+export async function actionChatAgent(
+  messages: ChatMessage[],
+  context?: { studioName?: string; brand?: string; brands?: string[]; freeCreation?: boolean; refImageUrl?: string },
+): Promise<ChatAgentResult> {
   await requireAuth()
-  return chatAssistant(messages, context)
+  const client = createAimlClient()
+
+  const system = `Tu es l'assistant-AGENT de « ${context?.studioName || 'le studio'} », un studio de création publicitaire IA. Tu PILOTES l'app via des OUTILS, et tu es un EXPERT créatif complet.
+
+EXPERTISE (mobilise-la pleinement) : directeur créatif + copywriter + stratège social/DTC de classe mondiale.
+- Copywriting & accroches : hooks scroll-stopping (5 variantes), structures AIDA / PAS / BAB / 4U, angles publicitaires, CTA.
+- Scripts : UGC, voix off B-roll, talking-head, storyboards, beats narratifs, rythme.
+- Psychologie d'achat : désir, douleur, preuve sociale, autorité, urgence, rareté, objections.
+- Direction artistique : concept, mise en scène, décor, lumière, cadrage, palette, mood.
+- Stratégie : positionnement, ADN/ton de marque, personas, calendriers éditoriaux, funnels (TOFU/MOFU/BOFU), formats viraux par plateforme (TikTok/Reels/Shorts), tendances.
+- Réflexion : raisonne étape par étape avant de proposer ; structure tes réponses (puces, sections) ; sois concret et actionnable.
+Tu PRODUIS directement dans ta réponse (sans outil) : concepts, hooks, scripts, légendes, hashtags, plans de campagne, briefs créatifs, analyses. Utilise l'outil research/research_competitors pour t'appuyer sur des données RÉELLES avant de créer quand c'est pertinent.
+
+CONTEXTE — Marque active : ${context?.brand || '(aucune)'} · Marques : ${context?.brands?.length ? context.brands.join(', ') : '(aucune)'}
+
+À CHAQUE TOUR tu réponds en JSON STRICT :
+{ "tool": { "name": string, "args": object } }  pour appeler un outil, OU  { "reply": string, "link"?: { "label": string, "path": string } }  pour répondre/terminer (en français, concis).
+Quand tu AS ACCOMPLI une tâche qui produit un résultat, ajoute "link" vers la page où le voir : images → { "label": "Voir mes créations", "path": "/galerie" } · produit créé → { "label": "Voir mes produits", "path": "/parametres?section=products" } · marque → { "label": "Voir le profil", "path": "/parametres?section=profile" }.
+
+OUTILS qui s'exécutent et te RENVOIENT un résultat (tu peux en enchaîner) :
+- list_brands {} · list_products {} · create_product { "name": string, "description"?: string }
+- generate_image { "prompt": string, "n"?: 1-3 } — génère VRAIMENT des images (montrées à l'utilisateur)
+- research { "topic": string, "platform"?: "tiktok"|"instagram"|"youtube" } — tendances, formats viraux et mots-clés RÉELS (utilise-les avant de proposer des concepts)
+- research_competitors { "query"?: string } — découvre des concurrents e-commerce de la niche et leurs angles gagnants
+- import_site { "url": string } — importe le profil de la marque active depuis un site
+
+OUTILS qui agissent côté interface (l'action s'arrête là) :
+- navigate { "path": string } — "/dashboard","/creer/image/creator","/creer/image/statics","/galerie","/templates","/avatar-studio","/calendrier","/campaigns","/parametres?section=profile|products|assets|templates|production|competitors","/reglages"
+- create_image { "prompt"?: string } — ouvre le créateur d'image
+- create_video { "mode": "realistic-actor" | "broll-voiceover" }
+- switch_brand { "name": string } · create_brand { "name": string, "color"?: hex, "category"?: string }
+
+RÈGLES : agis seulement si l'utilisateur le demande. Après un generate_image / create_product réussi, termine par un { "reply" } qui confirme. Une seule clé par tour (tool OU reply).${context?.refImageUrl ? "\nUne IMAGE DE RÉFÉRENCE est jointe : utilise-la comme base (image-to-image) pour generate_image." : ''}${context?.freeCreation ? "\nMode CRÉATION RAPIDE : les images générées ne sont rattachées à aucune marque." : ''}`
+
+  const convo: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
+    { role: 'system', content: system },
+    ...messages.slice(-12).map((m) => ({ role: m.role, content: m.content })),
+  ]
+  const images: string[] = []
+
+  for (let step = 0; step < 5; step++) {
+    const res = await client.chat.completions.create({
+      model: MODELS.text.chatgpt,
+      messages: convo,
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
+      max_tokens: 700,
+    })
+    const out = parseJsonLoose<{ reply?: string; tool?: { name?: string; args?: Record<string, unknown> } | null; link?: { label: string; path: string } | null }>(res.choices[0]?.message?.content)
+    const tool = out.tool
+    if (!tool?.name) {
+      // Si des images ont été générées sans lien explicite → pointe vers les Créations.
+      const link = out.link ?? (images.length ? { label: 'Voir mes créations', path: '/galerie' } : null)
+      return { reply: out.reply || 'OK', images: images.length ? images : undefined, action: null, link }
+    }
+    const args = tool.args ?? {}
+
+    if (CLIENT_TOOLS.has(tool.name)) {
+      return { reply: out.reply || '', images: images.length ? images : undefined, action: toClientAction(tool.name, args) }
+    }
+
+    // Outils serveur : exécuter puis reboucler avec le résultat.
+    let result = ''
+    try {
+      if (tool.name === 'list_brands') {
+        result = (await listBrands()).map((b) => b.name).join(', ') || '(aucune)'
+      } else if (tool.name === 'list_products') {
+        result = (await actionListProducts()).map((p) => p.name).join(', ') || '(aucun)'
+      } else if (tool.name === 'create_product') {
+        const name = String(args.name ?? '').trim()
+        if (!name) { result = 'Erreur: nom requis' }
+        else { await actionCreateProduct({ name, description: args.description ? String(args.description) : null, currency: 'USD', price: null, benefits: [], imagePath: null, additionalPaths: [], sourceUrl: null }); result = `Produit « ${name} » créé` }
+      } else if (tool.name === 'generate_image') {
+        const prompt = String(args.prompt ?? '').trim()
+        const n = Math.max(1, Math.min(3, Number(args.n) || 1))
+        if (!prompt) { result = 'Erreur: prompt requis' }
+        else {
+          const imgs = await generateImage({ prompt, model: 'nano-banana', size: '1024x1024', n, ...(context?.refImageUrl ? { imageUrl: [context.refImageUrl] } : {}) })
+          for (const im of imgs) {
+            if (!im.url) continue
+            images.push(im.url)
+            // freeCreation → output non rattaché à une marque (création rapide).
+            persistOutput({ type: 'image', sourceUrl: im.url, title: 'Assistant', engine: 'nano-banana', prompt: prompt.slice(0, 200), brandId: context?.freeCreation ? null : undefined }).catch(() => {})
+          }
+          result = `${images.length} image(s) générée(s)`
+        }
+      } else if (tool.name === 'research') {
+        const topic = String(args.topic ?? '').trim()
+        const platform = (['tiktok', 'instagram', 'youtube'].includes(String(args.platform)) ? String(args.platform) : 'tiktok') as 'tiktok' | 'instagram' | 'youtube'
+        if (!topic) { result = 'Erreur: sujet requis' }
+        else {
+          const r = await quickTrendResearch({ topic, platform })
+          result = `Tendances: ${r.trends.slice(0, 6).join(' | ')} · Formats viraux: ${r.viralFormats.slice(0, 5).join(' | ')} · Mots-clés: ${r.trendingKeywords.slice(0, 8).join(', ')}`
+        }
+      } else if (tool.name === 'research_competitors') {
+        const r = await discoverCompetitors({ brandName: context?.brand, query: args.query ? String(args.query) : undefined })
+        result = r.competitors.slice(0, 5).map((c) => `${c.name} — ${c.adAngles?.slice(0, 2).join(', ') ?? c.positioning ?? ''}`).join(' ; ') || '(aucun concurrent trouvé)'
+      } else if (tool.name === 'import_site') {
+        const url = String(args.url ?? '').trim()
+        const brandId = await getActiveBrandId()
+        if (!url) { result = 'Erreur: URL requise' }
+        else if (!brandId) { result = 'Erreur: aucune marque active' }
+        else {
+          const a = await actionAnalyzeBrandUrl(url)
+          await updateBrand(brandId, { profile: { ...a, website: url } as Record<string, unknown> })
+          result = `Profil importé depuis ${url}`
+        }
+      } else {
+        result = `Outil inconnu: ${tool.name}`
+      }
+    } catch (e) {
+      result = 'Erreur: ' + (e instanceof Error ? e.message : 'inconnue')
+    }
+
+    convo.push({ role: 'assistant', content: JSON.stringify({ tool }) })
+    convo.push({ role: 'system', content: `Résultat de ${tool.name} : ${result}` })
+  }
+
+  return { reply: "J'ai atteint la limite d'étapes — reformule ou découpe ta demande.", images: images.length ? images : undefined, action: null }
 }
 
 export async function actionGenerateProductionPrompt(params: ProductionPromptParams) {
@@ -227,19 +371,6 @@ export async function actionDescribeProductScene(input: { imageUrl?: string; ima
 export async function actionSuggestFashionScene(input: { clothingUrl?: string; modelUrl?: string; garmentType?: string; modelHint?: string; description?: string }) {
   await requireAuth()
   return suggestFashionScene(input)
-}
-
-/** Fiche de référence personnage (planche 3×3 multi-poses) — Nano Banana */
-export async function actionGenerateAvatarSheet(options: {
-  age?:       number
-  ethnicity?: string
-  style?:     string
-  traits?:    string
-  descriptionPrompt?: string
-  imageUrl?:  string
-}) {
-  await requireAuth()
-  return generateAvatarSheet(options)
 }
 
 /** Moodboard 4 images — Nano Banana (rapide & créatif ; image-to-image si `imageUrl`) */

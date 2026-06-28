@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useT } from '@/lib/i18n'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -56,6 +57,7 @@ const BRAND_NAV: BrandNavItem[] = [
 ]
 
 export default function Sidebar() {
+  const tr = useT()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -142,7 +144,7 @@ export default function Sidebar() {
               <button
                 type="button"
                 onClick={() => { setBrandMenuOpen(true); setAddingBrand(true); setMenuOpen(false) }}
-                title="Nouvelle marque"
+                title={tr('sidebar.newBrand')}
                 className="grid h-6 w-6 place-items-center rounded-[7px] text-text-secondary transition-colors hover:bg-accent/10 hover:text-accent"
               >
                 <Plus size={15} strokeWidth={2.6} />
@@ -151,7 +153,7 @@ export default function Sidebar() {
             <button
               type="button"
               onClick={toggleCollapsed}
-              title={collapsed ? 'Déplier la sidebar' : 'Replier la sidebar'}
+              title={collapsed ? tr('sidebar.expand') : tr('sidebar.collapse')}
               className="grid h-6 w-6 place-items-center rounded-[7px] text-text-secondary transition-colors hover:bg-fg/[0.06] hover:text-text-primary"
             >
               {collapsed ? <PanelLeftOpen size={15} strokeWidth={2.2} /> : <PanelLeftClose size={15} strokeWidth={2.2} />}
@@ -185,7 +187,7 @@ export default function Sidebar() {
             <div className="absolute left-[calc(100%+10px)] top-5 z-50 w-[272px] animate-fade-in overflow-hidden rounded-[16px] border border-border bg-bg-card shadow-neo">
               {/* Header */}
               <div className="flex items-center justify-between px-4 pt-4 pb-3">
-                <h2 className="text-[15px] font-extrabold tracking-tight text-text-primary">Mes marques</h2>
+                <h2 className="text-[15px] font-extrabold tracking-tight text-text-primary">{tr('sidebar.myBrands')}</h2>
                 <span className="rounded-full bg-fg/[0.07] px-2 py-0.5 text-[11px] font-extrabold text-text-primary">{brands.length}</span>
               </div>
 
@@ -221,7 +223,7 @@ export default function Sidebar() {
                 {addingBrand ? (
                   <div className="flex flex-col gap-3">
                     <div>
-                      <label className="mb-1.5 block text-[11px] font-extrabold text-text-primary">Nom de la marque</label>
+                      <label className="mb-1.5 block text-[11px] font-extrabold text-text-primary">{tr('sidebar.brandName')}</label>
                       <input
                         autoFocus
                         type="text"
@@ -231,12 +233,12 @@ export default function Sidebar() {
                           if (e.key === 'Enter') handleAddBrand()
                           if (e.key === 'Escape') { setAddingBrand(false); setNewBrandName('') }
                         }}
-                        placeholder="ex. Nova Skincare"
+                        placeholder={tr('sidebar.brandNamePlaceholder')}
                         className="h-9 w-full rounded-[8px] border border-border bg-bg-surface px-3 text-[13px] font-semibold text-text-primary outline-none placeholder:text-text-secondary focus:border-accent"
                       />
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-[11px] font-extrabold text-text-primary">Couleur</label>
+                      <label className="mb-1.5 block text-[11px] font-extrabold text-text-primary">{tr('sidebar.color')}</label>
                       <div className="flex flex-wrap gap-1.5">
                         {BRAND_COLORS.map((c) => (
                           <button
@@ -252,7 +254,7 @@ export default function Sidebar() {
                       </div>
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-[11px] font-extrabold text-text-primary">Catégorie</label>
+                      <label className="mb-1.5 block text-[11px] font-extrabold text-text-primary">{tr('sidebar.category')}</label>
                       <select
                         value={newBrandCategory}
                         onChange={(e) => setNewBrandCategory(e.target.value)}
@@ -267,7 +269,7 @@ export default function Sidebar() {
                         onClick={() => { setAddingBrand(false); setNewBrandName('') }}
                         className="h-9 flex-1 rounded-[8px] border border-border text-[12px] font-extrabold text-text-secondary transition hover:bg-fg/[0.05]"
                       >
-                        Annuler
+                        {tr('common.cancel')}
                       </button>
                       <button
                         type="button"
@@ -275,7 +277,7 @@ export default function Sidebar() {
                         disabled={!newBrandName.trim() || savingBrand}
                         className="h-9 flex-1 rounded-[8px] bg-accent text-[12px] font-extrabold text-white transition hover:brightness-105 disabled:opacity-40"
                       >
-                        {savingBrand ? 'Création…' : 'Créer la marque'}
+                        {savingBrand ? tr('sidebar.creating') : tr('sidebar.createBrand')}
                       </button>
                     </div>
                   </div>
@@ -288,7 +290,7 @@ export default function Sidebar() {
                     <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] border border-border bg-bg-surface">
                       <Plus size={16} strokeWidth={2.5} />
                     </span>
-                    <span className="text-[14px] font-extrabold tracking-tight">Nouvelle marque</span>
+                    <span className="text-[14px] font-extrabold tracking-tight">{tr('sidebar.newBrand')}</span>
                   </button>
                 )}
               </div>
@@ -341,7 +343,7 @@ export default function Sidebar() {
                 {brandNavOpen && (
                   <div className={cn(
                     'mt-0.5 flex flex-col gap-0.5 py-1',
-                    collapsed ? 'items-center' : 'ml-[15px] border-l border-border/80 pl-4',
+                    collapsed ? 'items-center' : 'ml-[15px] pl-4',
                   )}>
                     {BRAND_NAV.map((subItem) => {
                       const SubIcon = subItem.icon
@@ -423,7 +425,7 @@ export default function Sidebar() {
             <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
             <div className={cn('absolute bottom-[calc(100%+8px)] z-50 w-[220px] animate-fade-in overflow-hidden rounded-[14px] border border-border bg-bg-card shadow-neo', collapsed ? 'left-0' : 'left-0 right-0')}>
               <div className="px-4 py-3 border-b border-border">
-                <div className="font-sans text-[10px] text-text-dim mb-0.5">Connecté en tant que</div>
+                <div className="font-sans text-[10px] text-text-dim mb-0.5">{tr('sidebar.loggedInAs')}</div>
                 <div className="text-[12px] font-medium text-text-primary truncate">{email || '—'}</div>
               </div>
               <div className="p-1.5">
@@ -433,14 +435,14 @@ export default function Sidebar() {
                   className="flex items-center gap-2.5 px-3 py-2 rounded-neo text-[12.5px] text-text-secondary hover:bg-fg/[0.06] hover:text-text-primary transition-colors"
                 >
                   <Settings size={13} />
-                  Paramètres
+                  {tr('sidebar.settings')}
                 </Link>
                 <button
                   onClick={handleLogout}
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-neo text-[12.5px] text-coral hover:bg-coral/5 transition-colors"
                 >
                   <LogOut size={13} />
-                  Se déconnecter
+                  {tr('sidebar.logout')}
                 </button>
               </div>
             </div>

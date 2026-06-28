@@ -323,20 +323,6 @@ function StepFlow() {
     setCurrentStep(1)
   }
 
-  // [DEV] Saut direct vers n'importe quelle étape, sans validation.
-  function goToStep(id: StepId) {
-    let flow = selectedFlow
-    if (id === 'templates') flow = 'template'
-    else if (id !== 'choose-flow' && !flow) flow = 'scratch'
-    const list: StepId[] = flow === 'template'
-      ? ['choose-flow', 'templates', 'products', 'images', 'dimensions', 'goals', 'details']
-      : ['choose-flow', 'products', 'images', 'dimensions', 'goals', 'details']
-    const idx = list.indexOf(id)
-    if (idx === -1) return
-    setSelectedFlow(flow)
-    setCurrentStep(idx)
-  }
-
   // Génération réelle (Nano Banana) — une passe par objectif sélectionné.
   async function generate() {
     if (generating) return
@@ -831,28 +817,6 @@ function StepFlow() {
           </StepSlider>
         </main>
       </MainPanel>
-
-      {/* [DEV] Navigation libre entre toutes les étapes (à retirer en prod) */}
-      <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-1 rounded-full border border-border bg-bg-card/95 backdrop-blur px-2 py-1.5 shadow-neo-lg">
-        <span className="px-2 text-[10px] font-bold uppercase tracking-wide text-text-dim">Dev</span>
-        {([
-          { id: 'choose-flow', label: 'Flow' },
-          { id: 'templates', label: 'Templates' },
-          { id: 'products', label: 'Products' },
-          { id: 'images', label: 'Images' },
-          { id: 'dimensions', label: 'Dimensions' },
-          { id: 'goals', label: 'Goals' },
-          { id: 'details', label: 'Details' },
-        ] as { id: StepId; label: string }[]).map(({ id, label }) => (
-          <button
-            key={id}
-            onClick={() => goToStep(id)}
-            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${stepId === id ? 'bg-accent text-white' : 'text-text-secondary hover:bg-fg/[0.06]'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
 
       {goalsModalOpen && (
         <div className="fixed inset-0 z-[1200] bg-black/75 flex items-center justify-center p-6 animate-fade-in" onClick={cancelGoalsModal}>

@@ -1,11 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft,
   ArrowUpRight,
+  ImagePlus,
+  FilePlus2,
+  RotateCcw,
   Bot,
+  LayoutGrid,
   Check,
   ChevronDown,
   Download,
@@ -41,12 +45,13 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { actionListAvatarsForPicker, actionUploadTempImage } from '@/lib/actions/avatar-assets'
+import { actionListAvatarsForPicker, actionUploadTempImage, actionUploadTempVideo } from '@/lib/actions/avatar-assets'
 import { actionListProducts, actionUploadProductImage, actionCreateProduct, actionDeleteProduct, type ProductDTO } from '@/lib/actions/products'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { actionGenerateScript, actionGenerateSpeech, actionSubmitVideo, actionGetVideoStatus, actionIsVoiceCloneEnabled, actionGenerateImage } from '@/lib/actions/ai'
 import { VOICE_PROFILES, MINIMAX_EMOTIONS, VOICE_LANGUAGES } from '@/lib/ai/voice-catalog'
 import { persistOutput } from '@/lib/actions/outputs'
+import { actionSubmitClone, actionGetCloneStatus } from '@/lib/actions/clone'
 import { useToast } from '@/lib/stores/toastStore'
 import { useSettings } from '@/lib/stores/settingsStore'
 import { useBrand } from '@/lib/stores/brandStore'
@@ -76,6 +81,16 @@ const VIDEO_TYPES = [
       'https://images.unsplash.com/photo-1599058917212-d750089bc07e?auto=format&fit=crop&w=360&q=80',
       'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=360&q=80',
       'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=360&q=80',
+    ],
+  },
+  {
+    id: 'clone-studio',
+    title: 'Clonage studio',
+    desc: 'Transfert de mouvement : ton personnage reproduit les actions d\'une vidéo de référence (motion control).',
+    images: [
+      'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=360&q=80',
+      'https://images.unsplash.com/photo-1492562080023-ab3db95bfa78?auto=format&fit=crop&w=360&q=80',
+      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=360&q=80',
     ],
   },
   {
@@ -110,7 +125,7 @@ const VIDEO_TYPES = [
   },
 ]
 
-const AVAILABLE_VIDEO_TYPE_IDS = new Set(['realistic-actor', 'broll-voiceover', 'video-generator'])
+const AVAILABLE_VIDEO_TYPE_IDS = new Set(['realistic-actor', 'broll-voiceover', 'video-generator', 'clone-studio'])
 
 const IMAGE_POSITIONS = [
   'left-[28px] top-[34px] w-[118px] h-[170px] rotate-[-1deg]',
@@ -225,7 +240,7 @@ const CUSTOM_VIDEO_MODELS = [
 ]
 
 type Actor = { id: string; name: string; photoUrl: string }
-type VideoMode = 'menu' | 'realistic-actor' | 'broll-voiceover' | 'video-generator'
+type VideoMode = 'menu' | 'realistic-actor' | 'broll-voiceover' | 'video-generator' | 'clone-studio'
 
 export default function CreerVideoPage() {
   const router = useRouter()
@@ -267,7 +282,7 @@ export default function CreerVideoPage() {
   const [generatingVideo, setGeneratingVideo] = useState(false)
   const [actorVideoUrl, setActorVideoUrl] = useState('')
   const [actorModalOpen, setActorModalOpen] = useState(false)
-  const [actorModalTarget, setActorModalTarget] = useState<'realistic' | 'broll'>('realistic')
+  const [actorModalTarget, setActorModalTarget] = useState<'realistic' | 'broll' | 'clone'>('realistic')
   const [actorLightboxOpen, setActorLightboxOpen] = useState(false)
   const [voiceModalOpen, setVoiceModalOpen] = useState(false)
   const [voiceSearch, setVoiceSearch] = useState('')
@@ -277,6 +292,17 @@ export default function CreerVideoPage() {
   const [expressionMenuOpen, setExpressionMenuOpen] = useState(false)
   const [pauseMenuOpen, setPauseMenuOpen] = useState(false)
   const [enhanceInstruction, setEnhanceInstruction] = useState('')
+  // Clonage studio (transfert de mouvement : vidéo source + image personnage)
+  const cloneVideoInputRef = useRef<HTMLInputElement>(null)
+  const cloneImageInputRef = useRef<HTMLInputElement>(null)
+  const [cloneMotionVideoUrl, setCloneMotionVideoUrl] = useState('')
+  const [cloneCharacterImageUrl, setCloneCharacterImageUrl] = useState('')
+  const [cloneOrientation, setCloneOrientation] = useState<'video' | 'image'>('video')
+  const [uploadingMotion, setUploadingMotion] = useState(false)
+  const [uploadingChar, setUploadingChar] = useState(false)
+  const [generatingClone, setGeneratingClone] = useState(false)
+  const [cloneVideoUrl, setCloneVideoUrl] = useState('')
+  const [clonePrompt, setClonePrompt] = useState('')
   const [brollFlow, setBrollFlow] = useState<'ai' | 'manual'>('ai')
   const [brollStep, setBrollStep] = useState<'choice' | 'goals' | 'audience' | 'products' | 'images' | 'actors' | 'configure' | 'manual-script'>('choice')
   const [selectedBrollGoal, setSelectedBrollGoal] = useState('')
@@ -609,6 +635,12 @@ export default function CreerVideoPage() {
       setSelectedCustomVideoModel('')
       setCustomVideoStep('models')
       setCustomVideoPrompt('')
+      // Clonage studio
+      setCloneMotionVideoUrl('')
+      setCloneCharacterImageUrl('')
+      setCloneOrientation('video')
+      setClonePrompt('')
+      setCloneVideoUrl('')
       return
     }
     router.push('/creer/image')
@@ -740,6 +772,78 @@ export default function CreerVideoPage() {
     finally { setGeneratingVideo(false) }
   }
 
+  // ── Clonage studio : transfert de mouvement (vidéo source → image personnage) ──
+  // Lit la durée d'une vidéo locale (métadonnées) sans l'uploader.
+  function getVideoDuration(file: File): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file)
+      const v = document.createElement('video')
+      v.preload = 'metadata'
+      v.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve(v.duration) }
+      v.onerror = () => { URL.revokeObjectURL(url); reject(new Error('metadata')) }
+      v.src = url
+    })
+  }
+  async function uploadMotionVideo(file: File | undefined) {
+    if (!file || !file.type.startsWith('video/')) return
+    // kie.ai motion-control exige du MP4.
+    if (file.type !== 'video/mp4' && !/\.mp4$/i.test(file.name)) { toast.error('Format non supporté : utilise un fichier MP4.'); return }
+    // La durée du clone suit la vidéo source — bornée à 3–30 s (contrainte Kling motion-control).
+    const duration = await getVideoDuration(file).catch(() => null)
+    if (duration != null) {
+      if (duration > 30.5) { toast.error('Vidéo trop longue : 30 s maximum.'); return }
+      if (duration < 3) { toast.error('Vidéo trop courte : 3 s minimum.'); return }
+    }
+    setUploadingMotion(true)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const { url } = await actionUploadTempVideo(fd)
+      setCloneMotionVideoUrl(url)
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Upload de la vidéo impossible') }
+    finally { setUploadingMotion(false) }
+  }
+  async function uploadCharImage(file: File | undefined) {
+    if (!file || !file.type.startsWith('image/')) return
+    setUploadingChar(true)
+    try {
+      const { url } = await actionUploadTempImage(await fileToDataUrl(file))
+      setCloneCharacterImageUrl(url)
+    } catch { toast.error('Upload de l\'image impossible') }
+    finally { setUploadingChar(false) }
+  }
+  async function generateCloneVideo() {
+    if (generatingClone) return
+    if (!cloneMotionVideoUrl) { toast.error('Importe la vidéo des mouvements à imiter'); return }
+    if (!cloneCharacterImageUrl) { toast.error('Importe l\'image du personnage'); return }
+    setGeneratingClone(true)
+    setCloneVideoUrl('')
+    try {
+      // Vrai motion control : Kling 3.0 motion-control (video-to-video, 720p) via kie.ai.
+      const { taskId } = await actionSubmitClone({
+        characterImageUrl: cloneCharacterImageUrl,
+        motionVideoUrl: cloneMotionVideoUrl,
+        prompt: clonePrompt.trim() || undefined,
+        mode: '720p',
+        orientation: cloneOrientation,
+        backgroundSource: cloneOrientation === 'image' ? 'input_image' : 'input_video',
+      })
+      // Polling (~ jusqu'à 5 min)
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 5000))
+        const res = await actionGetCloneStatus(taskId)
+        if (res.state === 'success' && res.videoUrl) {
+          setCloneVideoUrl(res.videoUrl)
+          persistOutput({ type: 'video', sourceUrl: res.videoUrl, title: 'Clonage studio', engine: 'kling-3.0-motion', prompt: `motion-control · ${cloneOrientation}`, format: '9:16' }).catch(() => {})
+          toast.success('Clone généré')
+          return
+        }
+        if (res.state === 'fail') { toast.error(res.error || 'Échec de la génération'); return }
+      }
+      toast.error('Délai dépassé — réessaie')
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Échec du clonage') }
+    finally { setGeneratingClone(false) }
+  }
+
   // Modales acteurs + voix — partagées par les flux realistic ET b-roll.
   const voiceAndActorModals = (
     <>
@@ -775,12 +879,12 @@ export default function CreerVideoPage() {
               <main className="min-h-0 overflow-y-auto pr-1">
                 <div className="flex flex-wrap gap-2.5">
                   {myActors.map((actor) => {
-                    const selected = (actorModalTarget === 'broll' ? selectedBrollActorUrl : selectedActorUrl) === actor.photoUrl
+                    const selected = (actorModalTarget === 'broll' ? selectedBrollActorUrl : actorModalTarget === 'clone' ? cloneCharacterImageUrl : selectedActorUrl) === actor.photoUrl
                     return (
                       <button
                         key={`modal-${actor.id}`}
                         title={actor.name}
-                        onClick={() => { (actorModalTarget === 'broll' ? setSelectedBrollActorUrl : setSelectedActorUrl)(actor.photoUrl); setActorModalOpen(false) }}
+                        onClick={() => { (actorModalTarget === 'broll' ? setSelectedBrollActorUrl : actorModalTarget === 'clone' ? setCloneCharacterImageUrl : setSelectedActorUrl)(actor.photoUrl); setActorModalOpen(false) }}
                         className={`group relative w-[108px] aspect-[9/16] overflow-hidden rounded-[12px] border-2 bg-bg-card transition-all hover:border-accent/70 ${selected ? 'border-accent ring-2 ring-accent/30 shadow-neo' : 'border-transparent'}`}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -2052,6 +2156,190 @@ export default function CreerVideoPage() {
     )
   }
 
+  if (mode === 'clone-studio') {
+    return (
+      <div className="page animate-fade-in -mx-8 -mt-6 -mb-8 h-screen overflow-hidden px-2 py-1.5">
+        <section className="flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-border bg-bg-card shadow-neo-sm">
+          <header className="flex h-[56px] flex-shrink-0 items-center gap-5 border-b border-border px-5">
+            <button onClick={handleBack} className="w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center text-text-primary hover:bg-fg/[0.04] transition-colors" aria-label="Retour">
+              <ArrowLeft size={20} />
+            </button>
+            <span className="w-px h-7 flex-shrink-0 bg-border" />
+            <h1 className="min-w-0 truncate font-display text-[20px] font-extrabold tracking-tight text-text-primary">
+              Clonage studio
+            </h1>
+          </header>
+
+          <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_340px]">
+            {/* Colonne gauche : formulaire */}
+            <div className="min-h-0 overflow-y-auto border-r border-border px-5 py-5">
+            <div className="mx-auto w-full max-w-[560px]">
+
+              <div className="mb-5">
+                <h2 className="font-display text-[20px] font-extrabold tracking-tight text-text-primary">Cloner une vidéo</h2>
+                <p className="mt-1 text-[12px] font-medium text-text-muted">Transfère les mouvements d&apos;une vidéo de référence sur ton personnage.</p>
+              </div>
+
+              {/* 2 sections : vidéo de mouvements + image personnage */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {/* Vidéo des mouvements à imiter */}
+                <input ref={cloneVideoInputRef} type="file" accept="video/mp4" className="hidden" onChange={(e) => { uploadMotionVideo(e.target.files?.[0]); e.target.value = '' }} />
+                <button
+                  type="button"
+                  onClick={() => cloneVideoInputRef.current?.click()}
+                  disabled={uploadingMotion}
+                  className="group relative flex aspect-[16/10] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[12px] border-2 border-dashed border-border-strong bg-fg/[0.03] p-2.5 text-center text-text-secondary transition hover:border-accent disabled:opacity-60"
+                >
+                  {cloneMotionVideoUrl ? (
+                    <video src={cloneMotionVideoUrl} muted loop autoPlay playsInline className="absolute inset-0 h-full w-full object-cover" />
+                  ) : uploadingMotion ? (
+                    <><RotateCcw size={20} className="animate-spin" /><span className="text-[12px] font-bold">Envoi…</span></>
+                  ) : (
+                    <><FilePlus2 size={20} /><span className="text-[11px] font-bold leading-tight">Vidéo des mouvements à imiter</span><span className="text-[10px] font-medium text-text-muted">MP4 · 3–30 s · la durée du clone suit la vidéo</span></>
+                  )}
+                </button>
+
+                {/* Image du personnage */}
+                <input ref={cloneImageInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { uploadCharImage(e.target.files?.[0]); e.target.value = '' }} />
+                <button
+                  type="button"
+                  onClick={() => cloneImageInputRef.current?.click()}
+                  disabled={uploadingChar}
+                  className="group relative flex aspect-[16/10] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[12px] border-2 border-dashed border-border-strong bg-fg/[0.03] p-2.5 text-center text-text-secondary transition hover:border-accent disabled:opacity-60"
+                >
+                  {cloneCharacterImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={cloneCharacterImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                  ) : uploadingChar ? (
+                    <><RotateCcw size={20} className="animate-spin" /><span className="text-[12px] font-bold">Envoi…</span></>
+                  ) : (
+                    <><ImagePlus size={20} /><span className="text-[11px] font-bold leading-tight">Image du personnage</span><span className="text-[10px] font-medium text-text-muted">L'avatar qui exécutera les mouvements</span></>
+                  )}
+                </button>
+              </div>
+
+              {/* …ou choisir un personnage existant (avatar) */}
+              {avatars.filter((a) => a.photoUrl).length > 0 && (
+                <div className="mt-4">
+                  <p className="mb-2 text-[11px] font-extrabold text-text-primary">…ou utilise un de tes personnages</p>
+                  <div className="flex gap-3 overflow-x-auto pb-1">
+                    {/* Tuile « Tout voir » */}
+                    <button
+                      type="button"
+                      onClick={() => { setActorModalTarget('clone'); setActorModalOpen(true) }}
+                      className="flex aspect-[3/4] w-[100px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[14px] border-2 border-dashed border-border-strong text-text-secondary transition hover:border-accent hover:text-accent"
+                    >
+                      <LayoutGrid size={20} strokeWidth={2} />
+                      <span className="text-[11px] font-extrabold">Tout voir</span>
+                    </button>
+                    {avatars.filter((a) => a.photoUrl).map((a) => {
+                      const selected = cloneCharacterImageUrl === a.photoUrl
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => setCloneCharacterImageUrl(a.photoUrl!)}
+                          title={a.name}
+                          className={`group relative aspect-[3/4] w-[100px] shrink-0 overflow-hidden rounded-[14px] border-2 transition-colors ${selected ? 'border-accent' : 'border-transparent hover:border-accent/40'}`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={a.photoUrl!} alt={a.name} className="h-full w-full object-cover" />
+                          <span className="absolute bottom-2 left-2 rounded-full bg-bg-card/90 px-2.5 py-0.5 text-[11px] font-extrabold text-text-primary shadow-neo-sm backdrop-blur-sm">{a.name}</span>
+                          {selected && <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full bg-accent text-white shadow-neo-sm"><Check size={10} strokeWidth={3} /></span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Description (prompt) */}
+              <div className="mt-4">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <p className="flex items-center gap-1.5 text-[11px] font-extrabold text-text-primary">
+                    <Sparkles size={13} className="text-accent" />
+                    Description <span className="font-medium text-text-muted">(optionnel)</span>
+                  </p>
+                  <span className="text-[10px] font-semibold text-text-muted">{clonePrompt.length}/2500</span>
+                </div>
+                <div className="group rounded-[14px] border border-border bg-bg-card p-1 shadow-neo-sm">
+                  <textarea
+                    value={clonePrompt}
+                    onChange={(e) => setClonePrompt(e.target.value.slice(0, 2500))}
+                    placeholder="Décris la scène, le décor, l'ambiance ou ce que dit le personnage…"
+                    rows={3}
+                    className="w-full resize-none rounded-[10px] border-0 bg-transparent px-3 py-2.5 text-[13px] font-medium leading-relaxed text-text-primary outline-none ring-0 placeholder:text-text-muted focus:border-0 focus:shadow-none focus:outline-none focus:ring-0"
+                  />
+                  <div className="flex items-center gap-1.5 px-2.5 pb-2 pt-0.5">
+                    {['Décor naturel lumineux', 'Studio minimaliste', 'Ambiance cinématique'].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setClonePrompt(s)}
+                        className="rounded-full border border-border bg-bg-surface px-2.5 py-1 text-[10px] font-semibold text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Orientation du personnage */}
+              <div className="mt-4">
+                <p className="mb-1.5 text-[11px] font-extrabold text-text-primary">Orientation du personnage</p>
+                <div className="flex gap-2">
+                  {([['video', 'Comme la vidéo'], ['image', 'Comme l\'image']] as const).map(([id, label]) => (
+                    <button key={id} type="button" onClick={() => setCloneOrientation(id)} className={`flex flex-1 items-center justify-center gap-2 rounded-[10px] border px-3 py-2 text-[12px] font-extrabold transition-colors ${cloneOrientation === id ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-fg/[0.03] text-text-secondary hover:border-border-strong'}`}>
+                      <span className={`grid h-4 w-4 place-items-center rounded-full border-2 ${cloneOrientation === id ? 'border-accent' : 'border-border-strong'}`}>{cloneOrientation === id && <span className="h-2 w-2 rounded-full bg-accent" />}</span>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[10px] font-medium leading-relaxed text-text-muted">
+                  Orientation = vidéo → meilleurs mouvements complexes ; = image → meilleurs mouvements de caméra.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={generateCloneVideo}
+                disabled={!cloneMotionVideoUrl || !cloneCharacterImageUrl || generatingClone}
+                className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-[12px] bg-accent text-[13px] font-extrabold text-white shadow-neo-solid transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                {generatingClone ? <><RotateCcw size={15} className="animate-spin" /> Clonage en cours… (~2 min)</> : <><Sparkles size={15} /> Générer le clone</>}
+              </button>
+            </div>
+            </div>
+
+            {/* Colonne droite : aperçu */}
+            <div className="flex min-h-0 flex-col overflow-y-auto bg-fg/[0.015] p-5">
+              <p className="mb-2.5 text-[11px] font-extrabold uppercase tracking-wide text-text-muted">Aperçu</p>
+              <div className="flex flex-1 items-center justify-center overflow-hidden rounded-[16px] border border-border bg-bg-card p-3">
+                {cloneVideoUrl ? (
+                  <video src={cloneVideoUrl} controls autoPlay loop className="max-h-full w-auto max-w-full rounded-[10px]" />
+                ) : generatingClone ? (
+                  <div className="flex flex-col items-center gap-2 text-text-muted">
+                    <RotateCcw size={26} className="animate-spin text-accent" />
+                    <span className="text-[12px] font-bold">Clonage en cours…</span>
+                    <span className="text-[11px] font-medium">~2 min</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2.5 text-center text-text-muted">
+                    <span className="grid h-14 w-14 place-items-center rounded-full bg-fg/[0.04]"><Bot size={26} strokeWidth={1.8} /></span>
+                    <span className="text-[12px] font-bold text-text-secondary">Ton clone apparaîtra ici</span>
+                    <span className="max-w-[220px] text-[11px] font-medium leading-relaxed">Importe une vidéo de mouvements et un personnage, puis lance la génération.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </main>
+        </section>
+        {voiceAndActorModals}
+      </div>
+    )
+  }
+
   if (mode === 'video-generator') {
     return (
       <div className="page animate-fade-in -mx-8 -mt-6 -mb-8 h-screen overflow-hidden px-2 py-1.5">
@@ -2280,6 +2568,7 @@ export default function CreerVideoPage() {
                 if (type.id === 'realistic-actor') setMode('realistic-actor')
                 if (type.id === 'broll-voiceover') setMode('broll-voiceover')
                 if (type.id === 'video-generator') setMode('video-generator')
+                if (type.id === 'clone-studio') { setMode('clone-studio') }
               }}
               className={`group relative h-[260px] overflow-hidden rounded-[20px] border border-border bg-bg-card text-left shadow-neo transition-all ${
                 isAvailable

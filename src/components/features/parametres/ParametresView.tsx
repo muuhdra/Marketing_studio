@@ -113,7 +113,7 @@ const brandTabs = [
     description: 'Durée, pré-campagne et cadence de contenu.',
     icon: CalendarRange,
   },
-]
+] as const
 
 type BrandTabId = (typeof brandTabs)[number]['id']
 

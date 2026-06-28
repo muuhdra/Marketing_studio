@@ -4,16 +4,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { Filter, Image as ImageIcon, Video, Music, Download, Trash2, Loader2, Clock, X } from 'lucide-react'
 import { listOutputs, deleteOutput, type OutputDTO } from '@/lib/actions/outputs'
 import { useToast } from '@/lib/stores/toastStore'
+import { useT } from '@/lib/i18n'
 
 type TypeFilter = 'all' | 'image' | 'video' | 'audio'
 type SortOrder = 'recent' | 'old'
 
-const TYPE_OPTIONS: { id: TypeFilter; label: string }[] = [
-  { id: 'all', label: 'Tous les types' },
-  { id: 'image', label: 'Images' },
-  { id: 'video', label: 'Vidéos' },
-  { id: 'audio', label: 'Audios' },
-]
+const TYPE_KEYS: Record<TypeFilter, string> = {
+  all: 'gallery.allTypes', image: 'gallery.images', video: 'gallery.videos', audio: 'gallery.audios',
+}
+const TYPE_IDS: TypeFilter[] = ['all', 'image', 'video', 'audio']
 
 // Heures restantes avant expiration (outputs conservés 48 h).
 function hoursLeft(expiresAt: string): number {
@@ -22,6 +21,7 @@ function hoursLeft(expiresAt: string): number {
 
 export default function MyCreationsView() {
   const toast = useToast()
+  const tr = useT()
   const [outputs, setOutputs] = useState<OutputDTO[]>([])
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
@@ -50,9 +50,9 @@ export default function MyCreationsView() {
     try {
       await deleteOutput(id)
       setOutputs((prev) => prev.filter((o) => o.id !== id))
-      toast.success('Création supprimée')
+      toast.success(tr('gallery.deleted'))
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Échec de la suppression')
+      toast.error(e instanceof Error ? e.message : tr('gallery.deleteFailed'))
     } finally {
       setDeleting(null)
     }
@@ -75,8 +75,8 @@ export default function MyCreationsView() {
 
         {/* Header */}
         <header className="flex h-[56px] shrink-0 items-center justify-between border-b border-border px-4 sm:px-5">
-          <h1 className="text-[17px] font-extrabold tracking-tight text-text-primary">Mes créations</h1>
-          <span className="text-[12px] font-bold text-text-muted">{filtered.length} résultat{filtered.length > 1 ? 's' : ''}</span>
+          <h1 className="text-[17px] font-extrabold tracking-tight text-text-primary">{tr('gallery.title')}</h1>
+          <span className="text-[12px] font-bold text-text-muted">{filtered.length} {filtered.length > 1 ? tr('gallery.resultsMany') : tr('gallery.resultsOne')}</span>
         </header>
 
         <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -85,15 +85,15 @@ export default function MyCreationsView() {
             {loading ? (
               <div className="flex h-full min-h-[300px] items-center justify-center gap-2 text-text-muted">
                 <Loader2 size={18} className="animate-spin" />
-                <span className="text-[13px] font-bold">Chargement de tes créations…</span>
+                <span className="text-[13px] font-bold">{tr('gallery.loading')}</span>
               </div>
             ) : filtered.length === 0 ? (
               <div className="flex h-full min-h-[300px] flex-col items-center justify-center gap-3 text-center">
                 <div className="grid h-14 w-14 place-items-center rounded-full bg-fg/[0.08]">
                   <Video size={26} className="text-text-faint" />
                 </div>
-                <p className="text-[15px] font-extrabold text-text-primary">Aucune création</p>
-                <p className="text-[13px] font-medium text-text-secondary">Génère des images, vidéos ou audios — ils apparaîtront ici (conservés 48 h).</p>
+                <p className="text-[15px] font-extrabold text-text-primary">{tr('gallery.emptyTitle')}</p>
+                <p className="text-[13px] font-medium text-text-secondary">{tr('gallery.emptyDesc')}</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
@@ -127,7 +127,7 @@ export default function MyCreationsView() {
                       {/* Badge type */}
                       <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-bold text-white">
                         {o.type === 'image' ? <ImageIcon size={10} /> : o.type === 'video' ? <Video size={10} /> : <Music size={10} />}
-                        {o.type === 'image' ? 'Image' : o.type === 'video' ? 'Vidéo' : 'Audio'}
+                        {o.type === 'image' ? tr('gallery.badgeImage') : o.type === 'video' ? tr('gallery.badgeVideo') : tr('gallery.badgeAudio')}
                       </span>
 
                       {/* Actions au survol */}
@@ -135,7 +135,7 @@ export default function MyCreationsView() {
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); handleDownload(o) }}
-                          title="Télécharger"
+                          title={tr('gallery.download')}
                           className="grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white transition hover:bg-black/75"
                         >
                           <Download size={13} strokeWidth={2.5} />
@@ -144,7 +144,7 @@ export default function MyCreationsView() {
                           type="button"
                           onClick={(e) => { e.stopPropagation(); handleDelete(o.id) }}
                           disabled={deleting === o.id}
-                          title="Supprimer"
+                          title={tr('common.delete')}
                           className="grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white transition hover:bg-coral disabled:opacity-50"
                         >
                           {deleting === o.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} strokeWidth={2.5} />}
@@ -153,7 +153,7 @@ export default function MyCreationsView() {
                     </div>
 
                     <div className="flex flex-col gap-1 p-2.5">
-                      <p className="truncate text-[12px] font-extrabold text-text-primary">{o.title ?? 'Sans titre'}</p>
+                      <p className="truncate text-[12px] font-extrabold text-text-primary">{o.title ?? tr('gallery.untitled')}</p>
                       <div className="flex items-center justify-between text-[10px] font-bold text-text-muted">
                         <span className="truncate">{o.engine ?? '—'}{o.format ? ` · ${o.format}` : ''}</span>
                         <span className="flex shrink-0 items-center gap-0.5"><Clock size={10} />{hoursLeft(o.expiresAt)}h</span>
@@ -168,11 +168,11 @@ export default function MyCreationsView() {
           {/* Filtres */}
           <aside className="hidden w-[180px] shrink-0 flex-col border-l border-border bg-fg/[0.03] md:flex">
             <div className="flex h-[44px] items-center justify-between border-b border-border px-3">
-              <h2 className="text-[12px] font-extrabold tracking-tight text-text-primary">Filtres</h2>
+              <h2 className="text-[12px] font-extrabold tracking-tight text-text-primary">{tr('gallery.filters')}</h2>
               <button
                 type="button"
                 onClick={() => { setTypeFilter('all'); setSort('recent') }}
-                title="Réinitialiser"
+                title={tr('gallery.reset')}
                 className="grid h-6 w-6 place-items-center rounded-full text-text-muted transition hover:bg-fg/[0.08] hover:text-text-primary"
               >
                 <Filter size={12} strokeWidth={2.5} />
@@ -181,29 +181,29 @@ export default function MyCreationsView() {
 
             <div className="flex-1 overflow-y-auto p-3">
               {/* Type */}
-              <label className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-wide text-text-muted">Type</label>
+              <label className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-wide text-text-muted">{tr('gallery.typeLabel')}</label>
               <div className="mb-4 flex flex-col gap-0.5">
-                {TYPE_OPTIONS.map((opt) => (
+                {TYPE_IDS.map((id) => (
                   <button
-                    key={opt.id}
+                    key={id}
                     type="button"
-                    onClick={() => setTypeFilter(opt.id)}
+                    onClick={() => setTypeFilter(id)}
                     className={`flex items-center justify-between rounded-[8px] px-2.5 py-1.5 text-left text-[12px] font-bold transition ${
-                      typeFilter === opt.id ? 'bg-accent text-white shadow-sm' : 'text-text-secondary hover:bg-fg/[0.06]'
+                      typeFilter === id ? 'bg-accent text-white shadow-sm' : 'text-text-secondary hover:bg-fg/[0.06]'
                     }`}
                   >
-                    {opt.label}
-                    <span className={typeFilter === opt.id ? 'text-white/80' : 'text-text-faint'}>
-                      {opt.id === 'all' ? outputs.length : outputs.filter((o) => o.type === opt.id).length}
+                    {tr(TYPE_KEYS[id])}
+                    <span className={typeFilter === id ? 'text-white/80' : 'text-text-faint'}>
+                      {id === 'all' ? outputs.length : outputs.filter((o) => o.type === id).length}
                     </span>
                   </button>
                 ))}
               </div>
 
               {/* Tri */}
-              <label className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-wide text-text-muted">Trier</label>
+              <label className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-wide text-text-muted">{tr('gallery.sortLabel')}</label>
               <div className="flex gap-1">
-                {([['recent', 'Récent'], ['old', 'Ancien']] as const).map(([id, label]) => (
+                {([['recent', tr('gallery.sortRecent')], ['old', tr('gallery.sortOld')]] as const).map(([id, label]) => (
                   <button
                     key={id}
                     type="button"
@@ -261,7 +261,7 @@ export default function MyCreationsView() {
               className="absolute bottom-3 left-1/2 flex h-8 -translate-x-1/2 items-center justify-center gap-1.5 rounded-full bg-accent px-4 text-[12px] font-extrabold text-white shadow-neo transition hover:brightness-105"
             >
               <Download size={13} strokeWidth={2.5} />
-              Télécharger
+              {tr('gallery.download')}
             </button>
           </div>
         </div>

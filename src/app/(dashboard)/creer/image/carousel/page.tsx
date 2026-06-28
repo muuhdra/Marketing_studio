@@ -11,7 +11,7 @@ import { persistOutput } from '@/lib/actions/outputs'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useToast } from '@/lib/stores/toastStore'
 import { useBrand } from '@/lib/stores/brandStore'
-import { BackButton, ContinueButton, DevStepNav, MainPanel, PageShell, WizardHeader, ratioStyle, ratioToSize, StepSlider } from '@/components/features/creer/WizardKit'
+import { BackButton, ContinueButton, MainPanel, PageShell, WizardHeader, ratioStyle, ratioToSize, StepSlider } from '@/components/features/creer/WizardKit'
 
 // Nano Banana ne produit que 3 tailles → on n'expose que les 3 formats réels.
 const DIMENSIONS: { ratio: string; label: string }[] = [
@@ -146,13 +146,6 @@ export default function CarouselCreatorPage() {
 
   function goBack() {
     setCurrentStep((step) => Math.max(step - 1, 0))
-  }
-
-  // [DEV] Saut direct vers n'importe quelle étape, sans validation.
-  function goToStep(id: StepId) {
-    const idx = steps.indexOf(id)
-    if (idx === -1) return
-    setCurrentStep(idx)
   }
 
   function toggleProduct(productId: string) {
@@ -515,17 +508,6 @@ export default function CarouselCreatorPage() {
           <a href={activeUrl} download target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="absolute bottom-5 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-[13px] font-extrabold text-zinc-950 shadow-neo hover:brightness-95"><Download size={15} /> Télécharger</a>
         </div>
       )}
-
-      <DevStepNav
-        steps={[
-          { id: 'products', label: 'Produit' },
-          { id: 'images', label: 'Images' },
-          { id: 'dimensions', label: 'Dimensions' },
-          { id: 'goals', label: 'Objectif' },
-        ]}
-        active={stepId}
-        onJump={goToStep}
-      />
     </PageShell>
   )
 }

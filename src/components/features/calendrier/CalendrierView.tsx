@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { Calendar, CalendarDays, Plus } from 'lucide-react'
 import Button from '@/components/ui/Button'
+import { useT } from '@/lib/i18n'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,8 +38,6 @@ interface PhaseEvent {
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
-const DAYS   = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
 
 const STATUS_STYLE: Record<CampaignStatus, { bg: string; border: string; text: string; dot: string; label: string }> = {
   draft:         { bg: 'bg-fg/[0.04]',  border: 'border-border',        text: 'text-text-muted',  dot: 'bg-border',   label: 'Brouillon'   },
@@ -108,6 +107,15 @@ function buildPhases(campaigns: DbCampaign[]): PhaseEvent[] {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function CalendrierView({ campaigns, serverNow }: { campaigns: DbCampaign[]; serverNow: number }) {
+  const tr = useT()
+  const MONTHS = tr('planning.months').split(',')
+  const DAYS = tr('planning.days').split(',')
+  const STATUS_LABEL_KEY: Record<CampaignStatus, string> = {
+    draft: 'planning.statusDraft', pre_campaign: 'planning.statusPreCamp', active: 'planning.statusActive',
+    post_campaign: 'planning.statusPostCamp', archived: 'planning.statusArchived',
+  }
+  const phaseLabel = (ev: PhaseEvent) =>
+    ev.phase === 'pre' ? tr('planning.phasePre') : ev.phase === 'post' ? tr('planning.phasePost') : tr(STATUS_LABEL_KEY[ev.status])
   const [nowMs, setNowMs] = useState(serverNow)
   const today = useMemo(() => atMidnight(new Date(nowMs)), [nowMs])
 
@@ -201,10 +209,10 @@ export default function CalendrierView({ campaigns, serverNow }: { campaigns: Db
           <h1 className="text-[17px] font-extrabold tracking-tight text-text-primary">Planning</h1>
           <div className="flex items-center gap-2">
             <button onClick={goToday} className="hidden font-sans text-[12px] font-bold text-text-muted rounded-[10px] px-3 py-1.5 hover:bg-fg/[0.06] hover:text-text-primary transition-colors sm:block">
-              Aujourd'hui
+              {tr('planning.today')}
             </button>
             <div className="flex items-center gap-1 rounded-[12px] bg-fg/[0.06] p-1">
-              {([['week', 'Semaine', Calendar], ['month', 'Mois', CalendarDays]] as const).map(([v, label, Icon]) => (
+              {([['week', tr('planning.week'), Calendar], ['month', tr('planning.month'), CalendarDays]] as const).map(([v, label, Icon]) => (
                 <button key={v} onClick={() => changeView(v)}
                   className={`flex items-center gap-1.5 rounded-[9px] px-3.5 py-1.5 font-sans text-[12px] font-extrabold transition-all ${view === v ? 'bg-accent text-white shadow-sm' : 'text-text-muted hover:text-text-primary'}`}>
                   <Icon size={14} strokeWidth={2.5} />
@@ -222,11 +230,11 @@ export default function CalendrierView({ campaigns, serverNow }: { campaigns: Db
             {/* Navigation */}
             <div className="mb-3.5 flex items-center justify-between gap-3">
               <button onClick={navPrev} className="rounded-[10px] bg-accent px-3 py-1.5 font-sans text-[11px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105">
-                Précédent
+                {tr('planning.prev')}
               </button>
               <div className="font-extrabold tracking-tight text-[16px] text-text-primary capitalize">{headerLabel}</div>
               <button onClick={navNext} className="rounded-[10px] bg-accent px-3 py-1.5 font-sans text-[11px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105">
-                Suivant
+                {tr('planning.next')}
               </button>
             </div>
 
@@ -267,9 +275,7 @@ export default function CalendrierView({ campaigns, serverNow }: { campaigns: Db
                         href={`/campaigns`}
                         onClick={(e) => e.stopPropagation()}
                         className="absolute inset-x-2.5 bottom-2.5 flex items-center justify-center gap-1 rounded-[10px] border border-border bg-bg-card py-1.5 text-[11px] font-extrabold text-text-primary opacity-0 shadow-sm transition-opacity hover:border-accent hover:text-accent group-hover:opacity-100">
-                        <Plus size={12} strokeWidth={3} />
-                        Ajouter
-                      </Link>
+                        <Plus size={12} strokeWidth={3} />{tr('planning.add')}</Link>
                     </div>
                   )
                 })}
@@ -295,7 +301,7 @@ export default function CalendrierView({ campaigns, serverNow }: { campaigns: Db
                             <Link key={ev.key} href={`/campaigns`} onClick={(e) => e.stopPropagation()}>
                               <div className={`px-1.5 py-1 text-[10px] font-sans font-bold border rounded-neo ${phaseClasses(ev.phase, ev.status)} transition-opacity hover:opacity-80`}>
                                 <div className="truncate">{phasePrefix(ev.phase)}{ev.title}</div>
-                                {isFirst && <div className="text-[9px] opacity-70 mt-0.5">{ev.phase === 'pre' ? 'Pré-campagne' : ev.phase === 'post' ? 'Post-campagne' : STATUS_STYLE[ev.status].label}</div>}
+                                {isFirst && <div className="text-[9px] opacity-70 mt-0.5">{phaseLabel(ev)}</div>}
                               </div>
                             </Link>
                           )
@@ -305,9 +311,7 @@ export default function CalendrierView({ campaigns, serverNow }: { campaigns: Db
                         href={`/campaigns`}
                         onClick={(e) => e.stopPropagation()}
                         className="absolute inset-x-2.5 bottom-2.5 flex items-center justify-center gap-1 rounded-[10px] border border-border bg-bg-card py-1.5 text-[11px] font-extrabold text-text-primary opacity-0 shadow-sm transition-opacity hover:border-accent hover:text-accent group-hover:opacity-100">
-                        <Plus size={12} strokeWidth={3} />
-                        Ajouter
-                      </Link>
+                        <Plus size={12} strokeWidth={3} />{tr('planning.add')}</Link>
                     </div>
                   )
                 })}
@@ -328,7 +332,7 @@ export default function CalendrierView({ campaigns, serverNow }: { campaigns: Db
             </div>
             <div className="p-5 flex flex-col gap-3 max-h-[50vh] overflow-y-auto">
               {phasesOnDay(selectedDay).length === 0 ? (
-                <p className="font-sans text-[11px] text-text-muted text-center py-4">Aucune campagne ce jour.</p>
+                <p className="font-sans text-[11px] text-text-muted text-center py-4">{tr('planning.noCampaignDay')}</p>
               ) : (
                 phasesOnDay(selectedDay).map((ev) => (
                   <Link key={ev.key} href={`/campaigns`} className="group block">
@@ -336,7 +340,7 @@ export default function CalendrierView({ campaigns, serverNow }: { campaigns: Db
                       <span className="text-sm">{ev.phase === 'pre' ? '⏮' : ev.phase === 'post' ? '⏭' : '●'}</span>
                       <div className="flex-1 min-w-0">
                         <p className="font-sans text-[12px] font-bold truncate">{ev.title}</p>
-                        <p className="font-sans text-[9px] opacity-70">{ev.phase === 'pre' ? 'Pré-campagne' : ev.phase === 'post' ? 'Post-campagne' : STATUS_STYLE[ev.status].label}</p>
+                        <p className="font-sans text-[9px] opacity-70">{phaseLabel(ev)}</p>
                       </div>
                     </div>
                   </Link>
@@ -345,7 +349,7 @@ export default function CalendrierView({ campaigns, serverNow }: { campaigns: Db
             </div>
             <div className="px-5 py-4 border-t border-border bg-fg/[0.03]">
               <Link href={`/campaigns`}>
-                <Button fullWidth size="sm">+ Créer une campagne ce jour</Button>
+                <Button fullWidth size="sm">{tr('planning.createCampaignDay')}</Button>
               </Link>
             </div>
           </div>

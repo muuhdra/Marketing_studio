@@ -9,7 +9,7 @@
  */
 
 import { randomUUID } from 'crypto'
-import { and, eq, gt, gte, desc, isNull } from 'drizzle-orm'
+import { and, or, eq, gt, gte, desc, isNull } from 'drizzle-orm'
 import { requireAuth, getActiveBrandId } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
@@ -45,6 +45,7 @@ interface PersistInput {
   avatarName?:      string | null
   sourceUrl?:       string   // URL provider (image / vidéo)
   dataUrl?:         string   // data:...;base64,... (audio)
+  brandId?:         string | null   // override : null = création rapide (sans marque) ; undefined = marque active
 }
 
 function resolveBytes(input: PersistInput, buf: Buffer, contentType: string): { ext: string } {
@@ -81,7 +82,7 @@ export async function persistOutput(input: PersistInput): Promise<OutputDTO | nu
   const { error: upErr } = await supabase.storage.from(BUCKETS.OUTPUTS).upload(path, buffer, { contentType, upsert: true })
   if (upErr) throw upErr
 
-  const brandId = await getActiveBrandId()
+  const brandId = input.brandId !== undefined ? input.brandId : await getActiveBrandId()
   const [row] = await db.insert(generated_outputs).values({
     user_id:          user.id,
     brand_id:         brandId,
@@ -111,7 +112,10 @@ export async function persistOutput(input: PersistInput): Promise<OutputDTO | nu
 export async function listOutputs(): Promise<OutputDTO[]> {
   const user = await requireAuth()
   const brandId = await getActiveBrandId()
-  if (!brandId) return []
+  // Marque active + créations rapides (sans marque). Si aucune marque : que les rapides.
+  const scope = brandId
+    ? or(eq(generated_outputs.brand_id, brandId), isNull(generated_outputs.brand_id))
+    : isNull(generated_outputs.brand_id)
   const rows = await db
     .select({
       id: generated_outputs.id, type: generated_outputs.type, engine: generated_outputs.engine,
@@ -125,7 +129,7 @@ export async function listOutputs(): Promise<OutputDTO[]> {
     .leftJoin(campaigns, eq(generated_outputs.campaign_id, campaigns.id))
     .where(and(
       eq(generated_outputs.user_id, user.id),
-      eq(generated_outputs.brand_id, brandId),
+      scope,
       isNull(generated_outputs.purged_at),
       gt(generated_outputs.expires_at, new Date()),
     ))
@@ -195,6 +199,11 @@ export async function getEstimatedMonthlyCost(): Promise<{ total: number; count:
 /** Toutes les générations de l'utilisateur (y compris purgées) — pas limité à 48h. */
 export async function listOutputMeta(): Promise<OutputMeta[]> {
   const user = await requireAuth()
+  const brandId = await getActiveBrandId()
+  // Marque active + créations rapides (sans marque). Si aucune marque : que les rapides.
+  const scope = brandId
+    ? or(eq(generated_outputs.brand_id, brandId), isNull(generated_outputs.brand_id))
+    : isNull(generated_outputs.brand_id)
   const rows = await db
     .select({
       id:           generated_outputs.id,
@@ -207,7 +216,7 @@ export async function listOutputMeta(): Promise<OutputMeta[]> {
     })
     .from(generated_outputs)
     .leftJoin(campaigns, eq(generated_outputs.campaign_id, campaigns.id))
-    .where(eq(generated_outputs.user_id, user.id))
+    .where(and(eq(generated_outputs.user_id, user.id), scope))
     .orderBy(desc(generated_outputs.created_at))
   return rows.map((r) => ({
     id: r.id, type: r.type, engine: r.engine, title: r.title,

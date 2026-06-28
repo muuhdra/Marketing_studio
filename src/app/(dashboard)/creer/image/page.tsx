@@ -1,5 +1,10 @@
 import Link from 'next/link'
 import { ArrowUpRight, Image as ImageIcon, Megaphone, GalleryHorizontalEnd, Package, Shirt } from 'lucide-react'
+import { IMAGE_TEMPLATES } from '@/lib/templates/library'
+
+// Résout 3 vignettes (URLs) depuis la bibliothèque d'images par id.
+const pickImages = (ids: number[]): string[] =>
+  ids.map((id) => IMAGE_TEMPLATES.find((t) => t.id === id)?.image).filter(Boolean) as string[]
 
 // Types de création d'image (écran « Que veux-tu créer ? »)
 const IMAGE_TYPES = [
@@ -9,6 +14,7 @@ const IMAGE_TYPES = [
     desc: 'Crée des images à partir d\'un simple prompt texte.',
     icon: ImageIcon,
     href: '/creer/image/creator',
+    images: pickImages([8, 15, 1]),
   },
   {
     id: 'static-ad',
@@ -16,6 +22,7 @@ const IMAGE_TYPES = [
     desc: 'Visuels promo nets et percutants pour pubs et campagnes.',
     icon: Megaphone,
     href: '/creer/image/statics',
+    images: pickImages([12, 17, 7]),
   },
   {
     id: 'carousel',
@@ -23,6 +30,7 @@ const IMAGE_TYPES = [
     desc: 'Séquences d\'images cohérentes pour les carrousels social.',
     icon: GalleryHorizontalEnd,
     href: '/creer/image/carousel',
+    images: pickImages([9, 4, 5]),
   },
   {
     id: 'product',
@@ -30,6 +38,7 @@ const IMAGE_TYPES = [
     desc: 'Plans lifestyle stylisés mettant ton produit en valeur.',
     icon: Package,
     href: '/creer/image/product-photoshoot',
+    images: pickImages([10, 19, 20]),
   },
   {
     id: 'fashion',
@@ -37,6 +46,7 @@ const IMAGE_TYPES = [
     desc: 'Shootings mode pro avec mannequins portant tes vêtements ou accessoires.',
     icon: Shirt,
     href: '/creer/image/fashion-photoshoot',
+    images: pickImages([3, 4, 15]),
   },
 ]
 
@@ -48,21 +58,26 @@ export default function CreerImagePage() {
       </h1>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        {IMAGE_TYPES.map(({ id, title, desc, icon: Icon, href }) => (
+        {IMAGE_TYPES.map(({ id, title, desc, icon: Icon, href, images }) => (
           <Link
             key={id}
             href={href}
             className="group relative rounded-neo-xl overflow-hidden border border-border bg-bg-card shadow-neo hover:shadow-neo-lg hover:-translate-y-0.5 transition-all min-h-[240px]"
           >
-            {/* Collage (placeholder — 3 vignettes décalées) */}
+            {/* Collage — 3 vignettes décalées (vraies images, icône en secours) */}
             <div className="absolute inset-x-0 top-0 h-[58%] flex items-center justify-center gap-3 px-7">
               {[0, 1, 2].map((i) => (
                 <span
                   key={i}
-                  className="rounded-neo-md bg-bg-elevated border border-border flex items-center justify-center text-text-faint overflow-hidden"
+                  className="rounded-neo-md bg-bg-elevated border border-border flex items-center justify-center text-text-faint overflow-hidden transition-transform duration-300 group-hover:scale-[1.03]"
                   style={{ width: 82, height: 106, marginTop: i === 1 ? 0 : 22 + i * 4 }}
                 >
-                  <Icon size={22} />
+                  {images[i] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={images[i]} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Icon size={22} />
+                  )}
                 </span>
               ))}
             </div>

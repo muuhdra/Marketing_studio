@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronDown, Check, Video, Image as ImageIcon, Sparkles, L
 import Link from 'next/link'
 import { VIDEO_TEMPLATES, IMAGE_TEMPLATES } from '@/lib/templates/library'
 import { listTemplates, type TemplateDTO } from '@/lib/actions/templates'
+import { useT } from '@/lib/i18n'
 
 // ─── Modèle d'affichage unifié (DB ou repli mock) ────────────────────────────
 
@@ -39,6 +40,7 @@ function mockItems(kind: 'video' | 'image'): GalleryItem[] {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function TemplatesView() {
+  const tr = useT()
   const router = useRouter()
   const [mode, setMode]       = useState<'video' | 'image'>('video')
   const [catOpen, setCatOpen] = useState(false)
@@ -124,7 +126,7 @@ export default function TemplatesView() {
             >
               <ChevronLeft size={19} strokeWidth={2.5} />
             </Link>
-            <h1 className="text-[17px] font-extrabold tracking-tight text-text-primary">Bibliothèque de templates</h1>
+            <h1 className="text-[17px] font-extrabold tracking-tight text-text-primary">{tr('templates.title')}</h1>
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -135,7 +137,7 @@ export default function TemplatesView() {
                 className="flex items-center gap-2 rounded-[10px] border border-border bg-fg/[0.04] px-3 py-1.5 transition-colors hover:bg-fg/[0.08]"
               >
                 <span className="text-[12px] font-extrabold text-text-primary">
-                  {selectedCats.length === 0 ? 'Toutes catégories' : selectedCats.length === 1 ? selectedCats[0] : `${selectedCats.length} sélectionnées`}
+                  {selectedCats.length === 0 ? tr('templates.allCategories') : selectedCats.length === 1 ? selectedCats[0] : tr('templates.selectedCount', { n: selectedCats.length })}
                 </span>
                 <ChevronDown size={14} strokeWidth={2.5} className={`text-text-muted transition-transform ${catOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -150,7 +152,7 @@ export default function TemplatesView() {
                       ? <Check size={16} strokeWidth={3} className="text-accent" />
                       : <span className="h-4 w-4" />}
                     <span className={`text-[14px] font-extrabold ${selectedCats.length === 0 ? 'text-accent' : 'text-text-primary'}`}>
-                      Toutes catégories
+                      {tr('templates.allCategories')}
                     </span>
                   </button>
                   <div className="mx-4 border-t border-border" />
@@ -184,7 +186,7 @@ export default function TemplatesView() {
                 }`}
               >
                 <Video size={14} strokeWidth={2.5} />
-                Vidéo
+                {tr('templates.modeVideo')}
               </button>
               <button
                 onClick={() => { setMode('image'); setSelectedCats([]) }}
@@ -193,7 +195,7 @@ export default function TemplatesView() {
                 }`}
               >
                 <ImageIcon size={14} strokeWidth={2.5} />
-                Image
+                {tr('templates.modeImage')}
               </button>
             </div>
           </div>
@@ -204,15 +206,15 @@ export default function TemplatesView() {
           {loading ? (
             <div className="flex h-full min-h-[300px] items-center justify-center gap-2 text-text-muted">
               <Loader2 size={18} className="animate-spin" />
-              <span className="text-[13px] font-bold">Chargement des templates…</span>
+              <span className="text-[13px] font-bold">{tr('templates.loading')}</span>
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex h-full min-h-[300px] flex-col items-center justify-center gap-3 text-center">
               <div className="grid h-14 w-14 place-items-center rounded-full bg-fg/[0.08]">
                 {mode === 'video' ? <Video size={26} className="text-text-faint" /> : <ImageIcon size={26} className="text-text-faint" />}
               </div>
-              <p className="text-[15px] font-extrabold text-text-primary">Aucun template</p>
-              <p className="text-[13px] font-medium text-text-secondary">Aucun template ne correspond à ce filtre.</p>
+              <p className="text-[15px] font-extrabold text-text-primary">{tr('templates.emptyTitle')}</p>
+              <p className="text-[13px] font-medium text-text-secondary">{tr('templates.emptyDesc')}</p>
             </div>
           ) : (
             <div className="columns-2 gap-3 sm:columns-3 md:columns-4 lg:columns-5">
@@ -262,7 +264,7 @@ export default function TemplatesView() {
                         className="flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-[10px] font-extrabold text-white shadow-neo transition hover:brightness-105"
                       >
                         <Sparkles size={11} strokeWidth={2.5} />
-                        Utiliser
+                        {tr('templates.use')}
                       </button>
                     </div>
                   </div>

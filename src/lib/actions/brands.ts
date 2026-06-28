@@ -7,9 +7,11 @@
  */
 
 import { db } from '@/lib/db'
-import { brands } from '@/lib/db/schema'
+import { brands, products, brand_folders, brand_assets, brand_templates, campaigns, generated_outputs } from '@/lib/db/schema'
 import { eq, asc, and } from 'drizzle-orm'
 import { requireAuth } from './auth'
+import { createClient } from '@/lib/supabase/server'
+import { BUCKETS } from '@/lib/supabase/storage'
 import { createAimlClient, MODELS } from '@/lib/ai/client'
 import { parseJsonLoose } from '@/lib/ai/json'
 
@@ -108,9 +110,44 @@ export async function updateBrand(id: string, patch: {
   return toDTO(row)
 }
 
-/** Supprime une marque. */
+/**
+ * Suppression DÉFINITIVE d'une marque : efface tous ses contenus (produits, dossiers,
+ * assets, templates, campagnes, créations) en base ET les fichiers du stockage.
+ */
 export async function deleteBrand(id: string): Promise<void> {
   const user = await requireAuth()
+  const scope = (t: typeof products | typeof brand_assets | typeof brand_templates | typeof brand_folders | typeof campaigns | typeof generated_outputs) =>
+    and(eq(t.user_id, user.id), eq(t.brand_id, id))
+
+  const [owned] = await db.select({ id: brands.id }).from(brands).where(and(eq(brands.id, id), eq(brands.user_id, user.id)))
+  if (!owned) throw new Error('Marque introuvable ou accès refusé')
+
+  // 1) Collecte des fichiers de stockage à supprimer.
+  const prodRows = await db.select({ image: products.image_url, extra: products.additional_images }).from(products).where(scope(products))
+  const assetRows = await db.select({ path: brand_assets.path }).from(brand_assets).where(scope(brand_assets))
+  const tplRows = await db.select({ path: brand_templates.path }).from(brand_templates).where(scope(brand_templates))
+  const outRows = await db.select({ path: generated_outputs.storage_path }).from(generated_outputs).where(scope(generated_outputs))
+
+  const assetPaths = [
+    ...prodRows.flatMap((r) => [r.image, ...(r.extra ?? [])]),
+    ...assetRows.map((r) => r.path),
+    ...tplRows.map((r) => r.path),
+  ].filter((p): p is string => !!p)
+  const outputPaths = outRows.map((r) => r.path).filter(Boolean)
+
+  const supabase = await createClient()
+  if (assetPaths.length) await supabase.storage.from(BUCKETS.ASSETS).remove(assetPaths).catch(() => {})
+  if (outputPaths.length) await supabase.storage.from(BUCKETS.OUTPUTS).remove(outputPaths).catch(() => {})
+
+  // 2) Suppression des lignes en base (campagnes → cascade sur dna/contenus/assignations).
+  await db.delete(generated_outputs).where(scope(generated_outputs))
+  await db.delete(brand_templates).where(scope(brand_templates))
+  await db.delete(brand_assets).where(scope(brand_assets))
+  await db.delete(brand_folders).where(scope(brand_folders))
+  await db.delete(products).where(scope(products))
+  await db.delete(campaigns).where(scope(campaigns))
+
+  // 3) La marque elle-même.
   await db.delete(brands).where(and(eq(brands.id, id), eq(brands.user_id, user.id)))
 }
 

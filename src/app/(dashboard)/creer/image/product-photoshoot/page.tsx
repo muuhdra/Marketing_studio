@@ -13,7 +13,7 @@ import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useToast } from '@/lib/stores/toastStore'
 import { useBrand } from '@/lib/stores/brandStore'
 import { AssetPickerModal } from '@/components/features/creer/AssetPicker'
-import { BackButton, ContinueButton, DevStepNav, MainPanel, PageShell, WizardHeader, ratioStyle, ratioToSize, StepSlider } from '@/components/features/creer/WizardKit'
+import { BackButton, ContinueButton, MainPanel, PageShell, WizardHeader, ratioStyle, ratioToSize, StepSlider } from '@/components/features/creer/WizardKit'
 
 // Nano Banana ne produit que 3 tailles → on n'expose que les 3 formats réels.
 const DIMENSIONS: { ratio: string; label: string }[] = [
@@ -270,23 +270,6 @@ export default function ProductPhotoshootPage() {
       if (id === 'actor') setSelectedHandUrl(''); else setSelectedAvatarUrl('')
       setPreviewSubtitle('Ton image sélectionnée apparaîtra ici')
     })
-  }
-
-  // [DEV] Saut direct vers n'importe quelle étape, sans validation.
-  function goToStep(id: StepId) {
-    let type = selectedType
-    let style = selectedHoldingStyle
-    if (id === 'product' || id === 'productImage' || id === 'aspect') type = 'showcase'
-    else if (id === 'holdingStyle') type = 'holding'
-    else if (id === 'actor') { type = 'holding'; style = 'actor' }
-    else if (id === 'hand') { type = 'holding'; style = 'hand' }
-    else if (id === 'position') { type = 'holding'; if (style !== 'hand') style = 'actor' }
-    const list = buildSteps(type, style)
-    const idx = list.indexOf(id)
-    if (idx < 0) return
-    setSelectedType(type)
-    setSelectedHoldingStyle(style)
-    setCurrentStep(idx)
   }
 
   async function handleActorProductUpload(file: File | undefined) {
@@ -885,21 +868,6 @@ export default function ProductPhotoshootPage() {
       </MainPanel>
 
       <AssetPickerModal open={assetPickerOpen} onClose={() => setAssetPickerOpen(false)} onPick={(url) => pickProductAsset(url)} types={['image']} selectedUrls={[selectedProductImageUrl]} closeOnPick title="Mes Assets (images)" />
-
-      <DevStepNav
-        steps={[
-          { id: 'type', label: 'Type' },
-          { id: 'product', label: 'Produit' },
-          { id: 'productImage', label: 'Image' },
-          { id: 'aspect', label: 'Ratio' },
-          { id: 'holdingStyle', label: 'Style' },
-          { id: 'actor', label: 'Acteur' },
-          { id: 'hand', label: 'Main' },
-          { id: 'position', label: 'Position' },
-        ]}
-        active={stepId}
-        onJump={goToStep}
-      />
 
       {lightboxOpen && generatedUrl && (
         <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/85 p-6 animate-fade-in" onClick={() => setLightboxOpen(false)}>

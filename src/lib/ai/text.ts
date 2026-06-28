@@ -11,25 +11,17 @@ import { createAimlClient, MODELS } from './client'
 import { type ResearchContext, formatResearchForPrompt } from './research'
 import { parseJsonLoose } from './json'
 
-// ─── chatAssistant — assistant conversationnel du studio ─────────────────────
+// ─── Assistant-agent : types partagés ───────────────────────────────────────
 
 export interface ChatMessage { role: 'user' | 'assistant'; content: string }
 
-/** Assistant IA du studio marketing : répond aux questions et guide l'utilisateur. */
-export async function chatAssistant(messages: ChatMessage[], context?: { studioName?: string; brand?: string }): Promise<string> {
-  const client = createAimlClient()
-  const system = `Tu es l'assistant IA de « ${context?.studioName || 'notre studio'} », un studio de création publicitaire par IA.
-Tu aides l'utilisateur à : créer des images et vidéos (UGC, pubs statiques, carrousels, shootings, B-roll voix off), gérer ses marques et campagnes, ses produits, avatars/personnages, templates, et sa stratégie marketing (ads DTC, social).
-Réponds en français, de façon concise, concrète et actionnable (puces si utile). Oriente vers la bonne fonctionnalité du studio quand c'est pertinent. Si on te demande quelque chose hors marketing/produit, recadre poliment.${context?.brand ? `\nMarque active : ${context.brand}.` : ''}`
-
-  const res = await client.chat.completions.create({
-    model: MODELS.text.chatgpt,
-    messages: [{ role: 'system', content: system }, ...messages.slice(-12)],
-    temperature: 0.6,
-    max_tokens: 600,
-  })
-  return res.choices[0]?.message?.content?.trim() || "Désolé, je n'ai pas pu répondre. Réessaie."
-}
+// Actions que l'assistant peut commander côté interface (exécutées par le client).
+export type ChatAction =
+  | { type: 'navigate'; path: string }
+  | { type: 'create_brand'; name: string; color?: string; category?: string }
+  | { type: 'switch_brand'; name: string }
+  | { type: 'create_image'; prompt?: string }
+  | { type: 'create_video'; mode: 'realistic-actor' | 'broll-voiceover' }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

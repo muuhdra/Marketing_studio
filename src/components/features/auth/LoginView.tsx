@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import Button from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { actionEmailAllowed } from '@/lib/actions/auth'
 
 const STORAGE_KEY = 'ms_last_email'
 
@@ -20,6 +21,10 @@ export default function LoginView() {
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) setSavedEmail(stored)
+    // Accès refusé (redirigé depuis le dashboard par l'allowlist)
+    if (new URLSearchParams(window.location.search).get('denied')) {
+      setError('Cet email n’a pas accès à ce projet (accès privé).')
+    }
   }, [])
 
   const supabase = createBrowserClient(
@@ -30,6 +35,14 @@ export default function LoginView() {
   async function sendMagicLink(target: string, quickStep: Step = 'loading') {
     setStep(quickStep)
     setError(null)
+
+    // Accès privé : on bloque AVANT d'envoyer le moindre email.
+    const allowed = await actionEmailAllowed(target.trim().toLowerCase())
+    if (!allowed) {
+      setStep('idle')
+      setError('Cet email n’a pas accès à ce projet (accès privé).')
+      return
+    }
 
     const { error } = await supabase.auth.signInWithOtp({
       email: target.trim().toLowerCase(),

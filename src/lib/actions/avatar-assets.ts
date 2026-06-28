@@ -71,43 +71,6 @@ export async function actionPersistAvatarPhoto(avatarId: string, sourceUrl: stri
   }
 }
 
-/**
- * URL signée de l'image de référence d'un avatar (portrait ID en priorité) pour
- * la cohérence en génération (img2vid / image-to-image). 1h.
- */
-export async function actionGetAvatarRefImage(avatarId: string): Promise<string | null> {
-  const user = await requireAuth()
-  const [a] = await db
-    .select({ user_id: avatars.user_id, photo: avatars.source_photo_url })
-    .from(avatars)
-    .where(eq(avatars.id, avatarId))
-  if (!a || a.user_id !== user.id || !a.photo) return null
-  const supabase = await createClient()
-  const { data } = await supabase.storage.from(BUCKETS.ASSETS).createSignedUrl(a.photo, 60 * 60)
-  return data?.signedUrl ?? null
-}
-
-// ─── Fiche de référence personnage (planche multi-poses) ──────────────────────
-export async function actionPersistAvatarSheet(avatarId: string, sourceUrl: string): Promise<string | null> {
-  const user = await requireAuth()
-  await assertAvatarOwner(avatarId, user.id)
-  if (!sourceUrl) return null
-  try {
-    const res = await fetch(sourceUrl)
-    if (!res.ok) throw new Error('Téléchargement de la planche échoué')
-    const mime   = res.headers.get('content-type') || 'image/png'
-    const buffer = Buffer.from(await res.arrayBuffer())
-    const path   = ASSET_PATHS.avatarSheet(user.id, avatarId)
-    const supabase = await createClient()
-    const { error } = await supabase.storage.from(BUCKETS.ASSETS).upload(path, buffer, { contentType: mime, upsert: true })
-    if (error) throw error
-    await db.update(avatars).set({ reference_sheet_url: path, updated_at: new Date() }).where(eq(avatars.id, avatarId))
-    return path
-  } catch {
-    return null
-  }
-}
-
 // ─── Upload d'une photo de base fournie par l'utilisateur ──────────────────────
 
 export async function actionUploadAvatarPhoto(formData: FormData): Promise<string | null> {
@@ -236,6 +199,23 @@ export async function actionUploadTempImage(dataUrl: string): Promise<{ url: str
   return { url: data?.signedUrl ?? '', path }
 }
 
+/** Upload temporaire d'une VIDÉO (via FormData) → URL signée 1h. Pour Clonage studio. */
+export async function actionUploadTempVideo(formData: FormData): Promise<{ url: string; path: string }> {
+  const user = await requireAuth()
+  const file = formData.get('file') as File | null
+  if (!file || file.size === 0) throw new Error('Aucune vidéo fournie')
+  if (!file.type.startsWith('video/')) throw new Error('Le fichier doit être une vidéo')
+  if (file.size > 100 * 1024 * 1024) throw new Error('Vidéo trop lourde (max 100 MB)')
+  const ext = file.name.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() || 'mp4'
+  const path = `${user.id}/tmp/${randomUUID()}.${ext}`
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const supabase = await createClient()
+  const { error } = await supabase.storage.from(BUCKETS.ASSETS).upload(path, buffer, { contentType: file.type, upsert: true })
+  if (error) throw error
+  const { data } = await supabase.storage.from(BUCKETS.ASSETS).createSignedUrl(path, 60 * 60)
+  return { url: data?.signedUrl ?? '', path }
+}
+
 /** Supprime un fichier temporaire (suppression après usage). Restreint à {userId}/tmp/. */
 export async function actionDeleteTempImage(path: string): Promise<void> {
   const user = await requireAuth()
@@ -253,16 +233,6 @@ export async function actionListOutfits(avatarId: string) {
 }
 
 // Bibliothèque complète d'un avatar (tenues + décors) — pour la modale d'assignation
-export async function actionGetAvatarLibrary(avatarId: string) {
-  const user = await requireAuth()
-  await assertAvatarOwner(avatarId, user.id)
-  const [outfits, environments] = await Promise.all([
-    db.select().from(avatar_outfits).where(eq(avatar_outfits.avatar_id, avatarId)).orderBy(avatar_outfits.created_at),
-    db.select().from(avatar_environments).where(eq(avatar_environments.avatar_id, avatarId)).orderBy(avatar_environments.created_at),
-  ])
-  return { outfits, environments }
-}
-
 export async function actionAddOutfit(formData: FormData) {
   const user = await requireAuth()
 
@@ -387,3 +357,4 @@ export async function actionDeleteEnvironment(envId: string) {
   }
   await db.delete(avatar_environments).where(eq(avatar_environments.id, envId))
 }
+

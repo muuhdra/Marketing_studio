@@ -17,8 +17,6 @@ export const ASSET_PATHS = {
   // pas d'orphelin si l'extension change. Le content-type est stocké à l'upload.
   avatarPhoto: (userId: string, avatarId: string) =>
     `${userId}/avatars/${avatarId}/photo`,
-  avatarSheet: (userId: string, avatarId: string) =>
-    `${userId}/avatars/${avatarId}/sheet`,
   avatarVoice: (userId: string, avatarId: string, ext: string = 'mp3') =>
     `${userId}/avatars/${avatarId}/voice.${ext}`,
   avatarOutfit: (userId: string, avatarId: string, outfitId: string, ext: string = 'png') =>

@@ -194,44 +194,6 @@ export async function generateAvatarPhoto(options: {
 }
 
 /**
- * Fiche de référence personnage (model sheet) — Nano Banana.
- * Une planche 3×3 du MÊME personnage sous plusieurs angles/expressions (cohérence d'identité).
- */
-export async function generateAvatarSheet(options: {
-  age?:       number
-  ethnicity?: string
-  style?:     string
-  traits?:    string
-  descriptionPrompt?: string   // identité dérivée d'une photo
-  imageUrl?:  string           // portrait de référence → image-to-image (fidélité au visage)
-}): Promise<ImageResult> {
-  const identity = options.descriptionPrompt?.trim() ? `${options.descriptionPrompt.trim()} ` : ''
-  // Avec le portrait de référence : on insiste sur la fidélité au visage fourni.
-  const lead = options.imageUrl
-    ? 'Character reference sheet (model sheet): a 3x3 grid contact sheet of the EXACT SAME person shown in the provided reference image — preserve their face, hairstyle and identity identically in every frame.'
-    : `Character reference sheet (model sheet): a 3x3 grid contact sheet of the SAME person, ${identity}with identical face, hairstyle and identity in every frame.`
-  const prompt = [
-    lead,
-    options.traits?.trim() ? `${options.traits.trim()}.` : '',
-    options.ethnicity ? `Ethnicity: ${options.ethnicity}.` : '',
-    options.age ? `Age approximately ${options.age} years old.` : '',
-    options.style ? `Style: ${options.style}.` : '',
-    'Varied head poses and expressions across the 9 frames: front neutral, three-quarter view, side profile, smiling, laughing, winking, looking away, looking down, surprised.',
-    'Consistent seamless neutral studio background, even lighting, evenly spaced grid. Photorealistic, no text, no watermarks.',
-  ].filter(Boolean).join(' ')
-
-  const results = await generateImage({
-    prompt,
-    model:    'nano-banana',
-    size:     '1024x1024',
-    quality:  'hd',
-    imageUrl: options.imageUrl,
-  })
-
-  return results[0]
-}
-
-/**
  * Thumbnail vidéo — Nano Banana (rapide, impact visuel)
  */
 export async function generateVideoThumbnail(options: {
