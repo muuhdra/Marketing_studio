@@ -549,6 +549,25 @@ export const budget_usage = pgTable('budget_usage', {
 ])
 
 // ─────────────────────────────────────────────
+// API KEYS — accès MCP (serveur Model Context Protocol)
+// ─────────────────────────────────────────────
+
+export const api_keys = pgTable('api_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  user_id: uuid('user_id').notNull(),
+  name: text('name').notNull(),                 // libellé donné par l'utilisateur (ex. "Claude Desktop")
+  key_prefix: text('key_prefix').notNull(),     // début lisible (ms_live_xxxx…) pour l'affichage
+  key_hash: text('key_hash').notNull(),         // SHA-256 de la clé complète (jamais stockée en clair)
+  last_used_at: timestamp('last_used_at', { withTimezone: true }),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('api_keys_user_id_idx').on(t.user_id),
+  index('api_keys_hash_idx').on(t.key_hash),
+])
+
+export type ApiKey = typeof api_keys.$inferSelect
+
+// ─────────────────────────────────────────────
 // RELATIONS (Drizzle query builder)
 // ─────────────────────────────────────────────
 

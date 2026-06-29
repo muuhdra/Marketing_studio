@@ -2,7 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // Routes totalement exclues du proxy (pas de vérification session)
-const BYPASS_ROUTES = ['/auth/callback', '/auth/']
+// /api/mcp : serveur MCP authentifié par clé API (Bearer), pas par cookie Supabase.
+const BYPASS_ROUTES = ['/auth/callback', '/auth/', '/api/mcp']
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl

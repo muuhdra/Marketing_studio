@@ -9,8 +9,9 @@ import { useBrands } from '@/lib/stores/brandsStore'
 import { listBrands, deleteBrand, type BrandDTO } from '@/lib/actions/brands'
 import { actionIsDev } from '@/lib/actions/auth'
 import { listTemplates, createTemplate, deleteTemplate, type TemplateDTO } from '@/lib/actions/templates'
+import { listApiKeys, createApiKey, revokeApiKey, type ApiKeyDTO } from '@/lib/actions/api-keys'
 import { useT } from '@/lib/i18n'
-import { User, Building2, LogOut, Check, Trash2, Loader2, Store, Code2, Upload, Video, Image as ImageIcon } from 'lucide-react'
+import { User, Building2, LogOut, Check, Trash2, Loader2, Store, Code2, Upload, Video, Image as ImageIcon, Plug, Copy } from 'lucide-react'
 
 const LOCALES = [
   { id: 'fr-FR', label: '🇫🇷 Français' },
@@ -46,6 +47,33 @@ export default function SettingsView() {
   const [deletingTplId, setDeletingTplId] = useState<string | null>(null)
   const [tplKindTab, setTplKindTab] = useState<'video' | 'image'>('video')
 
+  // ── Clés API MCP ──
+  const [apiKeys, setApiKeys] = useState<ApiKeyDTO[]>([])
+  const [newKeyName, setNewKeyName] = useState('')
+  const [creatingKey, setCreatingKey] = useState(false)
+  const [createdKey, setCreatedKey] = useState<string | null>(null)
+  const [revokingKeyId, setRevokingKeyId] = useState<string | null>(null)
+  const mcpUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/mcp` : '/api/mcp'
+
+  async function createKey() {
+    if (creatingKey) return
+    setCreatingKey(true)
+    try {
+      const { key, dto } = await createApiKey(newKeyName)
+      setApiKeys((l) => [dto, ...l])
+      setCreatedKey(key)
+      setNewKeyName('')
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Création impossible') }
+    finally { setCreatingKey(false) }
+  }
+  async function revokeKey(id: string) {
+    if (revokingKeyId) return
+    setRevokingKeyId(id)
+    try { await revokeApiKey(id); setApiKeys((l) => l.filter((k) => k.id !== id)); toast.success('Clé révoquée') }
+    catch (e) { toast.error(e instanceof Error ? e.message : 'Révocation impossible') }
+    finally { setRevokingKeyId(null) }
+  }
+
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -58,6 +86,7 @@ export default function SettingsView() {
       setIsDev(dev)
       if (dev) listTemplates().then(setSysTemplates).catch(() => {})
     }).catch(() => {})
+    listApiKeys().then(setApiKeys).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function uploadSystemTemplate() {
@@ -247,6 +276,66 @@ export default function SettingsView() {
                           <Trash2 size={14} strokeWidth={2.3} />
                         </button>
                       )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Accès MCP (clés API) */}
+            <div className="rounded-[14px] border border-border bg-fg/[0.02] p-5">
+              <div className="mb-1 flex items-center gap-2">
+                <Plug size={16} className="text-accent" />
+                <h2 className="text-[14px] font-extrabold text-text-primary">Accès MCP</h2>
+              </div>
+              <p className="mb-4 text-[11px] font-medium text-text-muted">
+                Connecte ton studio à Claude, GPT, Cursor… via le Model Context Protocol. Ajoute ce serveur dans ton client IA avec une clé ci-dessous.
+              </p>
+
+              {/* URL du serveur */}
+              <div className="mb-4">
+                <span className="mb-1.5 block text-[12px] font-extrabold text-text-primary">URL du serveur MCP</span>
+                <div className="flex items-center gap-2">
+                  <code className="flex h-9 flex-1 items-center overflow-x-auto rounded-[8px] border border-border bg-fg/[0.04] px-3 text-[12px] font-semibold text-text-secondary">{mcpUrl}</code>
+                  <button type="button" onClick={() => { navigator.clipboard?.writeText(mcpUrl); toast.success('URL copiée') }} className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] border border-border text-text-secondary transition hover:border-accent hover:text-accent" aria-label="Copier l'URL"><Copy size={14} /></button>
+                </div>
+              </div>
+
+              {/* Clé fraîchement créée (affichée une seule fois) */}
+              {createdKey && (
+                <div className="mb-4 rounded-[10px] border border-accent/40 bg-accent/[0.05] p-3">
+                  <p className="mb-1.5 text-[11px] font-extrabold text-accent">Copie ta clé maintenant — elle ne sera plus affichée.</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex h-9 flex-1 items-center overflow-x-auto rounded-[8px] border border-border bg-bg-card px-3 text-[12px] font-bold text-text-primary">{createdKey}</code>
+                    <button type="button" onClick={() => { navigator.clipboard?.writeText(createdKey); toast.success('Clé copiée') }} className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] bg-accent text-white transition hover:brightness-105" aria-label="Copier la clé"><Copy size={14} /></button>
+                  </div>
+                  <button type="button" onClick={() => setCreatedKey(null)} className="mt-2 text-[11px] font-bold text-text-muted hover:text-text-primary">J'ai copié ma clé</button>
+                </div>
+              )}
+
+              {/* Création */}
+              <div className="mb-4 flex items-center gap-2">
+                <input value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} placeholder="Nom de la clé (ex. Claude Desktop)" className="h-9 flex-1 rounded-[8px] border border-border bg-fg/[0.04] px-3 text-[12px] font-semibold text-text-primary outline-none focus:border-accent" />
+                <button type="button" onClick={createKey} disabled={creatingKey} className="flex h-9 shrink-0 items-center gap-1.5 rounded-[8px] bg-accent px-4 text-[12px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105 disabled:opacity-55">
+                  {creatingKey ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.6} />}
+                  Générer une clé
+                </button>
+              </div>
+
+              {/* Liste */}
+              {apiKeys.length === 0 ? (
+                <p className="text-[12px] font-medium text-text-muted">Aucune clé. Génère-en une pour connecter ton client IA.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {apiKeys.map((k) => (
+                    <div key={k.id} className="flex items-center gap-3 rounded-[10px] border border-border bg-bg-card px-3 py-2">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-extrabold text-text-primary">{k.name}</span>
+                        <span className="block truncate text-[11px] font-medium text-text-muted">{k.prefix} · {k.lastUsedAt ? 'utilisée' : 'jamais utilisée'}</span>
+                      </span>
+                      <button type="button" onClick={() => revokeKey(k.id)} disabled={revokingKeyId === k.id} title="Révoquer" className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-text-muted transition hover:bg-coral/10 hover:text-coral disabled:opacity-50">
+                        {revokingKeyId === k.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={14} strokeWidth={2.3} />}
+                      </button>
                     </div>
                   ))}
                 </div>
