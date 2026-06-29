@@ -12,7 +12,9 @@
 
 export const PER_SECOND_COST: Record<string, number> = {
   'kling-v2.1-pro': 0.1029,   // tarif AIML réel
+  'kling':          0.1029,   // alias (engine utilisé par les wizards)
   'seedance-pro':   0.067,    // Seedance 2.0 (~$0.067/s, tarif marché)
+  'seedance':       0.067,    // alias
 }
 
 export const UNIT_COST: Record<string, number> = {
@@ -34,4 +36,10 @@ export function estimateCost(engine: string | null | undefined, durationSeconds?
     return perSec * secs
   }
   return UNIT_COST[engine] ?? 0
+}
+
+/** Formatage USD compact pour l'indicateur de coût (ex. $0.04, $0.51). */
+export function formatCost(usd: number): string {
+  if (usd <= 0) return '$0'
+  return usd < 1 ? `$${usd.toFixed(2)}` : `$${usd.toFixed(2)}`
 }

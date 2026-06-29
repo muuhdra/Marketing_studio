@@ -9,6 +9,7 @@ import { actionGenerateImage } from '@/lib/actions/ai'
 import { actionUploadTempImage, actionListAvatarsForPicker } from '@/lib/actions/avatar-assets'
 import { actionUploadProductImage, actionCreateProduct, actionListProducts, actionAnalyzeProductUrl, actionDeleteProduct, type ProductDTO } from '@/lib/actions/products'
 import { persistOutput } from '@/lib/actions/outputs'
+import { estimateCost, formatCost } from '@/lib/ai/costs'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useToast } from '@/lib/stores/toastStore'
 import type { ImageResult } from '@/lib/ai/image'
@@ -335,7 +336,7 @@ export default function CustomImageCreatorPage() {
           className="w-full h-12 rounded-[14px] bg-[#ff987f] text-white font-extrabold text-[16px] flex items-center justify-center gap-3 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:cursor-not-allowed shadow-sm">
           {generating
             ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Generating...</>
-            : <><Sparkles size={19} /> Generate <span className="text-white/70">·</span> <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-white/30 flex items-center justify-center text-[11px]">◆</span>{variations}</span></>}
+            : <><Sparkles size={19} /> Generate <span className="text-white/70">·</span> <span className="inline-flex items-center gap-1.5">{formatCost(estimateCost('nano-banana') * variations)}</span></>}
         </button>
 
         {/* Résultats */}

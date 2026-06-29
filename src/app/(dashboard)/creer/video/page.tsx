@@ -51,6 +51,7 @@ import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { actionGenerateScript, actionGenerateSpeech, actionSubmitVideo, actionGetVideoStatus, actionIsVoiceCloneEnabled, actionGenerateImage } from '@/lib/actions/ai'
 import { VOICE_PROFILES, MINIMAX_EMOTIONS, VOICE_LANGUAGES } from '@/lib/ai/voice-catalog'
 import { persistOutput } from '@/lib/actions/outputs'
+import { estimateCost, formatCost } from '@/lib/ai/costs'
 import { actionSubmitClone, actionGetCloneStatus } from '@/lib/actions/clone'
 import { useToast } from '@/lib/stores/toastStore'
 import { useSettings } from '@/lib/stores/settingsStore'
@@ -1280,7 +1281,7 @@ export default function CreerVideoPage() {
                           <span className="ml-1 text-text-dim">· ~{Math.max(1, Math.round(actorScript.trim().split(/\s+/).filter(Boolean).length / 2.5))}s</span>
                         </span>
                         <button onClick={generateActorAudio} disabled={generatingAudio || !actorScript.trim()} className="h-8 rounded-[10px] bg-accent px-4 text-[12px] font-extrabold text-white inline-flex items-center gap-2 shadow-sm hover:brightness-105 transition disabled:opacity-55 disabled:cursor-not-allowed">
-                          {generatingAudio ? 'Génération…' : <>Generate Audio <Gem size={14} fill="currentColor" /> 1</>}
+                          {generatingAudio ? 'Génération…' : <>Generate Audio <span className="opacity-80">·</span> {formatCost(estimateCost('minimax'))}</>}
                         </button>
                       </div>
                       {actorAudioUrl && (
@@ -1290,7 +1291,7 @@ export default function CreerVideoPage() {
                     </div>
                     <div className="mt-4 flex justify-center">
                       <button onClick={generateActorVideo} disabled={generatingVideo || !selectedActorUrl} className="h-9 rounded-[10px] bg-[#ff987f] px-7 text-[13px] font-extrabold text-white inline-flex items-center gap-2.5 shadow-sm hover:brightness-105 transition disabled:opacity-55 disabled:cursor-not-allowed">
-                        {generatingVideo ? 'Génération de la vidéo…' : <>Générer la vidéo <ChevronDown size={15} className="-rotate-90" /></>}
+                        {generatingVideo ? 'Génération de la vidéo…' : <>Générer la vidéo <span className="opacity-80">·</span> {formatCost(estimateCost('kling', 5))}</>}
                       </button>
                     </div>
                   </div>
@@ -2082,7 +2083,7 @@ export default function CreerVideoPage() {
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-2.5">
                     <span className="text-[11px] font-semibold text-text-secondary">{brollAudioUrl ? 'Voix-off prête ✓' : 'Synthétise la voix-off avec la voix sélectionnée'}</span>
                     <button type="button" onClick={generateBrollAudio} disabled={generatingBrollAudio || !manualBrollScript.trim()} className="inline-flex h-7 items-center gap-2 rounded-[10px] bg-accent px-3.5 text-[11px] font-extrabold text-white shadow-sm transition hover:brightness-105 disabled:opacity-55 disabled:cursor-not-allowed">
-                      {generatingBrollAudio ? 'Génération…' : <>Générer la voix-off <Gem size={13} fill="currentColor" /> 1</>}
+                      {generatingBrollAudio ? 'Génération…' : <>Générer la voix-off <span className="opacity-80">·</span> {formatCost(estimateCost('minimax'))}</>}
                     </button>
                   </div>
                   {brollAudioUrl && (
@@ -2107,7 +2108,7 @@ export default function CreerVideoPage() {
                     disabled={generatingBrollVideo || !manualBrollScript.trim()}
                     className="inline-flex h-10 items-center justify-center gap-2.5 rounded-[10px] bg-[#ff987f] px-6 text-[14px] font-extrabold text-white shadow-sm transition hover:brightness-105 disabled:opacity-55 disabled:cursor-not-allowed"
                   >
-                    {generatingBrollVideo ? 'Génération de la vidéo…' : <>Générer la vidéo <ChevronDown size={15} className="-rotate-90" /></>}
+                    {generatingBrollVideo ? 'Génération de la vidéo…' : <>Générer la vidéo <span className="opacity-80">·</span> {formatCost(estimateCost('kling', 5))}</>}
                   </button>
                 </div>
               </div>
@@ -2123,33 +2124,6 @@ export default function CreerVideoPage() {
             <a href={actorVideoUrl} download target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="absolute bottom-5 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-[13px] font-extrabold text-zinc-950 shadow-neo hover:brightness-95"><Download size={15} /> Télécharger</a>
           </div>
         )}
-
-        {/* [DEV] Navigation libre entre les étapes du flux b-roll (à retirer en prod) */}
-        <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-1 rounded-full border border-border bg-bg-card/95 backdrop-blur px-2 py-1.5 shadow-neo-lg">
-          <span className="px-2 text-[10px] font-bold uppercase tracking-wide text-text-dim">Dev</span>
-          {([
-            { id: 'choice', label: 'Choix' },
-            { id: 'goals', label: 'Objectif' },
-            { id: 'audience', label: 'Audience' },
-            { id: 'products', label: 'Produit' },
-            { id: 'images', label: 'Images' },
-            { id: 'actors', label: 'Acteurs' },
-            { id: 'configure', label: 'Configure' },
-            { id: 'manual-script', label: 'Script' },
-          ] as { id: typeof brollStep; label: string }[]).map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => {
-                if (id === 'manual-script') setBrollFlow('manual')
-                else if (id === 'goals' || id === 'audience' || id === 'configure') setBrollFlow('ai')
-                setBrollStep(id)
-              }}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${brollStep === id ? 'bg-accent text-white' : 'text-text-secondary hover:bg-fg/[0.06]'}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
 
         {voiceAndActorModals}
       </div>
@@ -2415,8 +2389,7 @@ export default function CreerVideoPage() {
                           <span className="mt-0.5 block text-[12px] font-medium leading-snug text-text-secondary">{model.desc}</span>
                         </span>
                         <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-fg/[0.10] px-2 py-0.5 text-[12px] font-extrabold text-text-primary">
-                          <Gem size={14} className="text-accent" fill="currentColor" />
-                          {model.tokens}
+                          {formatCost(estimateCost(model.engine, customVideoDuration))}
                         </span>
                       </button>
                     )
@@ -2525,7 +2498,7 @@ export default function CreerVideoPage() {
                     {generatingCustomVideo ? (
                       <><span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" /> Génération de la vidéo…</>
                     ) : (
-                      <><Wand2 size={16} /> Generate Video <span className="opacity-80">·</span> <Gem size={15} fill="currentColor" /> {selectedCustomVideoModelDetails?.tokens ?? 15}</>
+                      <><Wand2 size={16} /> Generate Video <span className="opacity-80">·</span> {formatCost(estimateCost(selectedCustomVideoModelDetails?.engine ?? 'kling', customVideoDuration))}</>
                     )}
                   </button>
                 </div>

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Box, Camera, Check, ChevronDown, CircleCheck, Download, Gem, ImageIcon, Images, Maximize2, RotateCcw, ScanSearch, Shirt, Sparkles, Upload, UserRound, Watch, Wand2, X } from 'lucide-react'
+import { Box, Camera, Check, ChevronDown, CircleCheck, Download, ImageIcon, Images, Maximize2, RotateCcw, ScanSearch, Shirt, Sparkles, Upload, UserRound, Watch, Wand2, X } from 'lucide-react'
 import { actionGenerateImage, actionDescribeProductScene, actionSuggestFashionScene } from '@/lib/actions/ai'
+import { estimateCost, formatCost } from '@/lib/ai/costs'
 import { actionListAvatarsForPicker } from '@/lib/actions/avatar-assets'
 import { actionListShootingModels, actionGenerateShootingModel, type ShootingModelDTO } from '@/lib/actions/shooting-models'
 import { MODEL_NATIONALITIES, MODEL_BODY_TYPES, nationalityFlag } from '@/lib/fashion/model-traits'
@@ -581,7 +582,7 @@ export default function FashionPhotoshootPage() {
 
         <div className="mt-3 h-10 rounded-[12px] border border-border bg-bg-card px-4 flex items-center justify-between">
           <span className="text-[12px] font-extrabold text-text-primary">{shotCount} shot{shotCount !== 1 ? 's' : ''} selected</span>
-          <span className="flex items-center gap-2 text-[12px] font-extrabold text-text-primary"><Gem size={14} fill="currentColor" /> {Math.max(1, shotCount) * 2} tokens</span>
+          <span className="flex items-center gap-2 text-[12px] font-extrabold text-text-primary">{formatCost(estimateCost('nano-banana') * Math.max(1, shotCount))}</span>
         </div>
 
         <div className="mt-4 flex flex-col items-center gap-3">

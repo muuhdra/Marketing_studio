@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Box, Check, Download, Gem, Hand, Image as ImageIcon, Images, Maximize2, PlusCircle, Sparkles, Upload, UserCircle, UserRound, Wand2, X } from 'lucide-react'
+import { Box, Check, Download, Hand, Image as ImageIcon, Images, Maximize2, PlusCircle, Sparkles, Upload, UserCircle, UserRound, Wand2, X } from 'lucide-react'
 import { actionListProducts, actionUploadProductImage, actionCreateProduct, actionDeleteProduct, type ProductDTO } from '@/lib/actions/products'
 import { actionListAvatarsForPicker, actionUploadTempImage } from '@/lib/actions/avatar-assets'
 import { actionListProductModels, actionGenerateProductModel, actionUploadProductModel, type ProductModelDTO } from '@/lib/actions/product-models'
 import { MODEL_NATIONALITIES, MODEL_BODY_TYPES, MODEL_SKIN_TONES, nationalityFlag } from '@/lib/fashion/model-traits'
 import { actionGenerateImage, actionDescribeProductScene } from '@/lib/actions/ai'
+import { estimateCost, formatCost } from '@/lib/ai/costs'
 import { persistOutput } from '@/lib/actions/outputs'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useToast } from '@/lib/stores/toastStore'
@@ -654,7 +655,7 @@ export default function ProductPhotoshootPage() {
                 )}
               </div>
               <button onClick={generate} disabled={!actorProductImageUrl || generating} className="mt-4 h-10 w-full rounded-[10px] bg-accent px-6 text-[13px] font-extrabold text-white flex items-center justify-center gap-2.5 shadow-neo-solid hover:brightness-105 transition disabled:opacity-55 disabled:cursor-not-allowed">
-                {generating ? 'Génération…' : <><Sparkles size={16} /> Générer l’image <Gem size={14} fill="currentColor" /> 2</>}
+                {generating ? 'Génération…' : <><Sparkles size={16} /> Générer l’image <span className="opacity-80">·</span> {formatCost(estimateCost('nano-banana'))}</>}
               </button>
             </div>
           </div>
@@ -758,7 +759,7 @@ export default function ProductPhotoshootPage() {
         <div className="mt-5 flex justify-center gap-3">
           <BackButton onClick={goBack} />
           <button onClick={generate} disabled={generating} className="h-10 rounded-[10px] bg-accent px-6 text-[13px] font-extrabold text-white flex items-center justify-center gap-2.5 shadow-neo-solid hover:brightness-105 transition disabled:opacity-55 disabled:cursor-not-allowed">
-            {generating ? 'Génération…' : <><Sparkles size={16} /> Générer <Gem size={14} fill="currentColor" /> 2</>}
+            {generating ? 'Génération…' : <><Sparkles size={16} /> Générer <span className="opacity-80">·</span> {formatCost(estimateCost('nano-banana'))}</>}
           </button>
         </div>
         {(generating || generatedUrl) && (

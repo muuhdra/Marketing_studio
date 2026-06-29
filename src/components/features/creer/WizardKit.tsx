@@ -122,24 +122,6 @@ export function WizardHeader({ title, onBack }: { title: string; onBack: () => v
   )
 }
 
-// [DEV] Navigation libre entre toutes les étapes (à retirer en prod).
-export function DevStepNav<T extends string>({ steps, active, onJump }: { steps: { id: T; label: string }[]; active: T; onJump: (id: T) => void }) {
-  return (
-    <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-1 rounded-full border border-border bg-bg-card/95 backdrop-blur px-2 py-1.5 shadow-neo-lg">
-      <span className="px-2 text-[10px] font-bold uppercase tracking-wide text-text-dim">Dev</span>
-      {steps.map(({ id, label }) => (
-        <button
-          key={id}
-          onClick={() => onJump(id)}
-          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${active === id ? 'bg-accent text-white' : 'text-text-secondary hover:bg-fg/[0.06]'}`}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 // Overlay de résultats (grille + lightbox) — pour les pages sans panneau d'aperçu (statics, carrousel).
 export function ResultsOverlay({ open, generating, results, title, onClose }: { open: boolean; generating: boolean; results: { url: string }[]; title: string; onClose: () => void }) {
   const [lightbox, setLightbox] = useState<string | null>(null)

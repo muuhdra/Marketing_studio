@@ -8,7 +8,6 @@ import {
   ChevronDown,
   Clock,
   Eye,
-  Gem,
   Grid2X2,
   Heart,
   Image as ImageIcon,
@@ -34,6 +33,7 @@ import { listTemplates, type TemplateDTO } from '@/lib/actions/templates'
 import { TEMPLATE_CATEGORIES } from '@/lib/templates/library'
 import { useBrand } from '@/lib/stores/brandStore'
 import { actionGenerateImage, actionDescribeProductScene } from '@/lib/actions/ai'
+import { estimateCost, formatCost } from '@/lib/ai/costs'
 import { actionUploadTempImage } from '@/lib/actions/avatar-assets'
 import { actionListBrandAssets, type BrandAssetDTO } from '@/lib/actions/brand-assets'
 import { persistOutput } from '@/lib/actions/outputs'
@@ -787,7 +787,7 @@ function StepFlow() {
               </div>
               <p className="mb-2 text-center text-[12px] font-extrabold text-text-primary">Total Goals: {selectedGoalIds.length}</p>
               <button onClick={generate} disabled={generating} className="h-9 w-full rounded-[8px] bg-accent px-5 text-[13px] font-extrabold text-white flex items-center justify-center gap-2 hover:brightness-105 transition disabled:opacity-55 disabled:cursor-not-allowed">
-                {generating ? 'Génération…' : <>Create ({variationsToGenerate * Math.max(1, selectedGoalIds.length)}) Ad <Gem size={15} fill="currentColor" /> {variationsToGenerate * Math.max(1, selectedGoalIds.length)}</>}
+                {generating ? 'Génération…' : <>Create ({variationsToGenerate * Math.max(1, selectedGoalIds.length)}) Ad <span className="opacity-80">·</span> {formatCost(estimateCost('nano-banana') * variationsToGenerate * Math.max(1, selectedGoalIds.length))}</>}
               </button>
             </div>
           </div>

@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { useBrand, LANGUAGES, BRAND_CATEGORIES, type BrandListKey } from '@/lib/stores/brandStore'
 import { useSettings } from '@/lib/stores/settingsStore'
 import { useToast } from '@/lib/stores/toastStore'
+import { useT } from '@/lib/i18n'
 import { fileToDataUrl } from '@/lib/media/videoFrames'
 import { useCampaignSettings, CONTENT_TYPES, DURATION_UNITS, CADENCE_PER } from '@/lib/stores/campaignSettingsStore'
 import { useBrandSave } from '@/lib/stores/brandSaveStore'
@@ -193,7 +194,7 @@ function BrandSelect({ value, options, onChange, display }: { value: string; opt
             <button
               key={opt}
               type="button"
-              onClick={() => { onChange(opt); setOpen(false) }}
+              onMouseDown={(e) => { e.preventDefault(); onChange(opt); setOpen(false) }}
               className={`flex w-full items-center px-3 py-1.5 text-left text-[12px] font-bold transition-colors ${value === opt ? 'bg-[#fff1ec] text-[#e64414]' : 'text-[#111114] hover:bg-[#f4f4f4]'}`}
             >
               {label(opt)}
@@ -207,6 +208,7 @@ function BrandSelect({ value, options, onChange, display }: { value: string; opt
 
 // Liste éditable branchée au brandStore (puces ou lignes) + suppression par item.
 function BrandList({ listKey, variant, emptyLabel }: { listKey: BrandListKey; variant: 'chip' | 'row'; emptyLabel: string }) {
+  const tr = useT()
   const items = useBrand((s) => s[listKey] as string[])
   const updateItem = useBrand((s) => s.updateItem)
   const removeItem = useBrand((s) => s.removeItem)
@@ -221,7 +223,7 @@ function BrandList({ listKey, variant, emptyLabel }: { listKey: BrandListKey; va
         {items.map((item, i) => (
           <span key={i} className="flex items-center gap-1 rounded-[8px] bg-fg/[0.12] px-2 py-1">
             <input value={item} onChange={(e) => updateItem(listKey, i, e.target.value)} className="w-[96px] bg-transparent text-[12px] font-bold text-text-primary outline-none" />
-            <button type="button" onClick={() => removeItem(listKey, i)} className="text-text-muted transition hover:text-coral" aria-label="Retirer"><X size={12} /></button>
+            <button type="button" onClick={() => removeItem(listKey, i)} className="text-text-muted transition hover:text-coral" aria-label={tr("common.delete")}><X size={12} /></button>
           </span>
         ))}
       </div>
@@ -233,7 +235,7 @@ function BrandList({ listKey, variant, emptyLabel }: { listKey: BrandListKey; va
       {items.map((item, i) => (
         <div key={i} className="flex items-center gap-2 rounded-[8px] border border-border bg-fg/[0.12] px-3 py-1.5 transition-colors focus-within:border-accent">
           <input value={item} onChange={(e) => updateItem(listKey, i, e.target.value)} className="flex-1 bg-transparent text-[12px] font-bold text-text-primary outline-none" />
-          <button type="button" onClick={() => removeItem(listKey, i)} className="text-text-muted transition hover:text-coral" aria-label="Retirer"><X size={13} /></button>
+          <button type="button" onClick={() => removeItem(listKey, i)} className="text-text-muted transition hover:text-coral" aria-label={tr("common.delete")}><X size={13} /></button>
         </div>
       ))}
     </div>
@@ -241,6 +243,7 @@ function BrandList({ listKey, variant, emptyLabel }: { listKey: BrandListKey; va
 }
 
 export default function ParametresView(_props: Props) {
+  const tr = useT()
   const [activeTab, setActiveTab] = useState<BrandTabId>('identity')
   const [isProductDrawerOpen, setIsProductDrawerOpen] = useState(false)
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false)
@@ -282,7 +285,7 @@ export default function ParametresView(_props: Props) {
         audience: brand.targetAudience,
         query: query?.trim() || undefined,
       })
-      if (res.competitors.length === 0) { toast.info('Aucun concurrent trouvé — réessaie ou précise une marque'); return }
+      if (res.competitors.length === 0) { toast.info(tr('params.comp.tNotFound')); return }
       if (query?.trim()) {
         const existing = brand.competitors ?? []
         const seen = new Set(existing.map((c) => c.name.toLowerCase()))
@@ -384,7 +387,7 @@ export default function ParametresView(_props: Props) {
       })
       if (res.prompt) setProdPrompt(res.prompt)
     } catch {
-      toast.error('Génération du prompt impossible — brief de base conservé')
+      toast.error(tr('params.tPromptFailed'))
     } finally {
       setGeneratingProdPrompt(false)
     }
@@ -418,7 +421,7 @@ export default function ParametresView(_props: Props) {
       if (a.preferredWords?.length) brand.setField('preferredWords', a.preferredWords)
       if (a.audienceDesires?.length) brand.setField('audienceDesires', a.audienceDesires)
       if (a.audienceProblems?.length) brand.setField('audienceProblems', a.audienceProblems)
-      toast.success('Profil pré-rempli depuis ton site ✓')
+      toast.success(tr('params.tProfilePrefilled'))
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Analyse du site impossible') }
     finally { setImportingBrand(false) }
   }
@@ -433,7 +436,7 @@ export default function ParametresView(_props: Props) {
     brand.setField('dnaFileName', file.name)
     const isText = /\.(md|txt)$/i.test(file.name) || file.type.startsWith('text/')
     try { brand.setField('dnaText', isText ? (await file.text()).slice(0, 20000) : '') } catch { /* ignore */ }
-    toast.success('ADN importé ✓')
+    toast.success(tr('params.tDnaImported'))
   }
   const [products, setProducts] = useState<ProductDTO[]>([])
   const [pName, setPName] = useState('')
@@ -504,15 +507,15 @@ export default function ParametresView(_props: Props) {
     try {
       await actionCreateProduct({ name: pName, description: pDesc || null, currency: pCurrency, price: pPrice || null, benefits: pBenefits, imagePath: pImage?.path ?? null, additionalPaths: pAdditional.map((a) => a.path) })
       setProducts(await actionListProducts())
-      toast.success('Produit créé')
+      toast.success(tr("params.prod.tCreated"))
       resetProductForm()
       setIsProductDrawerOpen(false)
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Échec de la création') }
+    } catch (e) { toast.error(e instanceof Error ? e.message : tr("params.prod.tCreateFailed")) }
     finally { setCreating(false) }
   }
 
   async function deleteProduct(id: string) {
-    try { await actionDeleteProduct(id); setProducts((p) => p.filter((x) => x.id !== id)); toast.success('Produit supprimé') }
+    try { await actionDeleteProduct(id); setProducts((p) => p.filter((x) => x.id !== id)); toast.success(tr("params.prod.tDeleted")) }
     catch { toast.error('Échec de la suppression') }
   }
 
@@ -545,9 +548,9 @@ export default function ParametresView(_props: Props) {
     try {
       const folder = await actionCreateFolder({ name: folderName.trim(), color: folderColor })
       setFolders((f) => [folder, ...f])
-      toast.success('Dossier créé')
+      toast.success(tr("params.asset.tFolderCreated"))
       setFolderName(''); setIsCreateFolderOpen(false)
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Échec de la création') }
+    } catch (e) { toast.error(e instanceof Error ? e.message : tr("params.prod.tCreateFailed")) }
     finally { setCreatingFolder(false) }
   }
 
@@ -561,13 +564,13 @@ export default function ParametresView(_props: Props) {
       if (activeFolderId) fd.append('folderId', activeFolderId)
       const asset = await actionUploadBrandAsset(fd)
       setAssets((a) => [asset, ...a])
-      toast.success('Asset importé')
+      toast.success(tr("params.asset.tImported"))
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Échec de l\'import') }
     finally { setUploadingAsset(false) }
   }
 
   async function deleteAsset(id: string) {
-    try { await actionDeleteBrandAsset(id); setAssets((a) => a.filter((x) => x.id !== id)); toast.success('Asset supprimé') }
+    try { await actionDeleteBrandAsset(id); setAssets((a) => a.filter((x) => x.id !== id)); toast.success(tr("params.asset.tAssetDeleted")) }
     catch { toast.error('Échec de la suppression') }
   }
 
@@ -577,21 +580,21 @@ export default function ParametresView(_props: Props) {
       setFolders((f) => f.filter((x) => x.id !== id))
       if (activeFolderId === id) setActiveFolderId(null)
       actionListBrandAssets().then(setAssets).catch(() => {}) // les fichiers du dossier ont pu changer
-      toast.success('Dossier supprimé')
+      toast.success(tr("params.asset.tFolderDeleted"))
     } catch { toast.error('Échec de la suppression du dossier') }
   }
 
   async function generateAsset() {
     if (generatingAssetAi) return
-    if (!assetAiPrompt.trim()) { toast.error('Décris l\'image à générer'); return }
+    if (!assetAiPrompt.trim()) { toast.error(tr("params.asset.tNeedPrompt")); return }
     setGeneratingAssetAi(true)
     try {
       const asset = await actionGenerateBrandAsset({ prompt: assetAiPrompt.trim(), aspect: assetAiAspect, folderId: activeFolderId })
       setAssets((a) => [asset, ...a])
       setAssetType('image')
-      toast.success('Image générée')
+      toast.success(tr("params.asset.tImageGenerated"))
       setAssetAiPrompt(''); setIsAssetAiOpen(false)
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Échec de la génération') }
+    } catch (e) { toast.error(e instanceof Error ? e.message : tr("params.asset.tGenFailed")) }
     finally { setGeneratingAssetAi(false) }
   }
 
@@ -657,27 +660,27 @@ export default function ParametresView(_props: Props) {
       const fd = new FormData(); fd.append('file', file)
       const tpl = await actionUploadBrandTemplate(fd)
       setTemplates((t) => [tpl, ...t])
-      toast.success('Template importé — coche-le puis valide la sélection')
+      toast.success(tr("params.tpl.tImported"))
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Échec de l\'import') }
     finally { setUploadingTpl(false) }
   }
 
   async function generateTemplate() {
     if (generatingTpl) return
-    if (!aiPrompt.trim()) { toast.error('Décris le template à générer'); return }
+    if (!aiPrompt.trim()) { toast.error(tr("params.tpl.tNeedPrompt")); return }
     setGeneratingTpl(true)
     try {
       const tpl = await actionGenerateBrandTemplate({ prompt: aiPrompt.trim(), aspect: aiAspect })
       setTemplates((t) => [tpl, ...t])
-      toast.success('Template généré — coche-le puis valide la sélection')
+      toast.success(tr("params.tpl.tGenerated"))
       // On garde le sélecteur ouvert pour valider la sélection ; on ferme juste la modale IA.
       setAiPrompt(''); setIsTemplateAiModalOpen(false)
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Échec de la génération') }
+    } catch (e) { toast.error(e instanceof Error ? e.message : tr("params.asset.tGenFailed")) }
     finally { setGeneratingTpl(false) }
   }
 
   async function deleteTemplate(id: string) {
-    try { await actionDeleteBrandTemplate(id); setTemplates((t) => t.filter((x) => x.id !== id)); toast.success('Template supprimé') }
+    try { await actionDeleteBrandTemplate(id); setTemplates((t) => t.filter((x) => x.id !== id)); toast.success(tr("params.tpl.tDeleted")) }
     catch { toast.error('Échec de la suppression') }
   }
 
@@ -686,14 +689,14 @@ export default function ParametresView(_props: Props) {
       <div className="page animate-fade-in -mx-8 -mt-6 -mb-8 h-screen overflow-hidden px-2 py-1.5">
         <section className="flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-border bg-bg-card text-text-primary shadow-neo-sm">
           <header className="flex h-[56px] flex-shrink-0 items-center justify-between border-b border-border px-5">
-            <h1 className="font-display text-[20px] font-extrabold leading-tight tracking-tight text-text-primary">Produits de la marque</h1>
+            <h1 className="font-display text-[20px] font-extrabold leading-tight tracking-tight text-text-primary">{tr('params.prod.title')}</h1>
             <button
               type="button"
               onClick={() => setIsProductDrawerOpen(true)}
               className="flex h-9 items-center gap-2 rounded-[10px] bg-accent px-4 text-[13px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105"
             >
               <Plus size={16} strokeWidth={2.4} />
-              Ajouter un produit
+              {tr('params.prod.add')}
             </button>
           </header>
 
@@ -704,14 +707,14 @@ export default function ParametresView(_props: Props) {
                 <span className="grid h-16 w-16 place-items-center rounded-full bg-fg/[0.08] text-text-secondary">
                   <Box size={31} strokeWidth={2.3} />
                 </span>
-                <p className="mt-5 text-[15px] font-semibold text-text-secondary">Aucun produit pour l’instant.</p>
+                <p className="mt-5 text-[15px] font-semibold text-text-secondary">{tr('params.prod.empty')}</p>
                 <button
                   type="button"
                   onClick={() => setIsProductDrawerOpen(true)}
                   className="mt-2.5 flex h-8 items-center gap-2 rounded-[8px] border border-border bg-fg/[0.06] px-4 text-[13px] font-extrabold text-text-primary shadow-sm transition hover:border-accent/60"
                 >
                   <Plus size={16} strokeWidth={2.4} />
-                  Ajouter un produit
+                  {tr('params.prod.add')}
                 </button>
               </div>
             </div>
@@ -731,7 +734,7 @@ export default function ParametresView(_props: Props) {
                     <p className="truncate text-[13px] font-extrabold text-text-primary">{product.name}</p>
                     <p className="mt-0.5 text-[12px] font-semibold text-text-muted">{product.price ? `${product.price} ${product.currency ?? ''}` : '—'}</p>
                   </div>
-                  <button type="button" onClick={() => deleteProduct(product.id)} className="absolute right-2 top-2 hidden h-7 w-7 place-items-center rounded-full bg-black/70 text-white transition group-hover:grid" aria-label="Supprimer le produit"><X size={14} /></button>
+                  <button type="button" onClick={() => deleteProduct(product.id)} className="absolute right-2 top-2 hidden h-7 w-7 place-items-center rounded-full bg-black/70 text-white transition group-hover:grid" aria-label={tr('params.prod.delete')}><X size={14} /></button>
                 </div>
               ))}
             </div>
@@ -743,14 +746,14 @@ export default function ParametresView(_props: Props) {
           <div className="fixed inset-0 z-50 flex justify-end bg-black/75">
             <button
               type="button"
-              aria-label="Fermer le panneau produit"
+              aria-label={tr("params.prod.closePanel")}
               className="absolute inset-0 cursor-default"
               onClick={() => setIsProductDrawerOpen(false)}
             />
             <aside className="relative z-10 h-full w-full max-w-[440px] overflow-y-auto bg-bg-card px-4 py-5 text-text-primary shadow-neo lg:px-5">
               <button
                 type="button"
-                aria-label="Fermer le panneau produit"
+                aria-label={tr("params.prod.closePanel")}
                 onClick={() => setIsProductDrawerOpen(false)}
                 className="absolute right-3.5 top-3.5 grid h-7 w-7 place-items-center rounded-full bg-fg/[0.06] text-text-secondary transition hover:bg-fg/[0.12] hover:text-text-primary"
               >
@@ -759,10 +762,8 @@ export default function ParametresView(_props: Props) {
 
               <div className="flex items-start justify-between gap-3 pr-9">
                 <div>
-                  <h2 className="font-display text-[15px] font-extrabold leading-tight tracking-tight">
-                    Ajouter un produit
-                  </h2>
-                  <p className="mt-0.5 text-[12px] font-medium text-text-secondary">Crée un produit pour ta marque</p>
+                  <h2 className="font-display text-[15px] font-extrabold leading-tight tracking-tight">{tr("params.prod.add")}</h2>
+                  <p className="mt-0.5 text-[12px] font-medium text-text-secondary">{tr("params.prod.drawerSubtitle")}</p>
                 </div>
                 <button
                   type="button"
@@ -771,20 +772,20 @@ export default function ParametresView(_props: Props) {
                   className="flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] bg-accent px-3 text-[11px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105 disabled:opacity-60"
                 >
                   <Plus size={14} strokeWidth={2.4} />
-                  {creating ? 'Création…' : 'Créer le produit'}
+                  {creating ? tr("params.prod.creating") : tr("params.prod.create")}
                 </button>
               </div>
 
               <div className="mt-4">
                 <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-text-secondary">
                   <Sparkles size={13} className="text-accent" strokeWidth={2.3} />
-                  Pré-remplir depuis une URL
+                  {tr("params.prod.prefillUrl")}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                   <label className="flex h-8 min-w-0 items-center gap-2 rounded-[7px] border border-border bg-fg/[0.06] px-2.5 text-text-primary">
                     <LinkIcon size={14} strokeWidth={2.2} />
                     <input
-                      aria-label="URL du produit"
+                      aria-label={tr("params.prod.urlAria")}
                       value={pUrl}
                       onChange={(e) => setPUrl(e.target.value)}
                       placeholder="https://tasite.com/produits/mon-produit"
@@ -798,7 +799,7 @@ export default function ParametresView(_props: Props) {
                     className="flex h-8 items-center justify-center gap-1.5 rounded-[7px] bg-accent px-3.5 text-[11px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105 disabled:opacity-60"
                   >
                     <Sparkles size={13} strokeWidth={2.3} />
-                    {analyzing ? 'Analyse…' : 'Analyser'}
+                    {analyzing ? tr("params.prod.analyzing") : tr("params.prod.analyze")}
                   </button>
                 </div>
               </div>
@@ -807,7 +808,7 @@ export default function ParametresView(_props: Props) {
                 <button
                   type="button"
                   onClick={() => productImgRef.current?.click()}
-                  aria-label="Importer l’image produit"
+                  aria-label={tr("params.prod.importImage")}
                   className="grid aspect-square min-h-[96px] place-items-center overflow-hidden rounded-[9px] bg-fg/[0.08] text-text-faint transition hover:bg-fg/[0.12]"
                 >
                   {pImage?.url ? (
@@ -822,26 +823,26 @@ export default function ParametresView(_props: Props) {
                 <div className="space-y-2.5">
                   <label className="block">
                     <span className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-wide text-text-secondary">
-                      Nom
+                      {tr("params.prod.name")}
                     </span>
                     <input
-                      aria-label="Nom du produit"
+                      aria-label={tr("params.prod.name")}
                       value={pName}
                       onChange={(e) => setPName(e.target.value)}
-                      placeholder="Nom du produit"
+                      placeholder={tr("params.prod.namePlaceholder")}
                       className="h-8 w-full rounded-[7px] border border-border bg-fg/[0.06] px-3 text-[12px] font-semibold text-text-primary outline-none focus:border-accent"
                     />
                   </label>
 
                   <label className="block">
                     <span className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-wide text-text-secondary">
-                      Description
+                      {tr("params.prod.description")}
                     </span>
                     <textarea
-                      aria-label="Description du produit"
+                      aria-label={tr("params.prod.description")}
                       value={pDesc}
                       onChange={(e) => setPDesc(e.target.value)}
-                      placeholder="Décris ce produit…"
+                      placeholder={tr("params.prod.descPlaceholder")}
                       className="h-[54px] w-full resize-none rounded-[7px] border border-border bg-fg/[0.06] px-3 py-2 text-[12px] font-semibold text-text-primary outline-none focus:border-accent"
                     />
                   </label>
@@ -850,12 +851,12 @@ export default function ParametresView(_props: Props) {
 
               <div className="mt-4">
                 <span className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-wide text-text-secondary">
-                  Prix
+                  {tr("params.prod.price")}
                 </span>
                 <div className="grid gap-2 sm:grid-cols-[84px_1fr]">
                   <BrandSelect value={pCurrency} options={CURRENCIES} onChange={(v) => setPCurrency(v)} />
                   <input
-                    aria-label="Prix du produit"
+                    aria-label={tr("params.prod.price")}
                     value={pPrice}
                     onChange={(e) => setPPrice(e.target.value)}
                     inputMode="decimal"
@@ -867,21 +868,21 @@ export default function ParametresView(_props: Props) {
 
               <div className="mt-4">
                 <span className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-wide text-text-secondary">
-                  Avantages
+                  {tr("params.prod.benefits")}
                 </span>
                 <div className="grid gap-2 sm:grid-cols-[1fr_36px]">
                   <input
-                    aria-label="Avantage produit"
+                    aria-label={tr("params.prod.benefits")}
                     value={pBenefitDraft}
                     onChange={(e) => setPBenefitDraft(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addBenefit() } }}
-                    placeholder="Ajoute un avantage…"
+                    placeholder={tr("params.prod.benefitPlaceholder")}
                     className="h-8 rounded-[7px] border border-border bg-fg/[0.06] px-3 text-[12px] font-semibold text-text-primary outline-none focus:border-accent"
                   />
                   <button
                     type="button"
                     onClick={addBenefit}
-                    aria-label="Ajouter un avantage"
+                    aria-label={tr("params.prod.addBenefit")}
                     className="grid h-8 place-items-center rounded-[7px] bg-fg/[0.06] text-text-muted transition hover:bg-fg/[0.12]"
                   >
                     <Plus size={16} strokeWidth={2.1} />
@@ -892,7 +893,7 @@ export default function ParametresView(_props: Props) {
                     {pBenefits.map((benefit, i) => (
                       <span key={i} className="flex items-center gap-1 rounded-[7px] bg-fg/[0.08] px-2 py-1 text-[11px] font-semibold text-text-primary">
                         {benefit}
-                        <button type="button" onClick={() => setPBenefits((b) => b.filter((_, j) => j !== i))} className="text-text-muted hover:text-text-primary" aria-label="Retirer l’avantage"><X size={11} /></button>
+                        <button type="button" onClick={() => setPBenefits((b) => b.filter((_, j) => j !== i))} className="text-text-muted hover:text-text-primary" aria-label={tr("params.prod.removeBenefit")}><X size={11} /></button>
                       </span>
                     ))}
                   </div>
@@ -901,14 +902,14 @@ export default function ParametresView(_props: Props) {
 
               <div className="mt-4">
                 <span className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-wide text-text-secondary">
-                  Images supplémentaires ({pAdditional.length})
+                  {tr("params.prod.additionalImages")} ({pAdditional.length})
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {pAdditional.map((img, i) => (
                     <div key={i} className="group relative h-[80px] w-[80px] overflow-hidden rounded-[9px] border border-border bg-fg/[0.06]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={img.url} alt="" className="h-full w-full object-cover" />
-                      <button type="button" onClick={() => setPAdditional((a) => a.filter((_, j) => j !== i))} className="absolute right-1 top-1 hidden h-5 w-5 place-items-center rounded-full bg-black/70 text-white group-hover:grid" aria-label="Retirer l’image"><X size={11} /></button>
+                      <button type="button" onClick={() => setPAdditional((a) => a.filter((_, j) => j !== i))} className="absolute right-1 top-1 hidden h-5 w-5 place-items-center rounded-full bg-black/70 text-white group-hover:grid" aria-label={tr("params.prod.removeImage")}><X size={11} /></button>
                     </div>
                   ))}
                   <button
@@ -918,7 +919,7 @@ export default function ParametresView(_props: Props) {
                   >
                     <span className="flex flex-col items-center gap-1.5 text-[11px] font-semibold">
                       <Upload size={15} strokeWidth={2.2} />
-                      Importer
+                      {tr("params.prod.importImg")}
                     </span>
                   </button>
                   <input ref={additionalImgRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadAdditionalImage(e.target.files?.[0])} />
@@ -936,14 +937,14 @@ export default function ParametresView(_props: Props) {
       <div className="page animate-fade-in -mx-8 -mt-6 -mb-8 h-screen overflow-hidden px-2 py-1.5">
         <section className="flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-border bg-bg-card text-text-primary shadow-neo-sm">
           <header className="flex h-[56px] flex-shrink-0 items-center justify-between border-b border-border px-5">
-            <h1 className="font-display text-[20px] font-extrabold leading-tight tracking-tight text-text-primary">Assets de la marque</h1>
+            <h1 className="font-display text-[20px] font-extrabold leading-tight tracking-tight text-text-primary">{tr("params.asset.title")}</h1>
             <button
               type="button"
               onClick={() => setIsCreateFolderOpen(true)}
               className="flex h-9 items-center gap-1.5 rounded-[9px] bg-accent px-4 text-[13px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105"
             >
               <FolderPlus size={16} strokeWidth={2.35} />
-              Créer un dossier
+              {tr("params.asset.createFolder")}
             </button>
           </header>
 
@@ -954,9 +955,7 @@ export default function ParametresView(_props: Props) {
                   type="button"
                   onClick={() => setActiveFolderId(null)}
                   className={`h-6 rounded-[8px] px-2.5 text-[10px] font-extrabold transition ${activeFolderId === null ? 'bg-accent text-white' : 'border border-border bg-fg/[0.06] text-text-secondary hover:border-accent/60'}`}
-                >
-                  Tous
-                </button>
+                >{tr("params.asset.all")}</button>
                 {folders.map((f) => (
                   <div key={f.id} className="group relative">
                     <button
@@ -970,7 +969,7 @@ export default function ParametresView(_props: Props) {
                     <span
                       role="button"
                       tabIndex={-1}
-                      aria-label="Supprimer le dossier"
+                      aria-label={tr("params.asset.deleteFolder")}
                       onClick={(e) => { e.stopPropagation(); deleteFolder(f.id) }}
                       className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 cursor-pointer place-items-center rounded-full bg-coral text-white shadow-sm transition hover:scale-110 group-hover:grid"
                     >
@@ -984,8 +983,8 @@ export default function ParametresView(_props: Props) {
                 <div className="flex flex-1 items-center justify-center py-16">
                   <div className="flex flex-col items-center text-center">
                     <ImageIcon size={38} strokeWidth={2.2} className="text-text-secondary" />
-                    <p className="mt-4 text-[14px] font-extrabold text-text-primary">Aucun fichier pour l’instant</p>
-                    <p className="mt-1.5 text-[12px] font-semibold text-text-secondary">Importe ton premier fichier pour commencer</p>
+                    <p className="mt-4 text-[14px] font-extrabold text-text-primary">{tr("params.asset.emptyTitle")}</p>
+                    <p className="mt-1.5 text-[12px] font-semibold text-text-secondary">{tr("params.asset.emptyDesc")}</p>
                   </div>
                 </div>
               ) : (
@@ -1003,7 +1002,7 @@ export default function ParametresView(_props: Props) {
                         )}
                       </div>
                       <p className="truncate px-2 py-1.5 text-[11px] font-semibold text-text-primary">{asset.name}</p>
-                      <button type="button" onClick={() => deleteAsset(asset.id)} className="absolute right-1.5 top-1.5 hidden h-6 w-6 place-items-center rounded-full bg-black/70 text-white group-hover:grid" aria-label="Supprimer le fichier"><X size={12} /></button>
+                      <button type="button" onClick={() => deleteAsset(asset.id)} className="absolute right-1.5 top-1.5 hidden h-6 w-6 place-items-center rounded-full bg-black/70 text-white group-hover:grid" aria-label={tr("params.asset.deleteFile")}><X size={12} /></button>
                     </div>
                   ))}
                 </div>
@@ -1011,10 +1010,10 @@ export default function ParametresView(_props: Props) {
             </main>
 
             <aside className="border-t border-border px-3 py-3.5 lg:border-l lg:border-t-0">
-              <h2 className="text-[10px] font-extrabold uppercase tracking-wide text-text-secondary">Type de fichier</h2>
+              <h2 className="text-[10px] font-extrabold uppercase tracking-wide text-text-secondary">{tr("params.asset.fileType")}</h2>
 
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {([['image', ImageIcon, 'Images'], ['video', Video, 'Vidéos'], ['audio', Music, 'Audio']] as [AssetType, typeof ImageIcon, string][]).map(([t, Icon, label]) => (
+                {([['image', ImageIcon, tr('params.asset.images')], ['video', Video, tr('params.asset.videos')], ['audio', Music, tr('params.asset.audio')]] as [AssetType, typeof ImageIcon, string][]).map(([t, Icon, label]) => (
                   <button
                     key={t}
                     type="button"
@@ -1038,24 +1037,24 @@ export default function ParametresView(_props: Props) {
                 <FileUp size={20} strokeWidth={2.2} />
                 <span className="mt-3 flex items-center gap-1.5 text-[13px] font-extrabold">
                   <Upload size={13} strokeWidth={2.4} />
-                  {uploadingAsset ? 'Import…' : `Importer ${assetType === 'image' ? 'images' : assetType === 'video' ? 'vidéos' : 'audio'}`}
+                  {uploadingAsset ? tr('params.asset.importing') : tr(assetType === 'image' ? 'params.asset.importImages' : assetType === 'video' ? 'params.asset.importVideos' : 'params.asset.importAudio')}
                 </span>
                 <span className="mt-1.5 text-[11px] font-medium leading-snug text-text-secondary">
-                  Glisse-dépose ou clique pour choisir
+                  {tr("params.asset.dropHint")}
                 </span>
                 <span className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-text-muted">
-                  Types acceptés :
+                  {tr("params.asset.acceptedTypes")}
                   <Info size={11} strokeWidth={2.2} />
                 </span>
                 <span className="mt-2 max-w-[170px] text-[10px] font-medium leading-snug text-text-muted">
-                  Max 100 Mo (vidéos), 20 Mo (images), 25 Mo (audio)
+                  {tr("params.asset.sizeLimits")}
                 </span>
               </button>
               <input ref={assetUploadRef} type="file" accept={ASSET_ACCEPT[assetType]} className="hidden" onChange={(e) => uploadAsset(e.target.files?.[0])} />
 
               <div className="my-3 flex items-center gap-2.5">
                 <span className="h-px flex-1 bg-border" />
-                <span className="text-[11px] font-extrabold uppercase text-text-muted">Ou</span>
+                <span className="text-[11px] font-extrabold uppercase text-text-muted">{tr("params.asset.or")}</span>
                 <span className="h-px flex-1 bg-border" />
               </div>
 
@@ -1065,7 +1064,7 @@ export default function ParametresView(_props: Props) {
                 className="flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] border border-border bg-fg/[0.06] text-[12px] font-extrabold text-text-primary shadow-sm transition hover:border-accent/60"
               >
                 <Sparkles size={14} strokeWidth={2.3} />
-                Créer avec l’IA
+                {tr("params.asset.createWithAi")}
               </button>
             </aside>
           </div>
@@ -1075,7 +1074,7 @@ export default function ParametresView(_props: Props) {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
             <button
               type="button"
-              aria-label="Fermer la fenêtre"
+              aria-label={tr("params.asset.closeWindow")}
               className="absolute inset-0 cursor-default"
               onClick={() => setIsCreateFolderOpen(false)}
             />
@@ -1083,16 +1082,16 @@ export default function ParametresView(_props: Props) {
             <div className="relative z-10 w-full max-w-[420px] rounded-[14px] border border-border bg-bg-card px-5 py-5 text-text-primary shadow-neo">
               <button
                 type="button"
-                aria-label="Fermer la fenêtre"
+                aria-label={tr("params.asset.closeWindow")}
                 onClick={() => setIsCreateFolderOpen(false)}
                 className="absolute right-4 top-4 grid h-7 w-7 place-items-center rounded-full text-text-muted transition hover:bg-fg/[0.08] hover:text-text-primary"
               >
                 <X size={17} strokeWidth={2.2} />
               </button>
 
-              <h2 className="font-display text-[17px] font-extrabold leading-tight tracking-tight">Créer un dossier</h2>
+              <h2 className="font-display text-[17px] font-extrabold leading-tight tracking-tight">{tr("params.asset.createFolder")}</h2>
               <p className="mt-1 text-[12px] font-medium text-text-secondary">
-                Crée un nouveau dossier dans le répertoire courant.
+                {tr("params.asset.createFolderDesc")}
               </p>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-[88px_1fr] sm:items-end">
@@ -1110,22 +1109,22 @@ export default function ParametresView(_props: Props) {
 
                 <label className="block">
                   <span className="block text-[11px] font-extrabold uppercase tracking-wide text-text-secondary">
-                    Nom du dossier
+                    {tr("params.asset.folderName")}
                   </span>
                   <input
                     autoFocus
-                    aria-label="Nom du dossier"
+                    aria-label={tr("params.asset.folderName")}
                     value={folderName}
                     onChange={(e) => setFolderName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createFolder() } }}
-                    placeholder="Nom du dossier"
+                    placeholder={tr("params.asset.folderName")}
                     className="mt-1.5 h-9 w-full rounded-[8px] border border-accent bg-bg-card px-3 text-[13px] font-medium text-text-primary outline-none ring-1 ring-accent/20 placeholder:text-text-muted"
                   />
                 </label>
               </div>
 
               <div className="mt-5">
-                <span className="block text-[11px] font-extrabold uppercase tracking-wide text-text-secondary">Couleur</span>
+                <span className="block text-[11px] font-extrabold uppercase tracking-wide text-text-secondary">{tr("params.asset.color")}</span>
                 <div className="mt-2.5 flex flex-wrap gap-2">
                   {folderColors.map((color) => (
                     <button
@@ -1159,7 +1158,7 @@ export default function ParametresView(_props: Props) {
                   className="flex h-9 items-center gap-2 rounded-[9px] bg-accent px-4 text-[13px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105 disabled:opacity-60"
                 >
                   <Plus size={15} strokeWidth={2.4} />
-                  {creatingFolder ? 'Création…' : 'Créer le dossier'}
+                  {creatingFolder ? tr("params.asset.creating") : tr("params.asset.createFolderBtn")}
                 </button>
               </div>
             </div>
@@ -1168,51 +1167,51 @@ export default function ParametresView(_props: Props) {
 
         {isAssetAiOpen ? (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 px-5 py-7">
-            <button type="button" aria-label="Fermer le créateur IA" onClick={() => setIsAssetAiOpen(false)} className="absolute inset-0 cursor-default" />
+            <button type="button" aria-label={tr("params.asset.closeAi")} onClick={() => setIsAssetAiOpen(false)} className="absolute inset-0 cursor-default" />
             <div className="relative z-10 h-[min(82vh,720px)] w-full max-w-[1060px] overflow-hidden rounded-[12px] border border-border bg-bg-card text-text-primary shadow-neo">
-              <button type="button" aria-label="Close" onClick={() => setIsAssetAiOpen(false)} className="absolute right-6 top-5 z-20 text-text-primary transition hover:text-accent"><X size={22} strokeWidth={2.25} /></button>
+              <button type="button" aria-label={tr('params.close')} onClick={() => setIsAssetAiOpen(false)} className="absolute right-6 top-5 z-20 text-text-primary transition hover:text-accent"><X size={22} strokeWidth={2.25} /></button>
 
               <header className="flex h-[74px] items-center gap-3 border-b border-border px-7">
-                <button type="button" aria-label="Retour" onClick={() => setIsAssetAiOpen(false)} className="grid h-8 w-8 place-items-center rounded-full text-text-primary transition hover:bg-fg/[0.08]"><ChevronLeft size={20} strokeWidth={2.4} /></button>
+                <button type="button" aria-label={tr("params.back")} onClick={() => setIsAssetAiOpen(false)} className="grid h-8 w-8 place-items-center rounded-full text-text-primary transition hover:bg-fg/[0.08]"><ChevronLeft size={20} strokeWidth={2.4} /></button>
                 <Sparkles size={21} strokeWidth={2.25} className="text-text-primary" />
-                <h2 className="font-display text-[21px] font-extrabold leading-tight tracking-tight">Créer un asset avec l’IA</h2>
+                <h2 className="font-display text-[21px] font-extrabold leading-tight tracking-tight">{tr("params.asset.aiTitle")}</h2>
               </header>
 
               <div className="grid h-[calc(100%-74px)] min-h-0 gap-5 overflow-y-auto px-7 py-7 lg:grid-cols-[1fr_390px]">
                 <section className="flex min-h-[520px] flex-col">
-                  <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-text-secondary">Aperçu de l’image</p>
+                  <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-text-secondary">{tr("params.asset.imagePreview")}</p>
                   <div className="mt-3 flex min-h-[430px] flex-1 items-center justify-center rounded-[9px] border border-border bg-fg/[0.06] px-5 text-center">
                     {generatingAssetAi ? (
                       <div className="flex flex-col items-center gap-4 text-text-secondary">
                         <span className="h-9 w-9 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-                        <p className="text-[15px] font-semibold">Génération en cours…</p>
+                        <p className="text-[15px] font-semibold">{tr("params.asset.generatingFull")}</p>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center">
                         <ImagePlus size={54} strokeWidth={2.35} className="text-text-faint" />
-                        <p className="mt-5 text-[15px] font-medium text-text-primary">Describe your image and click &quot;Créer avec l’IA&quot;</p>
+                        <p className="mt-5 text-[15px] font-medium text-text-primary">{tr('params.asset.describeHint')}</p>
                       </div>
                     )}
                   </div>
                 </section>
 
                 <aside className="flex min-h-[520px] flex-col">
-                  <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-text-secondary">Décris l’image que tu veux créer</p>
+                  <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-text-secondary">{tr("params.asset.describePrompt")}</p>
                   <div className="mt-3 flex min-h-[180px] flex-col rounded-[9px] border border-border bg-fg/[0.06] p-4">
                     <textarea
                       value={assetAiPrompt}
                       onChange={(e) => setAssetAiPrompt(e.target.value)}
-                      placeholder="ex. Photo produit pro d’un mug élégant sur un plan en marbre, lumière douce du matin, style minimaliste"
+                      placeholder={tr("params.asset.aiPlaceholder")}
                       className="min-h-[96px] flex-1 resize-none bg-transparent text-[15px] font-medium leading-relaxed text-text-primary outline-none placeholder:text-text-muted"
                     />
                     <button type="button" onClick={() => setAssetAiAspect((a) => ASPECTS[(ASPECTS.indexOf(a) + 1) % ASPECTS.length])} className="mt-auto flex w-fit items-center gap-2 pt-6 text-[14px] font-extrabold text-text-secondary transition hover:text-accent">
                       <SlidersHorizontal size={16} strokeWidth={2.35} />
-                      Format : {assetAiAspect}
+                      {tr("params.asset.format")} {assetAiAspect}
                     </button>
                   </div>
                   <button type="button" onClick={generateAsset} disabled={generatingAssetAi} className="mt-3 flex h-10 items-center justify-center gap-2 rounded-[8px] bg-accent px-4 text-[14px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105 disabled:opacity-60">
                     <Sparkles size={17} strokeWidth={2.4} />
-                    {generatingAssetAi ? 'Génération…' : <>Créer avec l’IA <span className="h-1.5 w-1.5 rounded-full bg-white/80" aria-hidden="true" /> 2</>}
+                    {generatingAssetAi ? tr('params.asset.generating') : <>{tr('params.asset.createWithAi')} <span className="h-1.5 w-1.5 rounded-full bg-white/80" aria-hidden="true" /> 2</>}
                   </button>
                 </aside>
               </div>
@@ -1228,14 +1227,14 @@ export default function ParametresView(_props: Props) {
       <div className="page animate-fade-in -mx-8 -mt-6 -mb-8 h-screen overflow-hidden px-2 py-1.5">
         <section className="flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-border bg-bg-card text-text-primary shadow-neo-sm">
           <header className="flex h-[56px] flex-shrink-0 items-center justify-between border-b border-border px-5">
-            <h1 className="font-display text-[20px] font-extrabold leading-tight tracking-tight text-text-primary">Templates de la marque</h1>
+            <h1 className="font-display text-[20px] font-extrabold leading-tight tracking-tight text-text-primary">{tr("params.tpl.title")}</h1>
             <button
               type="button"
               onClick={() => setIsTemplatePickerOpen(true)}
               className="flex h-8 items-center gap-1.5 rounded-[9px] bg-accent px-3.5 text-[12px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105"
             >
               <Plus size={16} strokeWidth={2.35} />
-              Importer un template
+              {tr("params.tpl.import")}
             </button>
           </header>
 
@@ -1247,12 +1246,12 @@ export default function ParametresView(_props: Props) {
                   <ImagePlus size={22} strokeWidth={2.3} />
                 </span>
                 <h2 className="mt-3 font-display text-[15px] font-extrabold leading-tight tracking-tight">
-                  Aucun template pour l’instant
+                  {tr("params.tpl.emptyTitle")}
                 </h2>
                 <p className="mt-1.5 text-[12px] font-medium leading-snug text-text-secondary">
-                  Importe tes templates publicitaires pour les réutiliser dans tes campagnes.
+                  {tr("params.tpl.emptyDesc1")}
                   <br />
-                  Ils seront disponibles lors de la création de pubs statiques.
+                  {tr("params.tpl.emptyDesc2")}
                 </p>
                 <button
                   type="button"
@@ -1260,7 +1259,7 @@ export default function ParametresView(_props: Props) {
                   className="mt-4 flex h-8 items-center gap-2 rounded-[9px] bg-accent px-4 text-[12px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105"
                 >
                   <Plus size={14} strokeWidth={2.4} />
-                  Importer ton premier template
+                  {tr("params.tpl.importFirst")}
                 </button>
               </div>
             </div>
@@ -1275,7 +1274,7 @@ export default function ParametresView(_props: Props) {
                     ) : <span className="grid h-full w-full place-items-center text-text-faint"><ImageIcon size={28} /></span>}
                   </div>
                   <p className="truncate px-2 py-1.5 text-[11px] font-semibold text-text-primary">{tpl.name}</p>
-                  <button type="button" onClick={() => deleteTemplate(tpl.id)} className="absolute right-2 top-2 hidden h-7 w-7 place-items-center rounded-full bg-black/70 text-white group-hover:grid" aria-label="Supprimer le template"><X size={14} /></button>
+                  <button type="button" onClick={() => deleteTemplate(tpl.id)} className="absolute right-2 top-2 hidden h-7 w-7 place-items-center rounded-full bg-black/70 text-white group-hover:grid" aria-label={tr("params.tpl.delete")}><X size={14} /></button>
                 </div>
               ))}
             </div>
@@ -1287,14 +1286,14 @@ export default function ParametresView(_props: Props) {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 px-6 py-8">
             <button
               type="button"
-              aria-label="Fermer la fenêtre"
+              aria-label={tr("params.asset.closeWindow")}
               onClick={() => setIsTemplatePickerOpen(false)}
               className="absolute inset-0 cursor-default"
             />
             <div className="relative z-10 h-[min(82vh,680px)] w-full max-w-[980px] overflow-hidden rounded-[12px] border border-border bg-bg-card text-text-primary shadow-neo">
               <button
                 type="button"
-                aria-label="Fermer"
+                aria-label={tr("params.close")}
                 onClick={() => setIsTemplatePickerOpen(false)}
                 className="absolute right-5 top-4 z-20 grid h-7 w-7 place-items-center rounded-full text-text-muted transition hover:bg-fg/[0.08] hover:text-text-primary"
               >
@@ -1305,7 +1304,7 @@ export default function ParametresView(_props: Props) {
                 <main className="flex min-h-[480px] flex-col lg:min-h-0">
                   <header className="flex items-center justify-between gap-2 border-b border-border px-5 py-2.5">
                     <div className="flex items-center gap-1 rounded-[9px] bg-fg/[0.06] p-0.5">
-                      {([['mine', `Mes templates (${selectedTplIds.size})`], ['system', `Système (${selectedSysIds.size})`]] as const).map(([id, label]) => (
+                      {([['mine', tr("params.tpl.tabMine", { n: selectedTplIds.size })], ['system', tr("params.tpl.tabSystem", { n: selectedSysIds.size })]] as const).map(([id, label]) => (
                         <button
                           key={id}
                           type="button"
@@ -1323,9 +1322,9 @@ export default function ParametresView(_props: Props) {
                       <div className="flex flex-1 items-center justify-center px-5 py-12">
                         <div className="flex flex-col items-center text-center">
                           <ImageIcon size={42} strokeWidth={2.45} className="text-text-faint" />
-                          <p className="mt-4 text-[15px] font-extrabold text-text-primary">Aucun template</p>
+                          <p className="mt-4 text-[15px] font-extrabold text-text-primary">{tr("params.tpl.noTemplate")}</p>
                           <p className="mt-1.5 text-[13px] font-medium text-text-secondary">
-                            Importe ton premier template avec le panneau de droite
+                            {tr("params.tpl.noTemplateDesc")}
                           </p>
                         </div>
                       </div>
@@ -1349,7 +1348,7 @@ export default function ParametresView(_props: Props) {
                               <span className={`absolute left-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full border-2 transition ${sel ? 'border-accent bg-accent text-white' : 'border-white/80 bg-black/30 text-transparent'}`}>
                                 <Check size={12} strokeWidth={3} />
                               </span>
-                              <span role="button" tabIndex={-1} onClick={(e) => { e.stopPropagation(); deleteTemplate(tpl.id) }} className="absolute right-1.5 top-1.5 hidden h-6 w-6 cursor-pointer place-items-center rounded-full bg-black/70 text-white group-hover:grid hover:bg-coral" aria-label="Supprimer le template"><X size={12} /></span>
+                              <span role="button" tabIndex={-1} onClick={(e) => { e.stopPropagation(); deleteTemplate(tpl.id) }} className="absolute right-1.5 top-1.5 hidden h-6 w-6 cursor-pointer place-items-center rounded-full bg-black/70 text-white group-hover:grid hover:bg-coral" aria-label={tr("params.tpl.delete")}><X size={12} /></span>
                             </button>
                           )
                         })}
@@ -1358,7 +1357,7 @@ export default function ParametresView(_props: Props) {
                   ) : (
                     systemTemplates.length === 0 ? (
                       <div className="flex flex-1 items-center justify-center px-5 py-12">
-                        <p className="text-[13px] font-medium text-text-secondary">Aucun template système disponible.</p>
+                        <p className="text-[13px] font-medium text-text-secondary">{tr("params.tpl.noSystem")}</p>
                       </div>
                     ) : (
                       <div className="grid flex-1 grid-cols-2 content-start gap-2.5 overflow-y-auto px-5 py-5 sm:grid-cols-3 lg:grid-cols-4">
@@ -1395,22 +1394,20 @@ export default function ParametresView(_props: Props) {
                         : setSelectedSysIds(new Set(systemTemplates.map((t) => t.id)))}
                       disabled={tplTab === 'mine' ? templates.length === 0 : systemTemplates.length === 0}
                       className="text-[12px] font-extrabold text-text-secondary transition hover:text-accent disabled:opacity-40"
-                    >
-                      Tout sélectionner
-                    </button>
+                    >{tr("params.tpl.selectAll")}</button>
                     <button
                       type="button"
                       onClick={saveTplSelection}
                       disabled={savingTplSelection}
                       className="inline-flex h-9 items-center gap-2 rounded-[9px] bg-accent px-4 text-[13px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105 disabled:opacity-60"
                     >
-                      {savingTplSelection ? <><span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" /> Enregistrement…</> : <><Check size={15} strokeWidth={2.6} /> Valider la sélection</>}
+                      {savingTplSelection ? <><span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" /> Enregistrement…</> : <><Check size={15} strokeWidth={2.6} /> {tr("params.tpl.validateSelection")}</>}
                     </button>
                   </div>
                 </main>
 
                 <aside className="flex min-h-[400px] flex-col border-t border-border px-4 py-6 lg:min-h-0 lg:border-l lg:border-t-0 lg:py-8">
-                  <h3 className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-text-secondary">Importer un template</h3>
+                  <h3 className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-text-secondary">{tr("params.tpl.import")}</h3>
                   <button
                     type="button"
                     onClick={() => tplUploadRef.current?.click()}
@@ -1420,13 +1417,13 @@ export default function ParametresView(_props: Props) {
                     <FileUp size={22} strokeWidth={2.2} className="text-text-secondary" />
                     <span className="mt-3 flex items-center gap-2 text-[13px] font-extrabold text-text-primary">
                       <ImageIcon size={15} strokeWidth={2.25} />
-                      {uploadingTpl ? 'Import…' : 'Cliquer pour importer'}
+                      {uploadingTpl ? tr("params.asset.importing") : tr("params.tpl.clickToImport")}
                     </span>
                     <span className="mt-1.5 text-[12px] font-medium leading-snug text-text-secondary">
-                      Glisse-dépose ou clique pour choisir
+                      {tr("params.asset.dropHint")}
                     </span>
                     <span className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                      PNG, JPG ou WEBP · max 20 Mo
+                      {tr("params.tpl.formats")}
                     </span>
                   </button>
 
@@ -1444,11 +1441,11 @@ export default function ParametresView(_props: Props) {
                     className="flex h-9 items-center justify-center gap-2 rounded-[9px] border border-border bg-fg/[0.04] text-[13px] font-extrabold text-text-primary shadow-sm transition hover:border-accent/60"
                   >
                     <Sparkles size={16} strokeWidth={2.35} />
-                    Créer avec l’IA
+                    {tr("params.asset.createWithAi")}
                   </button>
 
                   <p className="mt-5 text-[11px] font-medium leading-snug text-text-muted">
-                    Les templates importés ou générés sont réutilisables lors de la création de pubs statiques.
+                    {tr("params.tpl.reusableHint")}
                   </p>
                 </aside>
               </div>
@@ -1460,14 +1457,14 @@ export default function ParametresView(_props: Props) {
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 px-5 py-7">
             <button
               type="button"
-              aria-label="Fermer le créateur IA"
+              aria-label={tr("params.asset.closeAi")}
               onClick={() => setIsTemplateAiModalOpen(false)}
               className="absolute inset-0 cursor-default"
             />
             <div className="relative z-10 h-[min(80vh,640px)] w-full max-w-[940px] overflow-hidden rounded-[12px] border border-border bg-bg-card text-text-primary shadow-neo">
               <button
                 type="button"
-                aria-label="Fermer"
+                aria-label={tr("params.close")}
                 onClick={() => setIsTemplateAiModalOpen(false)}
                 className="absolute right-6 top-5 z-20 text-text-primary transition hover:text-accent"
               >
@@ -1477,34 +1474,30 @@ export default function ParametresView(_props: Props) {
               <header className="flex h-[60px] items-center gap-3 border-b border-border px-6">
                 <button
                   type="button"
-                  aria-label="Retour"
+                  aria-label={tr("params.back")}
                   onClick={() => setIsTemplateAiModalOpen(false)}
                   className="grid h-8 w-8 place-items-center rounded-full text-text-primary transition hover:bg-fg/[0.08]"
                 >
                   <ChevronLeft size={20} strokeWidth={2.4} />
                 </button>
                 <Sparkles size={21} strokeWidth={2.25} className="text-text-primary" />
-                <h2 className="font-display text-[17px] font-extrabold leading-tight tracking-tight">
-                  Créer un asset avec l’IA
-                </h2>
+                <h2 className="font-display text-[17px] font-extrabold leading-tight tracking-tight">{tr("params.asset.aiTitle")}</h2>
               </header>
 
               <div className="grid h-[calc(100%-60px)] min-h-0 gap-5 overflow-y-auto px-7 py-7 lg:grid-cols-[1fr_390px]">
                 <section className="flex min-h-[420px] flex-col">
-                  <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-text-secondary">
-                    Aperçu de l’image
-                  </p>
+                  <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-text-secondary">{tr("params.asset.imagePreview")}</p>
                   <div className="mt-2.5 flex min-h-[340px] flex-1 items-center justify-center rounded-[9px] border border-border bg-fg/[0.06] px-5 text-center">
                     {generatingTpl ? (
                       <div className="flex flex-col items-center gap-4 text-text-secondary">
                         <span className="h-9 w-9 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-                        <p className="text-[15px] font-semibold">Génération en cours…</p>
+                        <p className="text-[15px] font-semibold">{tr("params.asset.generatingFull")}</p>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center">
                         <ImagePlus size={42} strokeWidth={2.35} className="text-text-faint" />
                         <p className="mt-4 text-[13px] font-medium text-text-primary">
-                          Describe your image and click &quot;Créer avec l’IA&quot;
+                          {tr("params.asset.describeHint")}
                         </p>
                       </div>
                     )}
@@ -1512,14 +1505,12 @@ export default function ParametresView(_props: Props) {
                 </section>
 
                 <aside className="flex min-h-[420px] flex-col">
-                  <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-text-secondary">
-                    Décris l’image que tu veux créer
-                  </p>
+                  <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-text-secondary">{tr("params.asset.describePrompt")}</p>
                   <div className="mt-2.5 flex min-h-[150px] flex-col rounded-[9px] border border-border bg-fg/[0.06] p-3.5">
                     <textarea
                       value={aiPrompt}
                       onChange={(e) => setAiPrompt(e.target.value)}
-                      placeholder="ex. Photo produit pro d’un mug élégant sur un plan en marbre, lumière douce, style minimaliste"
+                      placeholder={tr("params.asset.aiPlaceholder")}
                       className="min-h-[80px] flex-1 resize-none bg-transparent text-[13px] font-medium leading-relaxed text-text-primary outline-none placeholder:text-text-muted"
                     />
                     <button
@@ -1528,7 +1519,7 @@ export default function ParametresView(_props: Props) {
                       className="mt-auto flex w-fit items-center gap-2 pt-6 text-[14px] font-extrabold text-text-secondary transition hover:text-accent"
                     >
                       <SlidersHorizontal size={16} strokeWidth={2.35} />
-                      Format : {aiAspect}
+                      {tr("params.asset.format")} {aiAspect}
                     </button>
                   </div>
 
@@ -1539,7 +1530,7 @@ export default function ParametresView(_props: Props) {
                     className="mt-3 flex h-9 items-center justify-center gap-2 rounded-[8px] bg-accent px-4 text-[13px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105 disabled:opacity-60"
                   >
                     <Sparkles size={17} strokeWidth={2.4} />
-                    {generatingTpl ? 'Génération…' : <>Créer avec l’IA <span className="h-1.5 w-1.5 rounded-full bg-white/80" aria-hidden="true" /> 2</>}
+                    {generatingTpl ? tr("params.asset.generating") : <>{tr("params.asset.createWithAi")} <span className="h-1.5 w-1.5 rounded-full bg-white/80" aria-hidden="true" /> 2</>}
                   </button>
 
                   <div className="mt-auto flex items-center justify-end pt-6">
@@ -1549,7 +1540,7 @@ export default function ParametresView(_props: Props) {
                       className="flex h-9 items-center gap-2 rounded-[8px] px-3 text-[13px] font-extrabold text-text-secondary transition hover:bg-fg/[0.08]"
                     >
                       <X size={16} strokeWidth={2.4} />
-                      Fermer
+                      {tr("params.close")}
                     </button>
                   </div>
                 </aside>
@@ -1624,7 +1615,7 @@ export default function ParametresView(_props: Props) {
       if (prodPrompt.trim()) params.set('prompt', prodPrompt.trim())
       if (prodProductId) params.set('product', prodProductId)
       if (prodAvatarId) params.set('avatar', prodAvatarId)
-      toast.success(`Production lancée : ${label} — ouverture de l'outil…`)
+      toast.success(tr("params.production.tLaunched", { label }))
       router.push(`${meta.href}?${params.toString()}`)
     }
 
@@ -1656,11 +1647,11 @@ export default function ParametresView(_props: Props) {
             </span>
             {locked ? (
               <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-700">
-                <CheckCircle2 size={11} strokeWidth={2.6} /> Terminé
+                <CheckCircle2 size={11} strokeWidth={2.6} /> {tr("params.production.done")}
               </span>
             ) : isSelected ? (
               <span className="flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-extrabold text-white">
-                <CheckCircle2 size={11} strokeWidth={2.6} /> Sélectionné
+                <CheckCircle2 size={11} strokeWidth={2.6} /> {tr("params.production.selected")}
               </span>
             ) : null}
           </div>
@@ -1668,7 +1659,7 @@ export default function ParametresView(_props: Props) {
             <h3 className="text-[13px] font-extrabold tracking-tight text-text-primary">{t.label}</h3>
             <p className="mt-0.5 text-[11px] font-medium leading-snug text-text-secondary">{meta.desc}</p>
             <p className="mt-1.5 text-[10px] font-extrabold uppercase tracking-wide text-text-muted">
-              {count}/{quota} produit{quota > 1 ? 's' : ''} aujourd'hui
+              {count}/{quota} {tr("params.production.producedToday")}
             </p>
           </div>
         </button>
@@ -1686,7 +1677,7 @@ export default function ParametresView(_props: Props) {
             className="flex h-9 items-center gap-1.5 rounded-[8px] border border-border bg-fg/[0.04] px-3.5 text-[12px] font-extrabold text-text-primary shadow-sm transition-colors hover:border-accent/60"
           >
             <SlidersHorizontal size={14} strokeWidth={2.4} />
-            Réglages campagne
+            {tr("params.production.campaignSettings")}
           </Link>
         </header>
 
@@ -1699,9 +1690,9 @@ export default function ParametresView(_props: Props) {
                   <div className="mb-4 flex items-start gap-2.5 rounded-[10px] border border-accent/30 bg-accent/5 px-3 py-2">
                     <Info size={15} strokeWidth={2.4} className="mt-0.5 shrink-0 text-accent" />
                     <p className="text-[12px] font-semibold leading-snug text-text-secondary">
-                      Aucun type de contenu n'a encore été sélectionné dans les réglages de la campagne — voici tout le catalogue.{' '}
+                      {tr("params.production.noneSelected")}{" "}
                       <Link href="/parametres?section=profile" className="underline underline-offset-2 hover:text-accent">
-                        Configurer la campagne
+                        {tr("params.production.configureCampaign")}
                       </Link>
                     </p>
                   </div>
@@ -1712,9 +1703,9 @@ export default function ParametresView(_props: Props) {
                     <Megaphone size={14} strokeWidth={2.5} />
                   </span>
                   <div>
-                    <h2 className="text-[14px] font-extrabold tracking-tight text-text-primary">Jour J — Campagne</h2>
+                    <h2 className="text-[14px] font-extrabold tracking-tight text-text-primary">{tr("params.production.dDay")}</h2>
                     <p className="text-[12px] font-semibold text-text-secondary">
-                      {campaign.campaignCount}× / {campaign.campaignPer === 'day' ? 'jour' : campaign.campaignPer === 'week' ? 'semaine' : 'mois'} · {dayTypes.length} type{dayTypes.length > 1 ? 's' : ''} de contenu
+                      {campaign.campaignCount}× / {campaign.campaignPer === 'day' ? tr('params.production.perDay') : campaign.campaignPer === 'week' ? tr('params.production.perWeek') : tr('params.production.perMonth')} · {dayTypes.length} {tr('params.production.typesContent')}
                     </p>
                   </div>
                 </div>
@@ -1730,9 +1721,9 @@ export default function ParametresView(_props: Props) {
                         <CalendarClock size={14} strokeWidth={2.5} />
                       </span>
                       <div>
-                        <h2 className="text-[14px] font-extrabold tracking-tight text-text-primary">Pré-campagne</h2>
+                        <h2 className="text-[14px] font-extrabold tracking-tight text-text-primary">{tr("params.production.preCampaign")}</h2>
                         <p className="text-[12px] font-semibold text-text-secondary">
-                          {campaign.preCount}× / {campaign.prePer === 'day' ? 'jour' : campaign.prePer === 'week' ? 'semaine' : 'mois'} · {preTypes.length} type{preTypes.length > 1 ? 's' : ''} de contenu
+                          {campaign.preCount}× / {campaign.prePer === 'day' ? tr('params.production.perDay') : campaign.prePer === 'week' ? tr('params.production.perWeek') : tr('params.production.perMonth')} · {preTypes.length} {tr('params.production.typesContent')}
                         </p>
                       </div>
                     </div>
@@ -1748,29 +1739,29 @@ export default function ParametresView(_props: Props) {
                     <div className="mb-2 flex items-center justify-between gap-2 px-1">
                       <span className="flex items-center gap-1.5 text-[12px] font-bold text-accent">
                         {generatingProdPrompt
-                          ? <><span className="h-3 w-3 rounded-full border-2 border-accent/40 border-t-accent animate-spin" /> Brief créatif en cours…</>
-                          : <><CheckCircle2 size={13} strokeWidth={2.6} /> {CONTENT_TYPES.find((c) => c.id === selectedCard)?.label} — prompt créatif prêt.</>}
+                          ? <><span className="h-3 w-3 rounded-full border-2 border-accent/40 border-t-accent animate-spin" /> {tr("params.production.briefRunning")}</>
+                          : <><CheckCircle2 size={13} strokeWidth={2.6} /> {CONTENT_TYPES.find((c) => c.id === selectedCard)?.label} — {tr("params.production.promptReady")}</>}
                       </span>
                       <button
                         type="button"
                         onClick={() => genCreativePrompt(selectedCard, prodProductId, CONTENT_TYPES.find((c) => c.id === selectedCard)?.label ?? 'Contenu')}
                         disabled={generatingProdPrompt}
                         className="inline-flex shrink-0 items-center gap-1 text-[12px] font-extrabold text-text-secondary transition hover:text-accent disabled:opacity-50"
-                        title="Régénérer un brief créatif à partir du produit + ADN de marque"
+                        title={tr("params.production.regenerateTitle")}
                       >
-                        <Sparkles size={13} strokeWidth={2.4} /> Régénérer
+                        <Sparkles size={13} strokeWidth={2.4} /> {tr("params.production.regenerate")}
                       </button>
                     </div>
                   ) : (
                     <div className="mb-2 px-1 text-[12px] font-semibold text-text-muted">
-                      Clique sur une carte ci-dessus — l'IA analyse ton produit + l'ADN de marque pour générer un brief créatif.
+                      {tr("params.production.clickCard")}
                     </div>
                   )}
                   <div className={`rounded-[14px] border bg-bg-card px-3 py-2.5 shadow-[0_6px_20px_rgba(0,0,0,0.07)] transition-all ${selectedCard ? 'border-accent ring-2 ring-accent/15' : 'border-border focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15'}`}>
                     <textarea
                       value={prodPrompt}
                       onChange={(e) => setProdPrompt(e.target.value)}
-                      placeholder="Décris ce que tu veux créer, ou clique sur une carte…"
+                      placeholder={tr("params.production.promptPlaceholder")}
                       rows={3}
                       className="block w-full resize-none border-0 bg-transparent p-0 text-[13px] leading-relaxed text-text-primary outline-none ring-0 placeholder:text-text-muted focus:ring-0"
                     />
@@ -1784,13 +1775,13 @@ export default function ParametresView(_props: Props) {
                             className={`flex h-8 max-w-[160px] items-center gap-1.5 rounded-[9px] px-2.5 text-[12px] font-extrabold transition-colors ${prodProduct ? 'bg-accent/10 text-accent' : 'bg-fg/[0.06] text-text-primary hover:bg-fg/[0.10]'}`}
                           >
                             <ShoppingBag size={14} strokeWidth={2.3} />
-                            <span className="truncate">{prodProduct ? prodProduct.name : 'Produit'}</span>
+                            <span className="truncate">{prodProduct ? prodProduct.name : tr("params.production.product")}</span>
                             {prodProduct && <X size={12} strokeWidth={2.6} onClick={(e) => { e.stopPropagation(); setProdProductId(null) }} className="shrink-0 hover:scale-110" />}
                           </button>
                           {prodAttachMenu === 'product' && (
                             <div className="absolute bottom-[calc(100%+6px)] left-0 z-30 max-h-[220px] w-[220px] overflow-y-auto rounded-[10px] border border-border bg-bg-card py-1 shadow-neo-lg">
                               {products.length === 0 ? (
-                                <p className="px-3 py-2 text-[12px] font-medium text-text-muted">Aucun produit. Ajoute-en dans Products.</p>
+                                <p className="px-3 py-2 text-[12px] font-medium text-text-muted">{tr("params.production.noProduct")}</p>
                               ) : products.map((p) => (
                                 <button key={p.id} type="button" onClick={() => { setProdProductId(p.id); setProdAttachMenu(null); if (selectedCard) genCreativePrompt(selectedCard, p.id, CONTENT_TYPES.find((c) => c.id === selectedCard)?.label ?? 'Contenu') }} className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] font-bold transition-colors ${prodProductId === p.id ? 'bg-accent/10 text-accent' : 'text-text-primary hover:bg-fg/[0.05]'}`}>
                                   <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-[6px] bg-fg/[0.08]">
@@ -1810,13 +1801,13 @@ export default function ParametresView(_props: Props) {
                             className={`flex h-8 max-w-[160px] items-center gap-1.5 rounded-[9px] px-2.5 text-[12px] font-extrabold transition-colors ${prodAvatar ? 'bg-accent/10 text-accent' : 'bg-fg/[0.06] text-text-primary hover:bg-fg/[0.10]'}`}
                           >
                             <User size={14} strokeWidth={2.3} />
-                            <span className="truncate">{prodAvatar ? prodAvatar.name : 'Avatar'}</span>
+                            <span className="truncate">{prodAvatar ? prodAvatar.name : tr("params.production.avatar")}</span>
                             {prodAvatar && <X size={12} strokeWidth={2.6} onClick={(e) => { e.stopPropagation(); setProdAvatarId(null) }} className="shrink-0 hover:scale-110" />}
                           </button>
                           {prodAttachMenu === 'avatar' && (
                             <div className="absolute bottom-[calc(100%+6px)] left-0 z-30 max-h-[220px] w-[220px] overflow-y-auto rounded-[10px] border border-border bg-bg-card py-1 shadow-neo-lg">
                               {prodAvatars.length === 0 ? (
-                                <p className="px-3 py-2 text-[12px] font-medium text-text-muted">Aucun personnage. Crée-en dans Characters.</p>
+                                <p className="px-3 py-2 text-[12px] font-medium text-text-muted">{tr("params.production.noCharacter")}</p>
                               ) : prodAvatars.map((a) => (
                                 <button key={a.id} type="button" onClick={() => { setProdAvatarId(a.id); setProdAttachMenu(null) }} className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] font-bold transition-colors ${prodAvatarId === a.id ? 'bg-accent/10 text-accent' : 'text-text-primary hover:bg-fg/[0.05]'}`}>
                                   <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-fg/[0.08]">
@@ -1835,15 +1826,15 @@ export default function ParametresView(_props: Props) {
                               type="button"
                               onClick={() => setProdAttachMenu((m) => (m === 'competitor' ? null : 'competitor'))}
                               className={`flex h-8 max-w-[180px] items-center gap-1.5 rounded-[9px] px-2.5 text-[12px] font-extrabold transition-colors ${prodCompetitor ? 'bg-accent/10 text-accent' : 'bg-fg/[0.06] text-text-primary hover:bg-fg/[0.10]'}`}
-                              title="S'inspirer d'un concurrent suivi (optionnel)"
+                              title={tr("params.production.competitorInspire")}
                             >
                               <Swords size={14} strokeWidth={2.3} />
-                              <span className="truncate">{prodCompetitor ? `Inspiré : ${prodCompetitor}` : 'Concurrent'}</span>
+                              <span className="truncate">{prodCompetitor ? tr("params.production.inspiredBy", { name: prodCompetitor }) : tr("params.production.competitor")}</span>
                               {prodCompetitor && <X size={12} strokeWidth={2.6} onClick={(e) => { e.stopPropagation(); setProdCompetitor(null); if (selectedCard) genCreativePrompt(selectedCard, prodProductId, CONTENT_TYPES.find((c) => c.id === selectedCard)?.label ?? 'Contenu') }} className="shrink-0 hover:scale-110" />}
                             </button>
                             {prodAttachMenu === 'competitor' && (
                               <div className="absolute bottom-[calc(100%+6px)] left-0 z-30 max-h-[220px] w-[220px] overflow-y-auto rounded-[10px] border border-border bg-bg-card py-1 shadow-neo-lg">
-                                <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide text-text-muted">Concurrents suivis</p>
+                                <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide text-text-muted">{tr("params.production.trackedCompetitors")}</p>
                                 {tracked.map((name) => (
                                   <button key={name} type="button" onClick={() => { setProdCompetitor(name); setProdAttachMenu(null); if (selectedCard) genCreativePrompt(selectedCard, prodProductId, CONTENT_TYPES.find((c) => c.id === selectedCard)?.label ?? 'Contenu') }} className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] font-bold transition-colors ${prodCompetitor === name ? 'bg-accent/10 text-accent' : 'text-text-primary hover:bg-fg/[0.05]'}`}>
                                     <Swords size={12} className="shrink-0 text-text-muted" /> <span className="truncate">{name}</span>
@@ -1859,7 +1850,7 @@ export default function ParametresView(_props: Props) {
                         onClick={handleLaunch}
                         disabled={!selectedCard || !prodPrompt.trim()}
                         className="grid h-9 w-9 place-items-center rounded-full bg-accent text-white shadow-sm transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label="Lancer la production"
+                        aria-label={tr("params.production.launch")}
                       >
                         <ArrowUp size={16} strokeWidth={2.8} />
                       </button>
@@ -1868,7 +1859,7 @@ export default function ParametresView(_props: Props) {
 
                   {/* Suggestions */}
                   <div className="mt-2.5 flex flex-wrap gap-2">
-                    {['Créer des pubs', 'Pub UGC', 'Analyse de marque', 'Étudier les concurrents'].map((s) => (
+                    {[tr('params.production.sugAds'), tr('params.production.sugUgc'), tr('params.production.sugBrand'), tr('params.production.sugCompetitors')].map((s) => (
                       <button
                         key={s}
                         type="button"
@@ -1896,12 +1887,12 @@ export default function ParametresView(_props: Props) {
         {/* Header */}
         <header className="flex h-[56px] shrink-0 items-center justify-between border-b border-border px-5 sm:px-6">
           <div className="flex items-center gap-2.5">
-            <h1 className="text-[19px] font-extrabold tracking-tight text-text-primary">Veille concurrentielle</h1>
+            <h1 className="text-[19px] font-extrabold tracking-tight text-text-primary">{tr("params.comp.title")}</h1>
             {competitors.length > 0 && (
               <span className="inline-flex items-center rounded-full bg-fg/[0.06] px-2 py-0.5 text-[12px] font-extrabold text-text-secondary">{competitors.length}</span>
             )}
             {tracked.length > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-extrabold text-accent"><Check size={11} strokeWidth={3} /> {tracked.length}/3 suivis</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-extrabold text-accent"><Check size={11} strokeWidth={3} /> {tr("params.comp.tracked", { n: tracked.length })}</span>
             )}
           </div>
           <button
@@ -1910,7 +1901,7 @@ export default function ParametresView(_props: Props) {
             disabled={discoveringComp}
             className="flex h-9 items-center gap-1.5 rounded-[8px] bg-accent px-4 text-[12px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105 disabled:opacity-60"
           >
-            {discoveringComp ? <><span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" /> Recherche…</> : <><Sparkles size={14} strokeWidth={2.4} /> {competitors.length > 0 ? 'Relancer' : 'Découvrir mes concurrents'}</>}
+            {discoveringComp ? <><span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" /> {tr("params.comp.searching")}</> : <><Sparkles size={14} strokeWidth={2.4} /> {competitors.length > 0 ? tr("params.comp.relaunch") : tr("params.comp.discover")}</>}
           </button>
         </header>
 
@@ -1923,8 +1914,8 @@ export default function ParametresView(_props: Props) {
               value={compQuery}
               onChange={(e) => setCompQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && compQuery.trim()) discoverComp(compQuery.trim()) }}
-              placeholder="Analyser une marque précise…"
-              className="h-8 w-full rounded-[8px] border border-border bg-fg/[0.04] pl-9 pr-3 text-[12px] font-semibold text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
+              placeholder={tr("params.comp.analyzeBrandPlaceholder")}
+              className="h-8 w-full rounded-[8px] border border-border bg-fg/[0.04] !pl-9 pr-3 text-[12px] font-semibold text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
             />
           </div>
           <button
@@ -1933,7 +1924,7 @@ export default function ParametresView(_props: Props) {
             disabled={!compQuery.trim() || discoveringComp}
             className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-border bg-fg/[0.04] px-3 text-[12px] font-extrabold text-text-primary transition-colors hover:border-accent/60 disabled:opacity-50"
           >
-            <Sparkles size={13} strokeWidth={2.3} /> Analyser
+            <Sparkles size={13} strokeWidth={2.3} /> {tr("params.comp.analyze")}
           </button>
         </div>
 
@@ -1942,23 +1933,23 @@ export default function ParametresView(_props: Props) {
           {discoveringComp ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <span className="h-8 w-8 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
-              <p className="mt-4 text-[13px] font-semibold text-text-secondary">Analyse du marché en cours…</p>
+              <p className="mt-4 text-[13px] font-semibold text-text-secondary">{tr("params.comp.analyzingMarket")}</p>
             </div>
           ) : competitors.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <div className="grid h-14 w-14 place-items-center rounded-full bg-fg/[0.06] text-accent">
                 <Swords size={24} strokeWidth={2.2} />
               </div>
-              <h2 className="mt-4 text-[16px] font-extrabold tracking-tight text-text-primary">Découvre tes concurrents e-commerce</h2>
+              <h2 className="mt-4 text-[16px] font-extrabold tracking-tight text-text-primary">{tr("params.comp.emptyTitle")}</h2>
               <p className="mt-1.5 max-w-[380px] text-[13px] font-medium text-text-secondary">
-                L'IA recherche les marques e-commerce / DTC sérieuses de ta niche (hors grandes marques legacy), classées du plus grand au plus petit, et décrypte leurs promos, carrousels et créatives. Sélectionnes-en jusqu'à 3 à suivre.
+                {tr("params.comp.emptyDesc")}
               </p>
               <button
                 type="button"
                 onClick={() => discoverComp()}
                 className="mt-5 inline-flex h-9 items-center gap-2 rounded-[10px] bg-accent px-4 text-[13px] font-extrabold text-white shadow-neo-solid transition hover:brightness-105"
               >
-                <Sparkles size={15} strokeWidth={2.4} /> Découvrir mes concurrents
+                <Sparkles size={15} strokeWidth={2.4} /> {tr("params.comp.discover")}
               </button>
             </div>
           ) : (
@@ -1970,7 +1961,7 @@ export default function ParametresView(_props: Props) {
                   <button
                     type="button"
                     onClick={() => removeCompetitor(i)}
-                    aria-label="Retirer ce concurrent"
+                    aria-label={tr("params.comp.remove")}
                     className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-bg-card/95 text-text-secondary opacity-0 shadow-neo-sm ring-1 ring-border backdrop-blur transition-all hover:bg-coral hover:text-white hover:ring-coral group-hover:opacity-100"
                   >
                     <X size={12} strokeWidth={2.5} />
@@ -1989,11 +1980,11 @@ export default function ParametresView(_props: Props) {
                   </div>
                   <p className="mt-1.5 text-[12px] font-medium leading-snug text-text-secondary">{c.description}</p>
                   {c.positioning && (
-                    <p className="mt-2 text-[11px] font-semibold leading-snug text-text-muted"><span className="font-extrabold text-text-secondary">Positionnement :</span> {c.positioning}</p>
+                    <p className="mt-2 text-[11px] font-semibold leading-snug text-text-muted"><span className="font-extrabold text-text-secondary">{tr("params.comp.positioning")}</span> {c.positioning}</p>
                   )}
                   {c.adAngles?.length > 0 && (
                     <div className="mt-3 border-t border-border pt-2.5">
-                      <p className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-text-muted">Angles publicitaires</p>
+                      <p className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-text-muted">{tr("params.comp.adAngles")}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {c.adAngles.map((a, j) => (
                           <span key={j} className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent">{a}</span>
@@ -2008,14 +1999,14 @@ export default function ParametresView(_props: Props) {
                       className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] px-3 text-[12px] font-extrabold transition ${isTracked ? 'bg-accent text-white' : 'bg-fg/[0.06] text-text-secondary hover:bg-fg/[0.12] hover:text-text-primary'}`}
                       title={isTracked ? 'Ne plus suivre' : 'Suivre ce concurrent (max 3)'}
                     >
-                      {isTracked ? <><Check size={13} strokeWidth={2.8} /> Suivi</> : 'Suivre'}
+                      {isTracked ? <><Check size={13} strokeWidth={2.8} /> {tr("params.comp.tracking")}</> : tr("params.comp.track")}
                     </button>
                     <button
                       type="button"
                       onClick={() => analyzeStrategy(c.name)}
                       className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[9px] bg-accent/10 text-[12px] font-extrabold text-accent transition hover:bg-accent hover:text-white"
                     >
-                      <Swords size={13} strokeWidth={2.4} /> Analyser
+                      <Swords size={13} strokeWidth={2.4} /> {tr("params.comp.analyze")}
                     </button>
                   </div>
                 </div>
@@ -2036,7 +2027,7 @@ export default function ParametresView(_props: Props) {
                   <span className="grid h-7 w-7 place-items-center rounded-[8px] bg-accent/12 text-accent"><Swords size={15} strokeWidth={2.4} /></span>
                   <div>
                     <h2 className="text-[15px] font-extrabold leading-tight tracking-tight text-text-primary">{strategyFor}</h2>
-                    <p className="text-[11px] font-semibold text-text-muted">Analyse stratégique · playbook pour ta marque</p>
+                    <p className="text-[11px] font-semibold text-text-muted">{tr("params.comp.modalSubtitle")}</p>
                   </div>
                 </div>
                 <button type="button" onClick={() => { if (!loadingStrategy) { setStrategyFor(null); setStrategy(null) } }} className="grid h-7 w-7 place-items-center rounded-full text-text-muted transition hover:bg-fg/[0.08] hover:text-text-primary"><X size={16} strokeWidth={2.3} /></button>
@@ -2046,13 +2037,13 @@ export default function ParametresView(_props: Props) {
                 {loadingStrategy || !strategy ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
                     <span className="h-8 w-8 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
-                    <p className="mt-4 text-[13px] font-semibold text-text-secondary">Espionnage en cours… recherche web + analyse</p>
+                    <p className="mt-4 text-[13px] font-semibold text-text-secondary">{tr("params.comp.spying")}</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {strategy.recommendations.length > 0 && (
                       <div className="rounded-[12px] border border-accent/30 bg-accent/5 p-3.5">
-                        <p className="mb-2 flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-accent"><Sparkles size={13} strokeWidth={2.5} /> Playbook pour ta marque</p>
+                        <p className="mb-2 flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-accent"><Sparkles size={13} strokeWidth={2.5} /> {tr("params.comp.playbook")}</p>
                         <ul className="space-y-1.5">
                           {strategy.recommendations.map((r, i) => (
                             <li key={i} className="flex gap-2 text-[12px] font-semibold leading-snug text-text-primary"><span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />{r}</li>
@@ -2062,12 +2053,12 @@ export default function ParametresView(_props: Props) {
                     )}
                     <div className="grid gap-3 sm:grid-cols-2">
                       {([
-                        ['Ce qu\'ils font mieux', strategy.strengths],
-                        ['Angles qui performent', strategy.winningAngles],
-                        ['Formats de contenu', strategy.contentFormats],
-                        ['Offres / leviers', strategy.offers],
-                        ['Canaux', strategy.channels],
-                        ['Failles exploitables', strategy.weaknesses],
+                        [tr('params.comp.catStrengths'), strategy.strengths],
+                        [tr('params.comp.catWinning'), strategy.winningAngles],
+                        [tr('params.comp.catFormats'), strategy.contentFormats],
+                        [tr('params.comp.catOffers'), strategy.offers],
+                        [tr('params.comp.catChannels'), strategy.channels],
+                        [tr('params.comp.catWeaknesses'), strategy.weaknesses],
                       ] as const).filter(([, items]) => items.length > 0).map(([title, items]) => (
                         <div key={title} className="rounded-[10px] border border-border bg-fg/[0.03] p-3">
                           <p className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-text-muted">{title}</p>
@@ -2080,20 +2071,20 @@ export default function ParametresView(_props: Props) {
                       ))}
                     </div>
                     {strategy.sources.length > 0 && (
-                      <p className="text-[10px] font-medium text-text-muted">Sources : {strategy.sources.slice(0, 3).map((s, i) => <a key={i} href={s.startsWith('http') ? s : `https://${s}`} target="_blank" rel="noreferrer" className="text-accent hover:underline">{(i ? ', ' : '') + s.replace(/^https?:\/\//, '').slice(0, 40)}</a>)}</p>
+                      <p className="text-[10px] font-medium text-text-muted">{tr("params.comp.sources")} {strategy.sources.slice(0, 3).map((s, i) => <a key={i} href={s.startsWith('http') ? s : `https://${s}`} target="_blank" rel="noreferrer" className="text-accent hover:underline">{(i ? ', ' : '') + s.replace(/^https?:\/\//, '').slice(0, 40)}</a>)}</p>
                     )}
                   </div>
                 )}
               </div>
               {strategy && !loadingStrategy && (
                 <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-5 py-3">
-                  <p className="text-[11px] font-medium text-text-muted">Inspire-toi de ce concurrent pour créer une pub équilibrée.</p>
+                  <p className="text-[11px] font-medium text-text-muted">{tr("params.comp.inspireFooter")}</p>
                   <button
                     type="button"
                     onClick={() => useCompetitorInProduction(strategyFor)}
                     className="inline-flex h-9 shrink-0 items-center gap-2 rounded-[10px] bg-accent px-4 text-[13px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105"
                   >
-                    <Sparkles size={15} strokeWidth={2.4} /> Créer une pub inspirée
+                    <Sparkles size={15} strokeWidth={2.4} /> {tr("params.comp.createInspired")}
                   </button>
                 </div>
               )}
@@ -2108,21 +2099,21 @@ export default function ParametresView(_props: Props) {
     <div className="page animate-fade-in -mx-8 -mt-6 -mb-8 h-screen overflow-hidden px-2 py-1.5">
       <section className="flex h-full w-full flex-col overflow-hidden rounded-[18px] border border-border bg-bg-card text-text-primary shadow-neo-sm">
         <header className="flex h-[56px] flex-shrink-0 items-center justify-between border-b border-border px-5">
-          <h1 className="font-display text-[20px] font-extrabold leading-tight tracking-tight text-text-primary">Détails de la marque</h1>
+          <h1 className="font-display text-[20px] font-extrabold leading-tight tracking-tight text-text-primary">{tr('params.title')}</h1>
           {saveStatus === 'saving' ? (
             <div className="flex items-center gap-2 text-[13px] font-extrabold text-text-muted">
               <span className="h-3.5 w-3.5 rounded-full border-2 border-text-muted/40 border-t-text-muted animate-spin" />
-              Enregistrement…
+              {tr('params.saving')}
             </div>
           ) : saveStatus === 'error' ? (
             <div className="flex items-center gap-2 text-[13px] font-extrabold text-coral">
               <Info size={16} />
-              Échec de l'enregistrement
+              {tr('params.saveError')}
             </div>
           ) : (
             <div className="flex items-center gap-2 text-[13px] font-extrabold text-text-secondary">
               <CheckCircle2 size={16} className="text-emerald-600" />
-              Enregistré
+              {tr('params.saved')}
             </div>
           )}
         </header>
@@ -2152,10 +2143,10 @@ export default function ParametresView(_props: Props) {
                   </span>
                   <span>
                     <span className="block font-display text-[12px] font-extrabold leading-tight tracking-tight">
-                      {tab.label}
+                      {tr(`params.tab${tab.id.charAt(0).toUpperCase()}${tab.id.slice(1)}`)}
                     </span>
                     <span className={`mt-1.5 block text-[13px] font-medium leading-tight ${activeTab === tab.id ? 'text-text-secondary' : 'text-text-secondary'}`}>
-                      {tab.description}
+                      {tr(`params.tab${tab.id.charAt(0).toUpperCase()}${tab.id.slice(1)}Desc`)}
                     </span>
                   </span>
                 </button>
@@ -2185,23 +2176,23 @@ export default function ParametresView(_props: Props) {
 
               <div className="min-w-0">
                 <label className="block">
-                  <span className="mb-1.5 block text-[12px] font-extrabold text-text-primary">Nom de la marque</span>
+                  <span className="mb-1.5 block text-[12px] font-extrabold text-text-primary">{tr('params.brandName')}</span>
                   <input
-                    aria-label="Nom de la marque"
+                    aria-label={tr('params.brandName')}
                     value={brand.name}
                     onChange={(e) => updateName(e.target.value)}
-                    placeholder="ex. Studio UGC IA"
+                    placeholder={tr('params.brandNamePlaceholder')}
                     className="h-9 w-full rounded-[8px] border border-border bg-fg/[0.12] px-3 font-display text-[15px] font-extrabold text-text-primary outline-none transition-colors placeholder:font-medium placeholder:text-text-muted focus:border-accent"
                   />
                 </label>
 
                 <div className="mt-4">
-                  <span className="mb-1.5 block text-[12px] font-extrabold text-text-primary">Site web <span className="font-medium text-text-muted">(optionnel)</span></span>
+                  <span className="mb-1.5 block text-[12px] font-extrabold text-text-primary">{tr('params.website')} <span className="font-medium text-text-muted">{tr('params.optional')}</span></span>
                   <div className="flex gap-2">
                     <input
                       type="url"
                       inputMode="url"
-                      aria-label="Site web de la marque"
+                      aria-label={tr('params.website')}
                       value={brand.website}
                       onChange={(e) => brand.setField('website', e.target.value)}
                       placeholder="https://exemple.com"
@@ -2211,24 +2202,24 @@ export default function ParametresView(_props: Props) {
                       type="button"
                       onClick={importBrandFromSite}
                       disabled={importingBrand || !brand.website.trim()}
-                      title="Pré-remplir le profil depuis ton site"
+                      title={tr('params.importTitle')}
                       className="flex h-9 shrink-0 items-center gap-1.5 rounded-[8px] bg-accent px-3 text-[12px] font-extrabold text-white shadow-neo-sm transition hover:brightness-105 disabled:opacity-50"
                     >
                       <Sparkles size={14} strokeWidth={2.4} />
-                      {importingBrand ? 'Analyse…' : 'Importer'}
+                      {importingBrand ? tr('params.importing') : tr('params.import')}
                     </button>
                   </div>
-                  <p className="mt-1.5 text-[11px] font-medium text-text-muted">L'IA analyse ton site pour pré-remplir Identité, Ton et Audience.</p>
+                  <p className="mt-1.5 text-[11px] font-medium text-text-muted">{tr('params.importHint')}</p>
                 </div>
 
                 <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_280px]">
                   <label className="block">
-                    <span className="mb-1.5 block text-[12px] font-extrabold">Catégorie de marque</span>
+                    <span className="mb-1.5 block text-[12px] font-extrabold">{tr('params.brandCategory')}</span>
                     <BrandSelect value={brand.category} options={BRAND_CATEGORIES} onChange={(v) => brand.setField('category', v)} />
                   </label>
 
                   <label className="block">
-                    <span className="mb-1.5 block text-[12px] font-extrabold">Langue</span>
+                    <span className="mb-1.5 block text-[12px] font-extrabold">{tr('params.language')}</span>
                     <BrandSelect value={brand.language} options={LANGUAGES} onChange={(v) => brand.setField('language', v)} />
                   </label>
                 </div>
@@ -2238,7 +2229,7 @@ export default function ParametresView(_props: Props) {
             {/* Brand DNA Section - Full Width */}
             <div className="xl:col-span-2">
               <div className="mb-2 flex items-center justify-between">
-                <span className="block text-[14px] font-extrabold">ADN de la marque</span>
+                <span className="block text-[14px] font-extrabold">{tr('params.dnaTitle')}</span>
               </div>
               <div className="relative flex flex-col items-center justify-center rounded-[12px] border-2 border-dashed border-border bg-fg/[0.03] p-4 transition-colors hover:border-accent/60 hover:bg-accent/5">
                 <div className="mb-2.5 grid h-10 w-10 place-items-center rounded-full bg-bg-card shadow-sm">
@@ -2247,16 +2238,16 @@ export default function ParametresView(_props: Props) {
                 {brand.dnaFileName ? (
                   <>
                     <h3 className="max-w-[280px] truncate text-[13px] font-extrabold text-text-primary">{brand.dnaFileName}</h3>
-                    <p className="mt-1 text-[11px] font-semibold text-accent">Document ADN importé · clique pour remplacer</p>
+                    <p className="mt-1 text-[11px] font-semibold text-accent">{tr('params.dnaImported')}</p>
                   </>
                 ) : (
                   <>
-                    <h3 className="text-[13px] font-extrabold text-text-primary">Importer l’ADN de ta marque</h3>
+                    <h3 className="text-[13px] font-extrabold text-text-primary">{tr('params.dnaImport')}</h3>
                     <p className="mt-1 text-[11px] font-medium text-text-muted">
-                      Glisse-dépose ton fichier ici, ou <span className="font-bold text-accent">parcourir</span>
+                      {tr('params.dnaDrop')} <span className="font-bold text-accent">{tr('params.browse')}</span>
                     </p>
                     <p className="mt-1.5 text-[10px] font-semibold text-text-faint">
-                      Formats : .pdf, .doc, .docx, .md, .txt (max 10 Mo)
+                      {tr('params.dnaFormats')}
                     </p>
                   </>
                 )}
@@ -2266,7 +2257,7 @@ export default function ParametresView(_props: Props) {
 
             <div>
               <label className="block">
-                <span className="mb-2 block text-[12px] font-extrabold">Description de la marque</span>
+                <span className="mb-2 block text-[12px] font-extrabold">{tr('params.description')}</span>
                 <div className="relative">
                   <textarea
                     value={brand.description}
@@ -2281,7 +2272,7 @@ export default function ParametresView(_props: Props) {
               <div className="mt-5">
                 <div className="mb-2.5 flex items-center gap-2">
                   <Palette size={14} className="text-accent" />
-                  <h2 className="text-[12px] font-extrabold">Couleurs de la marque</h2>
+                  <h2 className="text-[12px] font-extrabold">{tr('params.brandColors')}</h2>
                 </div>
                 <div className="flex flex-wrap gap-4">
                   {brand.colors.map((color, i) => (
@@ -2294,7 +2285,7 @@ export default function ParametresView(_props: Props) {
                         type="button"
                         onClick={() => brand.removeItem('colors', i)}
                         className="absolute -right-1 -top-1 hidden h-5 w-5 place-items-center rounded-full bg-fg/[0.85] text-white group-hover:grid"
-                        aria-label="Remove color"
+                        aria-label={tr('params.removeColor')}
                       >
                         <X size={12} />
                       </button>
@@ -2303,7 +2294,7 @@ export default function ParametresView(_props: Props) {
                   ))}
                   <label
                     className="grid h-[38px] w-[38px] cursor-pointer place-items-center rounded-full border-2 border-dashed border-border-strong text-text-muted transition hover:border-accent hover:text-accent"
-                    aria-label="Add brand color"
+                    aria-label={tr('params.addColor')}
                   >
                     <Plus size={20} />
                     <input type="color" className="sr-only" onChange={(e) => brand.addItem('colors', e.target.value.toUpperCase())} />
@@ -2313,7 +2304,7 @@ export default function ParametresView(_props: Props) {
             </div>
 
             <div>
-              <h2 className="mb-2 text-[12px] font-extrabold">Type de marque</h2>
+              <h2 className="mb-2 text-[12px] font-extrabold">{tr('params.brandType')}</h2>
               <div className="grid gap-2.5 sm:grid-cols-3 xl:grid-cols-3">
                 {brandTypes.map((type) => {
                   const Icon = type.icon
@@ -2346,17 +2337,17 @@ export default function ParametresView(_props: Props) {
 
               <div className="mt-6">
                 <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-[12px] font-extrabold">Points clés</h2>
+                  <h2 className="text-[12px] font-extrabold">{tr('params.keyPoints')}</h2>
                   <button
                     type="button"
                     onClick={() => brand.addItem('keyFeatures')}
                     className="grid h-7 w-7 place-items-center rounded-full text-text-secondary transition hover:bg-fg/[0.08]"
-                    aria-label="Add key feature"
+                    aria-label={tr('params.addKeyFeature')}
                   >
                     <Plus size={18} />
                   </button>
                 </div>
-                <BrandList listKey="keyFeatures" variant="row" emptyLabel="Add Points clés." />
+                <BrandList listKey="keyFeatures" variant="row" emptyLabel={tr('params.emptyList')} />
               </div>
             </div>
           </div>
@@ -2367,13 +2358,13 @@ export default function ParametresView(_props: Props) {
               <label className="block">
                 <span className="mb-2 flex items-center gap-1.5 text-[12px] font-extrabold">
                   <Megaphone size={15} className="text-accent" />
-                  Ton de communication
+                  {tr('params.toneLabel')}
                 </span>
                 <input
-                  aria-label="Ton de communication"
+                  aria-label={tr('params.toneLabel')}
                   value={brand.communicationTone}
                   onChange={(e) => brand.setField('communicationTone', e.target.value)}
-                  placeholder="ex. Amical, confiant et accessible"
+                  placeholder={tr('params.tonePlaceholder')}
                   className="h-8 w-full rounded-[8px] border border-border bg-fg/[0.04] px-2.5 text-[12px] font-medium text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
                 />
               </label>
@@ -2396,62 +2387,62 @@ export default function ParametresView(_props: Props) {
               <div className="mt-6 grid gap-x-6 gap-y-5 xl:grid-cols-2">
                 <section>
                   <div className="mb-2.5 flex items-center justify-between">
-                    <h2 className="text-[13px] font-extrabold">Mots préférés</h2>
+                    <h2 className="text-[13px] font-extrabold">{tr('params.preferredWords')}</h2>
                     <button
                       type="button"
                       onClick={() => brand.addItem('preferredWords')}
                       className="grid h-6 w-6 place-items-center rounded-full text-text-secondary transition hover:bg-fg/[0.08]"
-                      aria-label="Ajouter un mot préféré"
+                      aria-label={tr('params.addPreferredWord')}
                     >
                       <Plus size={15} />
                     </button>
                   </div>
-                  <BrandList listKey="preferredWords" variant="chip" emptyLabel="Ajoute des mots préférés." />
+                  <BrandList listKey="preferredWords" variant="chip" emptyLabel={tr('params.emptyList')} />
                 </section>
 
                 <section>
                   <div className="mb-2.5 flex items-center justify-between">
-                    <h2 className="text-[13px] font-extrabold">Mots à éviter</h2>
+                    <h2 className="text-[13px] font-extrabold">{tr('params.avoidWords')}</h2>
                     <button
                       type="button"
                       onClick={() => brand.addItem('wordsToAvoid')}
                       className="grid h-6 w-6 place-items-center rounded-full text-text-secondary transition hover:bg-fg/[0.08]"
-                      aria-label="Ajouter un mot à éviter"
+                      aria-label={tr('params.addAvoidWord')}
                     >
                       <Plus size={15} />
                     </button>
                   </div>
-                  <BrandList listKey="wordsToAvoid" variant="chip" emptyLabel="Ajoute des mots à éviter." />
+                  <BrandList listKey="wordsToAvoid" variant="chip" emptyLabel={tr('params.emptyList')} />
                 </section>
 
                 <section>
                   <div className="mb-4 flex items-center justify-between">
-                    <h2 className="text-[13px] font-extrabold">Bons exemples</h2>
+                    <h2 className="text-[13px] font-extrabold">{tr('params.goodExamples')}</h2>
                     <button
                       type="button"
                       onClick={() => brand.addItem('goodExamples')}
                       className="grid h-6 w-6 place-items-center rounded-full text-text-secondary transition hover:bg-fg/[0.08]"
-                      aria-label="Ajouter un bon exemple"
+                      aria-label={tr('params.addGoodExample')}
                     >
                       <Plus size={15} />
                     </button>
                   </div>
-                  <BrandList listKey="goodExamples" variant="row" emptyLabel="Add Bons exemples." />
+                  <BrandList listKey="goodExamples" variant="row" emptyLabel={tr('params.emptyList')} />
                 </section>
 
                 <section>
                   <div className="mb-4 flex items-center justify-between">
-                    <h2 className="text-[13px] font-extrabold">Mauvais exemples</h2>
+                    <h2 className="text-[13px] font-extrabold">{tr('params.badExamples')}</h2>
                     <button
                       type="button"
                       onClick={() => brand.addItem('badExamples')}
                       className="grid h-6 w-6 place-items-center rounded-full text-text-secondary transition hover:bg-fg/[0.08]"
-                      aria-label="Ajouter un mauvais exemple"
+                      aria-label={tr('params.addBadExample')}
                     >
                       <Plus size={15} />
                     </button>
                   </div>
-                  <BrandList listKey="badExamples" variant="row" emptyLabel="Add Mauvais exemples." />
+                  <BrandList listKey="badExamples" variant="row" emptyLabel={tr('params.emptyList')} />
                 </section>
               </div>
             </div>
@@ -2462,15 +2453,15 @@ export default function ParametresView(_props: Props) {
               <label className="block">
                 <span className="mb-2 flex items-center gap-1.5 text-[12px] font-extrabold">
                   <UsersRound size={15} className="text-accent" />
-                  Audience cible
+                  {tr('params.targetAudience')}
                 </span>
                 <div className="relative">
                   <textarea
-                    aria-label="Audience cible"
+                    aria-label={tr('params.targetAudience')}
                     value={brand.targetAudience}
                     onChange={(e) => brand.setField('targetAudience', e.target.value)}
                     maxLength={1000}
-                    placeholder="ex. Adultes 25-40 ans soucieux de qualité et de durabilité, urbains, sensibles au design…"
+                    placeholder={tr('params.audiencePlaceholder')}
                     className="h-[70px] w-full resize-none rounded-[9px] border border-border bg-fg/[0.04] p-3 pr-14 text-[12px] font-medium leading-snug text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
                   />
                   <span className="absolute bottom-2.5 right-2.5 text-[12px] font-medium text-text-muted">{brand.targetAudience.length}/1000</span>
@@ -2480,32 +2471,32 @@ export default function ParametresView(_props: Props) {
               <div className="mt-6 grid gap-x-6 gap-y-5 xl:grid-cols-2">
                 <section>
                   <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-[13px] font-extrabold">Désirs de l’audience</h2>
+                    <h2 className="text-[13px] font-extrabold">{tr('params.audienceDesires')}</h2>
                     <button
                       type="button"
                       onClick={() => brand.addItem('audienceDesires')}
                       className="grid h-6 w-6 place-items-center rounded-full text-text-secondary transition hover:bg-fg/[0.08]"
-                      aria-label="Ajouter un désir"
+                      aria-label={tr('params.addDesire')}
                     >
                       <Plus size={15} />
                     </button>
                   </div>
-                  <BrandList listKey="audienceDesires" variant="row" emptyLabel="Ajoute des désirs." />
+                  <BrandList listKey="audienceDesires" variant="row" emptyLabel={tr('params.emptyList')} />
                 </section>
 
                 <section>
                   <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-[13px] font-extrabold">Problèmes de l’audience</h2>
+                    <h2 className="text-[13px] font-extrabold">{tr('params.audienceProblems')}</h2>
                     <button
                       type="button"
                       onClick={() => brand.addItem('audienceProblems')}
                       className="grid h-6 w-6 place-items-center rounded-full text-text-secondary transition hover:bg-fg/[0.08]"
-                      aria-label="Ajouter un problème"
+                      aria-label={tr('params.addProblem')}
                     >
                       <Plus size={15} />
                     </button>
                   </div>
-                  <BrandList listKey="audienceProblems" variant="row" emptyLabel="Ajoute des problèmes." />
+                  <BrandList listKey="audienceProblems" variant="row" emptyLabel={tr('params.emptyList')} />
                 </section>
               </div>
             </div>
@@ -2517,20 +2508,20 @@ export default function ParametresView(_props: Props) {
               <section>
                 <div className="mb-2.5 flex items-center gap-2">
                   <CalendarRange size={14} className="text-accent" />
-                  <h2 className="text-[12px] font-extrabold">Campagne</h2>
+                  <h2 className="text-[12px] font-extrabold">{tr('params.tabCampaign')}</h2>
                 </div>
                 <label className="block max-w-[320px]">
-                  <span className="mb-1.5 block text-[12px] font-extrabold">Durée</span>
+                  <span className="mb-1.5 block text-[12px] font-extrabold">{tr("params.duration")}</span>
                   <div className="flex gap-2">
                     <input type="number" min={1} value={campaign.campaignDuration} onChange={(e) => campaign.setField('campaignDuration', Math.max(1, Number(e.target.value) || 1))} className="h-8 w-24 rounded-[8px] border border-border bg-fg/[0.12] px-3 text-[12px] font-bold text-text-primary outline-none focus:border-accent" />
                     <div className="flex-1"><BrandSelect value={campaign.campaignUnit} options={DURATION_UNITS} onChange={(v) => campaign.setField('campaignUnit', v as (typeof DURATION_UNITS)[number])} display={(v) => UNIT_FR[v] ?? v} /></div>
                   </div>
                 </label>
                 <div className="mt-5">
-                  <span className="mb-1.5 block text-[12px] font-extrabold">Contenus à créer</span>
+                  <span className="mb-1.5 block text-[12px] font-extrabold">{tr("params.contentToCreate")}</span>
                   <div className="flex flex-wrap items-center gap-2">
                     <input type="number" min={1} value={campaign.campaignCount} onChange={(e) => campaign.setField('campaignCount', Math.max(1, Number(e.target.value) || 1))} className="h-8 w-20 rounded-[8px] border border-border bg-fg/[0.12] px-3 text-[12px] font-bold text-text-primary outline-none focus:border-accent" />
-                    <span className="text-[12px] font-semibold text-text-secondary">contenu(s) par</span>
+                    <span className="text-[12px] font-semibold text-text-secondary">{tr("params.contentsPer")}</span>
                     <div className="w-[130px]"><BrandSelect value={campaign.campaignPer} options={CADENCE_PER} onChange={(v) => campaign.setField('campaignPer', v as (typeof CADENCE_PER)[number])} display={(v) => PER_FR[v] ?? v} /></div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -2549,9 +2540,9 @@ export default function ParametresView(_props: Props) {
                 <div className="mb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Megaphone size={14} className="text-accent" />
-                    <h2 className="text-[12px] font-extrabold">Pré-campagne</h2>
+                    <h2 className="text-[12px] font-extrabold">{tr('params.preCampaign')}</h2>
                   </div>
-                  <button type="button" onClick={() => campaign.setField('preEnabled', !campaign.preEnabled)} className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${campaign.preEnabled ? 'bg-accent' : 'bg-fg/[0.15]'}`} aria-pressed={campaign.preEnabled} aria-label="Activer la pré-campagne">
+                  <button type="button" onClick={() => campaign.setField('preEnabled', !campaign.preEnabled)} className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${campaign.preEnabled ? 'bg-accent' : 'bg-fg/[0.15]'}`} aria-pressed={campaign.preEnabled} aria-label={tr('params.enablePreCampaign')}>
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${campaign.preEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
                 </div>
@@ -2560,11 +2551,11 @@ export default function ParametresView(_props: Props) {
                   <div className="space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <label className="block">
-                        <span className="mb-1.5 block text-[12px] font-extrabold">Date de début</span>
+                        <span className="mb-1.5 block text-[12px] font-extrabold">{tr("params.startDate")}</span>
                         <input type="date" value={campaign.preStartDate} onChange={(e) => campaign.setField('preStartDate', e.target.value)} className="h-8 w-full rounded-[8px] border border-border bg-fg/[0.12] px-3 text-[12px] font-bold text-text-primary outline-none focus:border-accent" />
                       </label>
                       <label className="block">
-                        <span className="mb-1.5 block text-[12px] font-extrabold">Durée</span>
+                        <span className="mb-1.5 block text-[12px] font-extrabold">{tr("params.duration")}</span>
                         <div className="flex gap-2">
                           <input type="number" min={1} value={campaign.preDuration} onChange={(e) => campaign.setField('preDuration', Math.max(1, Number(e.target.value) || 1))} className="h-8 w-24 rounded-[8px] border border-border bg-fg/[0.12] px-3 text-[12px] font-bold text-text-primary outline-none focus:border-accent" />
                           <div className="flex-1"><BrandSelect value={campaign.preUnit} options={DURATION_UNITS} onChange={(v) => campaign.setField('preUnit', v as (typeof DURATION_UNITS)[number])} display={(v) => UNIT_FR[v] ?? v} /></div>
@@ -2572,10 +2563,10 @@ export default function ParametresView(_props: Props) {
                       </label>
                     </div>
                     <div>
-                      <span className="mb-1.5 block text-[12px] font-extrabold">Contenus à créer</span>
+                      <span className="mb-1.5 block text-[12px] font-extrabold">{tr("params.contentToCreate")}</span>
                       <div className="flex flex-wrap items-center gap-2">
                         <input type="number" min={1} value={campaign.preCount} onChange={(e) => campaign.setField('preCount', Math.max(1, Number(e.target.value) || 1))} className="h-8 w-20 rounded-[8px] border border-border bg-fg/[0.12] px-3 text-[12px] font-bold text-text-primary outline-none focus:border-accent" />
-                        <span className="text-[12px] font-semibold text-text-secondary">contenu(s) par</span>
+                        <span className="text-[12px] font-semibold text-text-secondary">{tr("params.contentsPer")}</span>
                         <div className="w-[130px]"><BrandSelect value={campaign.prePer} options={CADENCE_PER} onChange={(v) => campaign.setField('prePer', v as (typeof CADENCE_PER)[number])} display={(v) => PER_FR[v] ?? v} /></div>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -2589,7 +2580,7 @@ export default function ParametresView(_props: Props) {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-[13px] font-medium italic text-text-secondary">Active la pré-campagne pour planifier du contenu avant le lancement.</p>
+                  <p className="text-[13px] font-medium italic text-text-secondary">{tr('params.preCampaignHint')}</p>
                 )}
               </section>
 
@@ -2597,8 +2588,8 @@ export default function ParametresView(_props: Props) {
               <section className="border-t border-border pt-5">
                 <div className="flex items-center gap-2 text-text-muted">
                   <Info size={14} />
-                  <h2 className="text-[12px] font-extrabold">Post-campagne</h2>
-                  <span className="rounded-full bg-fg/[0.06] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-text-muted">Bientôt</span>
+                  <h2 className="text-[12px] font-extrabold">{tr('params.postCampaign')}</h2>
+                  <span className="rounded-full bg-fg/[0.06] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-text-muted">{tr('params.soon')}</span>
                 </div>
               </section>
             </div>

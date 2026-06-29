@@ -1501,7 +1501,7 @@ function SelectControl({
               <button
                 key={option}
                 type="button"
-                onClick={() => { onChange(option); setOpen(false) }}
+                onMouseDown={(e) => { e.preventDefault(); onChange(option); setOpen(false) }}
                 className={`flex w-full items-center px-3 py-1 text-left text-[12px] font-bold transition-colors ${active ? 'bg-[#fff1ec] text-[#e64414]' : 'text-[#111114] hover:bg-[#f4f4f4]'}`}
               >
                 {option}

@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, Download, Gem, Image as ImageIcon, Images, Info, Layers, Lightbulb, Maximize2, PlusCircle, Rocket, ScanLine, ShoppingCart, Sparkles, Wand2, X } from 'lucide-react'
+import { Check, Download, Image as ImageIcon, Images, Info, Layers, Lightbulb, Maximize2, PlusCircle, Rocket, ScanLine, ShoppingCart, Sparkles, Wand2, X } from 'lucide-react'
 import { actionListProducts, actionUploadProductImage, actionCreateProduct, actionDeleteProduct, type ProductDTO } from '@/lib/actions/products'
 import { actionGenerateImage, actionDescribeProductScene } from '@/lib/actions/ai'
+import { estimateCost, formatCost } from '@/lib/ai/costs'
 import { actionUploadTempImage } from '@/lib/actions/avatar-assets'
 import { actionListBrandAssets, type BrandAssetDTO } from '@/lib/actions/brand-assets'
 import { persistOutput } from '@/lib/actions/outputs'
@@ -379,7 +380,7 @@ export default function CarouselCreatorPage() {
         <div className="mt-5 flex justify-center gap-3">
           <BackButton onClick={goBack} />
           <button onClick={generate} disabled={!selectedGoalId || generating} className="h-10 rounded-[10px] bg-accent px-6 text-[14px] font-extrabold text-white inline-flex items-center justify-center gap-2 hover:brightness-105 transition disabled:opacity-55 disabled:cursor-not-allowed">
-            {generating ? 'Génération…' : <>Créer le carrousel <Gem size={16} fill="currentColor" /> {slideCount}</>}
+            {generating ? 'Génération…' : <>Créer le carrousel <span className="opacity-80">·</span> {formatCost(estimateCost('nano-banana') * slideCount)}</>}
           </button>
         </div>
       </div>
