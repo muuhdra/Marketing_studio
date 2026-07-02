@@ -6,8 +6,8 @@
  */
 
 import { randomUUID } from 'crypto'
-import { and, eq, desc } from 'drizzle-orm'
-import { requireAuth, getActiveBrandId } from './auth'
+import { and, eq, desc, inArray } from 'drizzle-orm'
+import { requireAuth, getActiveBrandId, accessibleBrandIds } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brand_folders, brand_assets } from '@/lib/db/schema'
@@ -32,11 +32,10 @@ function extFromName(name: string, type: AssetType): string {
 export interface FolderDTO { id: string; name: string; color: string | null }
 
 export async function actionListFolders(): Promise<FolderDTO[]> {
-  const user = await requireAuth()
   const brandId = await getActiveBrandId()
   if (!brandId) return []
   const rows = await db.select().from(brand_folders)
-    .where(and(eq(brand_folders.user_id, user.id), eq(brand_folders.brand_id, brandId)))
+    .where(eq(brand_folders.brand_id, brandId))
     .orderBy(desc(brand_folders.created_at))
   return rows.map((r) => ({ id: r.id, name: r.name, color: r.color }))
 }
@@ -51,18 +50,19 @@ export async function actionCreateFolder(input: { name: string; color?: string |
 
 export async function actionDeleteFolder(id: string): Promise<void> {
   const user = await requireAuth()
-  await db.delete(brand_folders).where(and(eq(brand_folders.id, id), eq(brand_folders.user_id, user.id)))
+  const ids = await accessibleBrandIds(user.id)
+  if (ids.length === 0) return
+  await db.delete(brand_folders).where(and(eq(brand_folders.id, id), inArray(brand_folders.brand_id, ids)))
 }
 
 // ── Assets ──
 export interface BrandAssetDTO { id: string; type: AssetType; name: string; url: string | null; folderId: string | null }
 
 export async function actionListBrandAssets(): Promise<BrandAssetDTO[]> {
-  const user = await requireAuth()
   const brandId = await getActiveBrandId()
   if (!brandId) return []
   const rows = await db.select().from(brand_assets)
-    .where(and(eq(brand_assets.user_id, user.id), eq(brand_assets.brand_id, brandId)))
+    .where(eq(brand_assets.brand_id, brandId))
     .orderBy(desc(brand_assets.created_at))
   const supabase = await createClient()
   const out: BrandAssetDTO[] = []
@@ -119,9 +119,11 @@ export async function actionGenerateBrandAsset(input: { prompt: string; aspect?:
 
 export async function actionDeleteBrandAsset(id: string): Promise<void> {
   const user = await requireAuth()
-  const [row] = await db.select().from(brand_assets).where(and(eq(brand_assets.id, id), eq(brand_assets.user_id, user.id)))
+  const ids = await accessibleBrandIds(user.id)
+  if (ids.length === 0) return
+  const [row] = await db.select().from(brand_assets).where(and(eq(brand_assets.id, id), inArray(brand_assets.brand_id, ids)))
   if (!row) return
   const supabase = await createClient()
   await supabase.storage.from(BUCKETS.ASSETS).remove([row.path]).catch(() => {})
-  await db.delete(brand_assets).where(and(eq(brand_assets.id, id), eq(brand_assets.user_id, user.id)))
+  await db.delete(brand_assets).where(eq(brand_assets.id, id))
 }

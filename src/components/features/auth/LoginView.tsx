@@ -34,19 +34,14 @@ export default function LoginView() {
     const { error } = await supabase.auth.signInWithOtp({
       email: target.trim().toLowerCase(),
       options: {
-        // Accès sur invitation : ne pas créer de compte si l'email n'a pas été invité.
-        shouldCreateUser: false,
+        shouldCreateUser: true,
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
 
     if (error) {
       setStep('idle')
-      // Email non invité → message clair plutôt que le jargon Supabase.
-      const msg = /signup|not allowed|not found|user/i.test(error.message)
-        ? 'Cet email n’a pas d’accès. Demande une invitation à l’administrateur.'
-        : error.message
-      setError(msg)
+      setError(error.message)
     } else {
       // Mémorise l'email pour la prochaine fois
       localStorage.setItem(STORAGE_KEY, target.trim().toLowerCase())
@@ -124,7 +119,6 @@ export default function LoginView() {
           ) : hasQuickConnect ? (
             <>
               <div className="mb-7">
-                <p className="nb-label mb-2">Accès privé</p>
                 <h1 className="font-display font-bold text-[22px] text-text-primary mb-1">
                   Bon retour 
                 </h1>
@@ -184,7 +178,6 @@ export default function LoginView() {
           ) : (
             <>
               <div className="mb-7">
-                <p className="nb-label mb-2">Accès privé</p>
                 <h1 className="font-display font-bold text-[22px] text-text-primary mb-1">
                   Connexion
                 </h1>
@@ -231,14 +224,14 @@ export default function LoginView() {
               )}
 
               <p className="font-sans text-[10px] text-text-dim text-center mt-5 leading-relaxed">
-                Accès réservé. Si tu n'as pas d'invitation,<br />contacte l'administrateur.
+                Connecte-toi avec ton email.
               </p>
             </>
           )}
         </div>
 
         <p className="font-sans text-[10px] text-text-dim text-center mt-5">
-          Marketing Studio · Usage privé
+          Marketing Studio
         </p>
       </div>
     </div>

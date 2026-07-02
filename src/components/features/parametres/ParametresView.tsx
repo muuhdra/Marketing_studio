@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useBrand, LANGUAGES, BRAND_CATEGORIES, type BrandListKey } from '@/lib/stores/brandStore'
+import { useBrands } from '@/lib/stores/brandsStore'
+import { TeamPanel } from './TeamPanel'
 import { useSettings } from '@/lib/stores/settingsStore'
 import { useToast } from '@/lib/stores/toastStore'
 import { useT } from '@/lib/i18n'
@@ -79,6 +81,7 @@ import {
   Store,
   Upload,
   UsersRound,
+  Users,
   Video,
   X,
   Search,
@@ -113,6 +116,12 @@ const brandTabs = [
     label: 'Campagne',
     description: 'Durée, pré-campagne et cadence de contenu.',
     icon: CalendarRange,
+  },
+  {
+    id: 'team',
+    label: 'Équipe',
+    description: 'Membres partageant cette marque.',
+    icon: Users,
   },
 ] as const
 
@@ -245,6 +254,7 @@ function BrandList({ listKey, variant, emptyLabel }: { listKey: BrandListKey; va
 export default function ParametresView(_props: Props) {
   const tr = useT()
   const [activeTab, setActiveTab] = useState<BrandTabId>('identity')
+  const activeBrandId = useBrands((s) => s.activeBrandId)
   const [isProductDrawerOpen, setIsProductDrawerOpen] = useState(false)
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false)
   const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false)
@@ -2593,6 +2603,9 @@ export default function ParametresView(_props: Props) {
                 </div>
               </section>
             </div>
+          ) : null}
+          {activeTab === 'team' ? (
+            <TeamPanel brandId={activeBrandId} />
           ) : null}
         </div>
       </section>

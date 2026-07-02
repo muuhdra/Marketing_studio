@@ -6,8 +6,8 @@
  */
 
 import { randomUUID } from 'crypto'
-import { and, eq, desc } from 'drizzle-orm'
-import { requireAuth, getActiveBrandId } from './auth'
+import { and, eq, desc, inArray } from 'drizzle-orm'
+import { requireAuth, getActiveBrandId, accessibleBrandIds } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { products } from '@/lib/db/schema'
@@ -88,11 +88,10 @@ export interface ProductDTO {
 }
 
 export async function actionListProducts(): Promise<ProductDTO[]> {
-  const user = await requireAuth()
-  const brandId = await getActiveBrandId()
+  const brandId = await getActiveBrandId()   // marque active vérifiée par membership
   if (!brandId) return []
   const rows = await db.select().from(products)
-    .where(and(eq(products.user_id, user.id), eq(products.brand_id, brandId)))
+    .where(eq(products.brand_id, brandId))   // partagé entre tous les membres de la marque
     .orderBy(desc(products.created_at))
   const supabase = await createClient()
   const out: ProductDTO[] = []
@@ -109,7 +108,10 @@ export async function actionListProducts(): Promise<ProductDTO[]> {
 
 export async function actionDeleteProduct(id: string): Promise<void> {
   const user = await requireAuth()
-  await db.delete(products).where(and(eq(products.id, id), eq(products.user_id, user.id)))
+  const ids = await accessibleBrandIds(user.id)
+  if (ids.length === 0) return
+  // Un membre peut supprimer un produit de toute marque qu'il partage.
+  await db.delete(products).where(and(eq(products.id, id), inArray(products.brand_id, ids)))
 }
 
 // ── Analyse d'une URL produit → auto-remplissage du formulaire ──

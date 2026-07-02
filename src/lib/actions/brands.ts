@@ -7,9 +7,9 @@
  */
 
 import { db } from '@/lib/db'
-import { brands, products, brand_folders, brand_assets, brand_templates, campaigns, generated_outputs } from '@/lib/db/schema'
-import { eq, asc, and } from 'drizzle-orm'
-import { requireAuth } from './auth'
+import { brands, brand_members, products, brand_folders, brand_assets, brand_templates, campaigns, generated_outputs } from '@/lib/db/schema'
+import { eq, asc, and, inArray } from 'drizzle-orm'
+import { requireAuth, isBrandMember, accessibleBrandIds } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { BUCKETS } from '@/lib/supabase/storage'
 import { createAimlClient, MODELS } from '@/lib/ai/client'
@@ -37,13 +37,15 @@ function toDTO(r: typeof brands.$inferSelect): BrandDTO {
   }
 }
 
-/** Liste les marques de l'utilisateur (anciennes → récentes). */
+/** Liste les marques accessibles (dont l'utilisateur est membre : proprio ou invité). */
 export async function listBrands(): Promise<BrandDTO[]> {
   const user = await requireAuth()
+  const ids = await accessibleBrandIds(user.id)
+  if (ids.length === 0) return []
   const rows = await db
     .select()
     .from(brands)
-    .where(eq(brands.user_id, user.id))
+    .where(inArray(brands.id, ids))
     .orderBy(asc(brands.created_at))
   return rows.map(toDTO)
 }
@@ -73,6 +75,8 @@ export async function createBrand(input: {
       profile,
     })
     .returning()
+  // Le créateur devient propriétaire (membre 'owner').
+  await db.insert(brand_members).values({ brand_id: row.id, user_id: user.id, email: user.email ?? null, role: 'owner' })
   return toDTO(row)
 }
 
@@ -85,10 +89,8 @@ export async function updateBrand(id: string, patch: {
   profile?: Record<string, unknown>
 }): Promise<BrandDTO> {
   const user = await requireAuth()
-  const [existing] = await db
-    .select()
-    .from(brands)
-    .where(and(eq(brands.id, id), eq(brands.user_id, user.id)))
+  if (!(await isBrandMember(user.id, id))) throw new Error('Marque introuvable ou accès refusé')
+  const [existing] = await db.select().from(brands).where(eq(brands.id, id))
   if (!existing) throw new Error('Marque introuvable ou accès refusé')
 
   const merged = patch.profile
@@ -105,7 +107,7 @@ export async function updateBrand(id: string, patch: {
       profile: merged,
       updated_at: new Date(),
     })
-    .where(and(eq(brands.id, id), eq(brands.user_id, user.id)))
+    .where(eq(brands.id, id))
     .returning()
   return toDTO(row)
 }
@@ -116,11 +118,14 @@ export async function updateBrand(id: string, patch: {
  */
 export async function deleteBrand(id: string): Promise<void> {
   const user = await requireAuth()
-  const scope = (t: typeof products | typeof brand_assets | typeof brand_templates | typeof brand_folders | typeof campaigns | typeof generated_outputs) =>
-    and(eq(t.user_id, user.id), eq(t.brand_id, id))
+  // Suppression réservée au PROPRIÉTAIRE. Toute la marque (tous membres) est effacée.
+  const [m] = await db.select({ role: brand_members.role }).from(brand_members)
+    .where(and(eq(brand_members.brand_id, id), eq(brand_members.user_id, user.id)))
+  if (!m) throw new Error('Marque introuvable ou accès refusé')
+  if (m.role !== 'owner') throw new Error('Seul le propriétaire peut supprimer la marque')
 
-  const [owned] = await db.select({ id: brands.id }).from(brands).where(and(eq(brands.id, id), eq(brands.user_id, user.id)))
-  if (!owned) throw new Error('Marque introuvable ou accès refusé')
+  const scope = (t: typeof products | typeof brand_assets | typeof brand_templates | typeof brand_folders | typeof campaigns | typeof generated_outputs) =>
+    eq(t.brand_id, id)
 
   // 1) Collecte des fichiers de stockage à supprimer.
   const prodRows = await db.select({ image: products.image_url, extra: products.additional_images }).from(products).where(scope(products))
@@ -147,8 +152,8 @@ export async function deleteBrand(id: string): Promise<void> {
   await db.delete(products).where(scope(products))
   await db.delete(campaigns).where(scope(campaigns))
 
-  // 3) La marque elle-même.
-  await db.delete(brands).where(and(eq(brands.id, id), eq(brands.user_id, user.id)))
+  // 3) La marque elle-même (les brand_members sont supprimés en cascade via la FK).
+  await db.delete(brands).where(eq(brands.id, id))
 }
 
 // ── Importer une marque depuis son site web (scrape + extraction IA) ──

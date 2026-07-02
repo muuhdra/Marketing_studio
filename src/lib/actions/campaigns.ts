@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { campaigns } from '@/lib/db/schema'
-import { eq, desc, and } from 'drizzle-orm'
+import { eq, desc, and, inArray } from 'drizzle-orm'
 import {
   campaign_dna,
   campaign_content_types,
@@ -12,7 +12,7 @@ import {
   avatars,
 } from '@/lib/db/schema'
 import { revalidatePath } from 'next/cache'
-import { getActiveBrandId } from './auth'
+import { getActiveBrandId, isBrandMember, accessibleBrandIds } from './auth'
 
 // ─── Helper : récupère l'user authentifié côté serveur ───────────────────────
 
@@ -36,14 +36,14 @@ async function getAuthUser() {
 // ─── LIST — toutes les campagnes de l'utilisateur ────────────────────────────
 
 export async function listCampaigns() {
-  const user = await getAuthUser()
+  await getAuthUser()
   const brandId = await getActiveBrandId()
   if (!brandId) return []
 
   const rows = await db
     .select()
     .from(campaigns)
-    .where(and(eq(campaigns.user_id, user.id), eq(campaigns.brand_id, brandId)))
+    .where(eq(campaigns.brand_id, brandId))   // partagé entre membres de la marque
     .orderBy(desc(campaigns.created_at))
 
   return rows
@@ -103,7 +103,7 @@ export async function getCampaign(id: string) {
     .from(campaigns)
     .where(eq(campaigns.id, id))
 
-  if (!campaign || campaign.user_id !== user.id) {
+  if (!campaign || !campaign.brand_id || !(await isBrandMember(user.id, campaign.brand_id))) {
     throw new Error('Campagne introuvable')
   }
 
@@ -118,9 +118,9 @@ export async function getCampaignWithDetails(id: string) {
   const [campaign] = await db
     .select()
     .from(campaigns)
-    .where(and(eq(campaigns.id, id), eq(campaigns.user_id, user.id)))
+    .where(eq(campaigns.id, id))
 
-  if (!campaign) throw new Error('Campagne introuvable')
+  if (!campaign || !campaign.brand_id || !(await isBrandMember(user.id, campaign.brand_id))) throw new Error('Campagne introuvable')
 
   // ADN — dernière version (le CŒUR injecté dans les prompts IA)
   const [dna] = await db
@@ -175,6 +175,8 @@ export async function updateCampaign(
   }>
 ) {
   const user = await getAuthUser()
+  const accIds = await accessibleBrandIds(user.id)
+  if (accIds.length === 0) throw new Error('Campagne introuvable ou accès refusé')
 
   const [updated] = await db
     .update(campaigns)
@@ -194,9 +196,8 @@ export async function updateCampaign(
       ...(data.assetsUrl             !== undefined && { assets_url: data.assetsUrl.trim() || null }),
       updated_at: new Date(),
     })
-    // user_id dans le WHERE — l'UPDATE ne touche jamais la campagne d'un autre utilisateur
-    // (la connexion Drizzle bypasse la RLS, le filtre doit être applicatif)
-    .where(and(eq(campaigns.id, id), eq(campaigns.user_id, user.id)))
+    // Filtre par marques accessibles → tout membre peut éditer la campagne de sa marque.
+    .where(and(eq(campaigns.id, id), inArray(campaigns.brand_id, accIds)))
     .returning()
 
   if (!updated) {
@@ -213,13 +214,13 @@ export async function updateCampaign(
 export async function deleteCampaign(id: string) {
   const user = await getAuthUser()
 
-  // Vérifier ownership avant suppression
+  // Vérifier l'accès (membre de la marque) avant suppression
   const [campaign] = await db
-    .select({ user_id: campaigns.user_id })
+    .select({ brand_id: campaigns.brand_id })
     .from(campaigns)
     .where(eq(campaigns.id, id))
 
-  if (!campaign || campaign.user_id !== user.id) {
+  if (!campaign || !campaign.brand_id || !(await isBrandMember(user.id, campaign.brand_id))) {
     throw new Error('Campagne introuvable ou accès refusé')
   }
 

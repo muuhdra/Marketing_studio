@@ -16,8 +16,8 @@
  */
 
 import { randomUUID } from 'crypto'
-import { eq } from 'drizzle-orm'
-import { requireAuth } from './auth'
+import { eq, inArray } from 'drizzle-orm'
+import { requireAuth, collaboratorUserIds } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { avatars, avatar_outfits, avatar_environments } from '@/lib/db/schema'
@@ -33,7 +33,9 @@ async function assertAvatarOwner(avatarId: string, userId: string) {
     .select({ user_id: avatars.user_id })
     .from(avatars)
     .where(eq(avatars.id, avatarId))
-  if (!a || a.user_id !== userId) throw new Error('Avatar introuvable ou accès refusé')
+  // Accès = créateur OU co-membre d'une marque partagée (avatars collaboratifs).
+  const ids = await collaboratorUserIds(userId)
+  if (!a || !ids.includes(a.user_id)) throw new Error('Avatar introuvable ou accès refusé')
 }
 
 function extFromMime(mime: string): string {
@@ -163,10 +165,11 @@ export async function actionGetAssetSignedUrl(path: string): Promise<string | nu
  */
 export async function actionListAvatarsForPicker(): Promise<{ id: string; name: string; photoUrl: string | null }[]> {
   const user = await requireAuth()
+  const ids = await collaboratorUserIds(user.id)
   const rows = await db
     .select({ id: avatars.id, name: avatars.name, photo: avatars.source_photo_url })
     .from(avatars)
-    .where(eq(avatars.user_id, user.id))
+    .where(inArray(avatars.user_id, ids))
     .orderBy(avatars.created_at)
   const supabase = await createClient()
   return Promise.all(rows.map(async (r) => {
@@ -285,7 +288,8 @@ export async function actionDeleteOutfit(outfitId: string) {
     .from(avatar_outfits)
     .leftJoin(avatars, eq(avatar_outfits.avatar_id, avatars.id))
     .where(eq(avatar_outfits.id, outfitId))
-  if (!row || row.owner !== user.id) throw new Error('Tenue introuvable ou accès refusé')
+  const accIds = await collaboratorUserIds(user.id)
+  if (!row || !row.owner || !accIds.includes(row.owner)) throw new Error('Tenue introuvable ou accès refusé')
 
   if (row.ref) {
     try { const supabase = await createClient(); await supabase.storage.from(BUCKETS.ASSETS).remove([row.ref]) } catch { /* best-effort */ }
@@ -350,7 +354,8 @@ export async function actionDeleteEnvironment(envId: string) {
     .from(avatar_environments)
     .leftJoin(avatars, eq(avatar_environments.avatar_id, avatars.id))
     .where(eq(avatar_environments.id, envId))
-  if (!row || row.owner !== user.id) throw new Error('Environnement introuvable ou accès refusé')
+  const accIds = await collaboratorUserIds(user.id)
+  if (!row || !row.owner || !accIds.includes(row.owner)) throw new Error('Environnement introuvable ou accès refusé')
 
   if (row.ref) {
     try { const supabase = await createClient(); await supabase.storage.from(BUCKETS.ASSETS).remove([row.ref]) } catch { /* best-effort */ }

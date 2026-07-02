@@ -10,6 +10,7 @@ import {
   timestamp,
   jsonb,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
@@ -566,6 +567,24 @@ export const api_keys = pgTable('api_keys', {
 ])
 
 export type ApiKey = typeof api_keys.$inferSelect
+
+// ─────────────────────────────────────────────
+// BRAND MEMBERS — collaboration multi-utilisateurs sur une marque
+// ─────────────────────────────────────────────
+
+export const brand_members = pgTable('brand_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  brand_id: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  user_id: uuid('user_id').notNull(),
+  email: text('email'),                          // email au moment de l'ajout (affichage)
+  role: text('role').notNull().default('member'),// 'owner' | 'member'
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('brand_members_brand_user_idx').on(t.brand_id, t.user_id),
+  index('brand_members_user_idx').on(t.user_id),
+])
+
+export type BrandMember = typeof brand_members.$inferSelect
 
 // ─────────────────────────────────────────────
 // RELATIONS (Drizzle query builder)

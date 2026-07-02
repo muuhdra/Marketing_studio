@@ -9,8 +9,8 @@
  */
 
 import { randomUUID } from 'crypto'
-import { and, or, eq, gt, gte, desc, isNull } from 'drizzle-orm'
-import { requireAuth, getActiveBrandId } from './auth'
+import { and, or, eq, gt, gte, desc, isNull, inArray } from 'drizzle-orm'
+import { requireAuth, getActiveBrandId, accessibleBrandIds } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { generated_outputs, campaigns } from '@/lib/db/schema'
@@ -112,10 +112,12 @@ export async function persistOutput(input: PersistInput): Promise<OutputDTO | nu
 export async function listOutputs(): Promise<OutputDTO[]> {
   const user = await requireAuth()
   const brandId = await getActiveBrandId()
-  // Marque active + créations rapides (sans marque). Si aucune marque : que les rapides.
+  // Créations de la marque active = visibles par TOUS ses membres.
+  // Créations rapides (sans marque) = restent personnelles au créateur.
+  const personal = and(isNull(generated_outputs.brand_id), eq(generated_outputs.user_id, user.id))
   const scope = brandId
-    ? or(eq(generated_outputs.brand_id, brandId), isNull(generated_outputs.brand_id))
-    : isNull(generated_outputs.brand_id)
+    ? or(eq(generated_outputs.brand_id, brandId), personal)
+    : personal
   const rows = await db
     .select({
       id: generated_outputs.id, type: generated_outputs.type, engine: generated_outputs.engine,
@@ -128,7 +130,6 @@ export async function listOutputs(): Promise<OutputDTO[]> {
     .from(generated_outputs)
     .leftJoin(campaigns, eq(generated_outputs.campaign_id, campaigns.id))
     .where(and(
-      eq(generated_outputs.user_id, user.id),
       scope,
       isNull(generated_outputs.purged_at),
       gt(generated_outputs.expires_at, new Date()),
@@ -154,18 +155,19 @@ export async function listOutputs(): Promise<OutputDTO[]> {
 /** Retire un output de la galerie : supprime le fichier mais CONSERVE la métadonnée (stats). */
 export async function deleteOutput(id: string): Promise<boolean> {
   const user = await requireAuth()
+  const ids = await accessibleBrandIds(user.id)
+  const personal = and(isNull(generated_outputs.brand_id), eq(generated_outputs.user_id, user.id))
+  const access = ids.length ? or(inArray(generated_outputs.brand_id, ids), personal) : personal
   const [row] = await db
     .select({ storage_path: generated_outputs.storage_path })
     .from(generated_outputs)
-    .where(and(eq(generated_outputs.id, id), eq(generated_outputs.user_id, user.id)))
+    .where(and(eq(generated_outputs.id, id), access))
   if (!row) throw new Error('Output introuvable ou accès refusé')
 
   const supabase = await createClient()
   await supabase.storage.from(BUCKETS.OUTPUTS).remove([row.storage_path]).catch(() => {})
   // On marque la ligne purgée (l'historique reste pour Analytics/Dashboard).
-  await db.update(generated_outputs)
-    .set({ purged_at: new Date() })
-    .where(and(eq(generated_outputs.id, id), eq(generated_outputs.user_id, user.id)))
+  await db.update(generated_outputs).set({ purged_at: new Date() }).where(eq(generated_outputs.id, id))
   return true
 }
 
@@ -200,10 +202,9 @@ export async function getEstimatedMonthlyCost(): Promise<{ total: number; count:
 export async function listOutputMeta(): Promise<OutputMeta[]> {
   const user = await requireAuth()
   const brandId = await getActiveBrandId()
-  // Marque active + créations rapides (sans marque). Si aucune marque : que les rapides.
-  const scope = brandId
-    ? or(eq(generated_outputs.brand_id, brandId), isNull(generated_outputs.brand_id))
-    : isNull(generated_outputs.brand_id)
+  // Créations de la marque (visibles par tous les membres) + créations rapides personnelles.
+  const personal = and(isNull(generated_outputs.brand_id), eq(generated_outputs.user_id, user.id))
+  const scope = brandId ? or(eq(generated_outputs.brand_id, brandId), personal) : personal
   const rows = await db
     .select({
       id:           generated_outputs.id,
@@ -216,7 +217,7 @@ export async function listOutputMeta(): Promise<OutputMeta[]> {
     })
     .from(generated_outputs)
     .leftJoin(campaigns, eq(generated_outputs.campaign_id, campaigns.id))
-    .where(and(eq(generated_outputs.user_id, user.id), scope))
+    .where(scope)
     .orderBy(desc(generated_outputs.created_at))
   return rows.map((r) => ({
     id: r.id, type: r.type, engine: r.engine, title: r.title,

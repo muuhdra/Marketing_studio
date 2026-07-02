@@ -7,7 +7,7 @@
 
 import { randomUUID } from 'crypto'
 import { and, eq, desc, inArray } from 'drizzle-orm'
-import { requireAuth, getActiveBrandId } from './auth'
+import { requireAuth, getActiveBrandId, accessibleBrandIds } from './auth'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brand_templates } from '@/lib/db/schema'
@@ -38,11 +38,10 @@ async function toDTO(row: { id: string; name: string; path: string; prompt: stri
 }
 
 export async function actionListBrandTemplates(): Promise<BrandTemplateDTO[]> {
-  const user = await requireAuth()
   const brandId = await getActiveBrandId()
   if (!brandId) return []
   const rows = await db.select().from(brand_templates)
-    .where(and(eq(brand_templates.user_id, user.id), eq(brand_templates.brand_id, brandId)))
+    .where(eq(brand_templates.brand_id, brandId))
     .orderBy(desc(brand_templates.created_at))
   return Promise.all(rows.map((r) => toDTO(r)))
 }
@@ -89,11 +88,13 @@ export async function actionGenerateBrandTemplate(input: { prompt: string; aspec
 
 export async function actionDeleteBrandTemplate(id: string): Promise<void> {
   const user = await requireAuth()
-  const [row] = await db.select().from(brand_templates).where(and(eq(brand_templates.id, id), eq(brand_templates.user_id, user.id)))
+  const ids = await accessibleBrandIds(user.id)
+  if (ids.length === 0) return
+  const [row] = await db.select().from(brand_templates).where(and(eq(brand_templates.id, id), inArray(brand_templates.brand_id, ids)))
   if (!row) return
   const supabase = await createClient()
   await supabase.storage.from(BUCKETS.ASSETS).remove([row.path]).catch(() => {})
-  await db.delete(brand_templates).where(and(eq(brand_templates.id, id), eq(brand_templates.user_id, user.id)))
+  await db.delete(brand_templates).where(eq(brand_templates.id, id))
 }
 
 /**
@@ -101,12 +102,12 @@ export async function actionDeleteBrandTemplate(id: string): Promise<void> {
  * passent à active=true, tous les autres (de l'utilisateur) à active=false.
  */
 export async function actionSetActiveBrandTemplates(activeIds: string[]): Promise<void> {
-  const user = await requireAuth()
+  await requireAuth()
   const brandId = await getActiveBrandId()
   if (!brandId) return
-  // Désactive les templates de CETTE marque, puis active la sélection.
-  await db.update(brand_templates).set({ active: false }).where(and(eq(brand_templates.user_id, user.id), eq(brand_templates.brand_id, brandId)))
+  // Désactive les templates de CETTE marque, puis active la sélection (partagé entre membres).
+  await db.update(brand_templates).set({ active: false }).where(eq(brand_templates.brand_id, brandId))
   if (activeIds.length > 0) {
-    await db.update(brand_templates).set({ active: true }).where(and(eq(brand_templates.user_id, user.id), inArray(brand_templates.id, activeIds)))
+    await db.update(brand_templates).set({ active: true }).where(and(eq(brand_templates.brand_id, brandId), inArray(brand_templates.id, activeIds)))
   }
 }

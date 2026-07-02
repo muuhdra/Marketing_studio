@@ -7,8 +7,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
-import { brands } from '@/lib/db/schema'
-import { eq, and, asc } from 'drizzle-orm'
+import { brands, brand_members } from '@/lib/db/schema'
+import { eq, and, asc, inArray } from 'drizzle-orm'
 import { isDevEmail } from '@/lib/auth/access'
 
 export async function requireAuth() {
@@ -58,18 +58,45 @@ export async function getActiveBrandId(): Promise<string | null> {
   const cookieId = cookieStore.get('active-brand')?.value
 
   if (cookieId) {
-    const [owned] = await db
-      .select({ id: brands.id })
-      .from(brands)
-      .where(and(eq(brands.id, cookieId), eq(brands.user_id, user.id)))
-    if (owned) return owned.id
+    // La marque active doit être une marque DONT l'utilisateur est membre (proprio ou invité).
+    const [m] = await db
+      .select({ id: brand_members.brand_id })
+      .from(brand_members)
+      .where(and(eq(brand_members.brand_id, cookieId), eq(brand_members.user_id, user.id)))
+    if (m) return m.id
   }
 
+  // Repli : première marque accessible (par membership), la plus ancienne.
   const [first] = await db
-    .select({ id: brands.id })
-    .from(brands)
-    .where(eq(brands.user_id, user.id))
+    .select({ id: brand_members.brand_id })
+    .from(brand_members)
+    .innerJoin(brands, eq(brands.id, brand_members.brand_id))
+    .where(eq(brand_members.user_id, user.id))
     .orderBy(asc(brands.created_at))
     .limit(1)
   return first?.id ?? null
+}
+
+/** True si l'utilisateur est membre de la marque (proprio ou invité). */
+export async function isBrandMember(userId: string, brandId: string): Promise<boolean> {
+  const [m] = await db.select({ id: brand_members.id }).from(brand_members)
+    .where(and(eq(brand_members.brand_id, brandId), eq(brand_members.user_id, userId)))
+  return Boolean(m)
+}
+
+/** IDs des marques accessibles à l'utilisateur (membership). */
+export async function accessibleBrandIds(userId: string): Promise<string[]> {
+  const rows = await db.select({ id: brand_members.brand_id }).from(brand_members).where(eq(brand_members.user_id, userId))
+  return rows.map((r) => r.id)
+}
+
+/**
+ * IDs des utilisateurs qui collaborent avec `userId` (co-membres d'au moins une marque commune).
+ * Inclut l'utilisateur lui-même. Sert au partage des avatars (non scopés marque).
+ */
+export async function collaboratorUserIds(userId: string): Promise<string[]> {
+  const brandIds = await accessibleBrandIds(userId)
+  if (brandIds.length === 0) return [userId]
+  const rows = await db.select({ uid: brand_members.user_id }).from(brand_members).where(inArray(brand_members.brand_id, brandIds))
+  return Array.from(new Set([userId, ...rows.map((r) => r.uid)]))
 }

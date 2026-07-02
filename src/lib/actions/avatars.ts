@@ -4,8 +4,9 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { avatars } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
+import { collaboratorUserIds } from './auth'
 
 // ─── Helper auth ─────────────────────────────────────────────────────────────
 
@@ -30,11 +31,12 @@ async function getAuthUser() {
 
 export async function listAvatars() {
   const user = await getAuthUser()
+  const ids = await collaboratorUserIds(user.id)   // soi + co-membres des marques partagées
 
   return db
     .select()
     .from(avatars)
-    .where(eq(avatars.user_id, user.id))
+    .where(inArray(avatars.user_id, ids))
     .orderBy(avatars.created_at)
 }
 
@@ -42,6 +44,7 @@ export async function listAvatars() {
 
 export async function listAvatarVoices() {
   const user = await getAuthUser()
+  const ids = await collaboratorUserIds(user.id)
   const rows = await db
     .select({
       id:             avatars.id,
@@ -53,7 +56,7 @@ export async function listAvatarVoices() {
       voice_label:    avatars.voice_label,
     })
     .from(avatars)
-    .where(eq(avatars.user_id, user.id))
+    .where(inArray(avatars.user_id, ids))
     .orderBy(avatars.created_at)
   // Seuls les avatars dont la voix est configurée
   return rows.filter((r) => !!r.voice_id)
@@ -117,6 +120,7 @@ export async function updateAvatar(
   }>
 ) {
   const user = await getAuthUser()
+  const ids = await collaboratorUserIds(user.id)   // soi + co-membres → avatars partagés éditables
 
   const [updated] = await db
     .update(avatars)
@@ -124,8 +128,8 @@ export async function updateAvatar(
       ...data,
       updated_at: new Date(),
     })
-    // user_id dans le WHERE — la mutation ne touche jamais l'avatar d'un autre utilisateur
-    .where(and(eq(avatars.id, id), eq(avatars.user_id, user.id)))
+    // Limité aux avatars d'un collaborateur (soi ou co-membre d'une marque partagée).
+    .where(and(eq(avatars.id, id), inArray(avatars.user_id, ids)))
     .returning()
 
   if (!updated) {
@@ -141,13 +145,14 @@ export async function updateAvatar(
 
 export async function deleteAvatar(id: string) {
   const user = await getAuthUser()
+  const ids = await collaboratorUserIds(user.id)
 
   const [avatar] = await db
     .select({ user_id: avatars.user_id })
     .from(avatars)
     .where(eq(avatars.id, id))
 
-  if (!avatar || avatar.user_id !== user.id) {
+  if (!avatar || !ids.includes(avatar.user_id)) {
     throw new Error('Avatar introuvable ou accès refusé')
   }
 
